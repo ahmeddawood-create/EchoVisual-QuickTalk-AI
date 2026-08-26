@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EchoVisual &amp; QuickTalk AI</title>
+    <!-- Tailwind CSS via CDN (no build step per AGENTS.md) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ink: '#0a0c10',
+                        panel: '#10141b',
+                        raised: '#161b24',
+                        edge: '#212836',
+                        cobalt: { DEFAULT: '#2563eb', soft: '#3b82f6', dim: '#1e40af' },
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'system-ui', 'sans-serif'],
+                        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+                    },
+                },
+            },
+        };
+    </script>
+    <!-- Typography: Outfit for UI, IBM Plex Mono for data (font-display swap) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Mermaid.js via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <!-- App styles & logic (extracted from this file per AGENTS.md 500-line rule) -->
+    <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-ink text-slate-200 min-h-[100dvh] flex flex-col font-sans antialiased">
+
+    <!-- ======================= Header (64px, single line) ======================= -->
+    <header class="h-16 shrink-0 flex items-center justify-between px-5 border-b border-edge bg-panel">
+        <div class="flex items-center gap-3 min-w-0">
+            <div class="w-8 h-8 shrink-0 rounded-lg bg-cobalt flex items-center justify-center">
+                <!-- Waveform mark, inline SVG with uniform stroke width 1.5 -->
+                <svg viewBox="0 0 24 24" class="w-5 h-5 text-white" fill="none"
+                     stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                    <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" />
+                </svg>
+            </div>
+            <div class="min-w-0">
+                <h1 class="text-sm font-semibold tracking-tight text-white truncate leading-tight">
+                    EchoVisual &amp; QuickTalk
+                </h1>
+                <p class="text-[11px] text-slate-500 font-mono truncate">classroom accessibility bridge</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 shrink-0">
+            <!-- Audio meter: visible only while listening -->
+            <div id="audio-meter" class="hidden items-end gap-[3px] h-5" aria-hidden="true">
+                <span class="meter-bar w-[3px] h-full rounded-sm bg-cobalt-soft"></span>
+                <span class="meter-bar w-[3px] h-full rounded-sm bg-cobalt-soft"></span>
+                <span class="meter-bar w-[3px] h-full rounded-sm bg-cobalt-soft"></span>
+                <span class="meter-bar w-[3px] h-full rounded-sm bg-cobalt-soft"></span>
+            </div>
+            <span id="status-pill"
+                  class="font-mono text-[11px] px-3 py-1.5 rounded-full bg-raised text-slate-400 border border-edge">
+                idle
+            </span>
+            <button id="start-class-btn"
+                    class="px-4 py-2 rounded-lg bg-cobalt hover:bg-cobalt-soft text-white text-sm font-semibold transition-colors whitespace-nowrap">
+                Start Class
+            </button>
+        </div>
+    </header>
+
+    <p id="mic-warning" class="hidden text-xs text-amber-300 bg-amber-950/40 border-b border-amber-900/50 px-5 py-2">
+        Speech recognition needs Chrome or Edge and a secure context (localhost or HTTPS).
+    </p>
+
+    <!-- ============ Main: Live Caption sidebar + stacked modules ============ -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 lg:overflow-hidden min-h-0">
+
+        <!-- Panel 1: Live Caption (tall, large-text side box for the deaf student) -->
+        <section class="lg:col-span-4 flex flex-col bg-panel border border-edge rounded-2xl overflow-hidden min-h-[300px] lg:min-h-0"
+                 aria-label="Live caption of classroom speech">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-edge">
+                <div class="flex items-center gap-2.5">
+                    <span id="caption-dot" class="w-2 h-2 rounded-full bg-slate-600 transition-colors"></span>
+                    <h2 class="text-sm font-semibold text-white tracking-tight">Live Caption</h2>
+                </div>
+                <span class="font-mono text-[11px] text-slate-500">classroom audio</span>
+            </div>
+            <!-- Rigid layout: body height is fixed with viewport units at every
+                 breakpoint so the box never grows with content; text scrolls inside. -->
+            <div id="caption-body"
+                 class="h-72 lg:h-[calc(100dvh-160px)] overflow-auto slim-scroll px-5 py-4 text-lg md:text-xl leading-relaxed text-slate-100">
+                <p id="caption-empty" class="text-base text-slate-500">Captions appear here when someone speaks.</p>
+                <span id="caption-final"></span><span id="caption-interim" class="text-slate-400"></span>
+            </div>
+        </section>
+
+        <!-- Right column: Teacher Visual Stream (top) + Student Expression Board (bottom) -->
+        <div class="lg:col-span-8 flex flex-col gap-4 min-h-0">
+
+            <!-- Panel 2: Teacher Visual Stream -->
+            <section class="flex-1 flex flex-col bg-panel border border-edge rounded-2xl overflow-hidden min-h-[280px] lg:min-h-0">
+                <div class="flex items-center justify-between px-5 py-3 border-b border-edge">
+                    <h2 class="text-sm font-semibold text-white tracking-tight">Teacher Visual Stream</h2>
+                    <span id="last-update" class="font-mono text-[11px] text-slate-500">awaiting first chunk</span>
+                </div>
+
+                <!-- Rigid layout: fixed height at every breakpoint, big diagrams scroll inside. -->
+                <div id="diagram-container"
+                     class="h-72 lg:h-[calc(100dvh-480px)] lg:min-h-[220px] bg-ink flex items-center justify-center overflow-auto p-6">
+                    <div class="text-center max-w-sm">
+                        <svg viewBox="0 0 24 24" class="w-8 h-8 mx-auto mb-3 text-slate-700" fill="none"
+                             stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                            <path d="M10 6.5h7a2 2 0 0 1 2 2V14M14 17.5H7a2 2 0 0 1-2-2V10" />
+                        </svg>
+                        <p class="text-sm text-slate-500">Diagrams render here once the class starts.</p>
+                        <p class="font-mono text-[11px] text-slate-600 mt-1">speech → transcript → mermaid</p>
+                    </div>
+                </div>
+
+                <!-- Asymmetric data strip: summary wide, terms narrow -->
+                <div class="grid grid-cols-1 md:grid-cols-5 border-t border-edge divide-y md:divide-y-0 md:divide-x divide-edge">
+                    <div class="md:col-span-3 p-4">
+                        <h3 class="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-2">Summary</h3>
+                        <ul id="summary-list" class="slim-scroll max-h-24 overflow-auto space-y-1.5 pr-1 text-sm text-slate-300">
+                            <li class="text-slate-600 italic">No summary yet.</li>
+                        </ul>
+                    </div>
+                    <div class="md:col-span-2 p-4">
+                        <h3 class="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-2">Key Terms</h3>
+                        <div id="terms-list" class="slim-scroll max-h-24 overflow-auto flex flex-wrap gap-1.5 pr-1">
+                            <span class="text-slate-600 italic text-sm">None yet.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p id="error-banner"
+                   class="invisible text-xs text-red-300 bg-red-950/50 border-t border-red-900/60 px-5 py-2.5 font-mono"></p>
+            </section>
+
+            <!-- Panel 3: Student Expression Board (wide, compact two-column) -->
+            <section class="shrink-0 bg-panel border border-edge rounded-2xl overflow-hidden">
+                <div class="flex items-center justify-between px-5 py-3 border-b border-edge">
+                    <h2 class="text-sm font-semibold text-white tracking-tight">Student Expression Board</h2>
+                    <span class="font-mono text-[11px] text-slate-500">shorthand → voice</span>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4 p-4">
+                    <!-- Left: input + actions -->
+                    <div class="flex flex-col gap-3">
+                        <div class="relative">
+                            <textarea id="shorthand-input" rows="3"
+                                      placeholder="Type shorthand or fragments, e.g. q about grav?? fast pls"
+                                      class="w-full bg-ink border border-edge rounded-xl p-3.5 pr-16 text-sm text-slate-100 placeholder-slate-600 resize-none focus:outline-none focus:ring-2 focus:ring-cobalt focus:border-cobalt transition-shadow"></textarea>
+                            <span id="char-count" class="absolute bottom-3 right-3.5 font-mono text-[10px] text-slate-600">0</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="speak-btn"
+                                    class="flex-1 px-4 py-2.5 rounded-lg bg-cobalt hover:bg-cobalt-soft text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">
+                                Speak
+                            </button>
+                            <button id="clear-btn"
+                                    class="px-4 py-2.5 rounded-lg bg-raised hover:bg-edge text-slate-300 text-sm transition-colors">
+                                Clear
+                            </button>
+                        </div>
+                        <p class="font-mono text-[10px] text-slate-600 -mt-1">Ctrl+Enter to speak. Falls back to raw text if the AI is unreachable.</p>
+                    </div>
+                    <!-- Right: quick actions + spoken log -->
+                    <div class="flex flex-col gap-3 min-w-0">
+                        <div>
+                            <h3 class="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-2">Quick Actions</h3>
+                            <div class="flex flex-wrap gap-2">
+                                <button class="preset-btn px-3 py-2 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-300 border border-edge transition-colors"
+                                        data-text="Could you please repeat the last point?">Repeat last point</button>
+                                <button class="preset-btn px-3 py-2 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-300 border border-edge transition-colors"
+                                        data-text="I have a question about this topic.">I have a question</button>
+                                <button class="preset-btn px-3 py-2 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-300 border border-edge transition-colors"
+                                        data-text="Could you please slow down a little?">Slow down</button>
+                                <button class="preset-btn px-3 py-2 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-300 border border-edge transition-colors"
+                                        data-text="Thank you for explaining that.">Thank you</button>
+                            </div>
+                        </div>
+                        <div class="min-h-0">
+                            <h3 class="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-2">Spoken Log</h3>
+                            <ul id="spoken-log" class="slim-scroll max-h-36 overflow-auto space-y-2 text-sm">
+                                <li class="text-slate-600 italic text-xs">Nothing spoken yet.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- App logic last: depends on Mermaid (loaded above) and the DOM -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
