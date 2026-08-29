@@ -50,6 +50,15 @@ let recognition = null;
 let isListening = false;
 let interimBuffer = '';
 
+// Auto-Diagram Periodic & Debounce State
+let autoDiagramInterval = null;
+let autoDiagramTimer = null;
+let lastAutoDiagramTranscript = '';
+let lastAutoDiagramAt = 0;
+const AUTO_DIAGRAM_INTERVAL_MS = 8000;
+const AUTO_DIAGRAM_DEBOUNCE_MS = 3000;
+const AUTO_DIAGRAM_MIN_NEW_CHARS = 20;
+
 // Rate-limited API Queue State
 const apiQueue = [];
 let queueRunning = false;
@@ -696,6 +705,7 @@ function initLiveSpeechRecognition() {
             }
         }
         renderCaption(interim);
+        scheduleAutoDiagramDebounced();
     };
 
     recognition.onerror = (event) => {
@@ -748,9 +758,108 @@ function renderCaption(interimText) {
     saveCurrentSessionToStorage();
 }
 
+// ------------------------------------------------------------------
+// Auto-Diagram Generation Engine (Real-Time from Captions)
+// ------------------------------------------------------------------
+function checkAndTriggerAutoDiagram(force = false) {
+    if (!isListening && !force) return;
+    const current = getCurrentLectureTranscript();
+    if (current.length < 15) return;
+
+    const diff = current.length - lastAutoDiagramTranscript.length;
+    if (force || diff >= AUTO_DIAGRAM_MIN_NEW_CHARS || (lastAutoDiagramTranscript === '' && current.length >= 15)) {
+        triggerAutoDiagram();
+    }
+}
+
+function scheduleAutoDiagramDebounced() {
+    if (!isListening) return;
+    if (autoDiagramTimer) clearTimeout(autoDiagramTimer);
+    autoDiagramTimer = setTimeout(() => {
+        checkAndTriggerAutoDiagram();
+    }, AUTO_DIAGRAM_DEBOUNCE_MS);
+}
+
+function triggerAutoDiagram() {
+    const raw = getCurrentLectureTranscript();
+    if (raw.length < 15) return;
+    if (raw === lastAutoDiagramTranscript) return;
+
+    lastAutoDiagramTranscript = raw;
+    lastAutoDiagramAt = Date.now();
+    const chunk = raw.slice(-MAX_TRANSCRIPT_CHARS);
+    enqueueApiTask('diagram', chunk);
+}
+
+function resetClassroomForNewClass() {
+    // 1. Reset state variables
+    interimBuffer = '';
+    sessionDiagrams = [];
+    currentDiagramIndex = -1;
+    allSessionKeyTerms.clear();
+    spokenHistory = [];
+    sessionStartTime = new Date();
+    lastAutoDiagramTranscript = '';
+    lastAutoDiagramAt = 0;
+
+    // 2. Clear captions UI
+    const finalSpan = $('caption-final');
+    const interimSpan = $('caption-interim');
+    const emptyP = $('caption-empty');
+    if (finalSpan) finalSpan.textContent = '';
+    if (interimSpan) interimSpan.textContent = '';
+    if (emptyP) emptyP.classList.remove('hidden');
+
+    // 3. Clear translation UI
+    const transTarget = $('translated-text-target');
+    const transEmpty = $('translated-empty');
+    const transActions = $('translated-actions');
+    if (transTarget) transTarget.textContent = '';
+    if (transEmpty) transEmpty.classList.remove('hidden');
+    if (transActions) transActions.classList.add('hidden');
+
+    // 4. Clear Diagram UI
+    const diagWrapper = $('diagram-svg-wrapper');
+    if (diagWrapper) {
+        diagWrapper.innerHTML = `
+            <div class="text-center max-w-sm select-none">
+                <svg viewBox="0 0 24 24" class="w-8 h-8 md:w-9 md:h-9 mx-auto mb-2 text-slate-700" fill="none"
+                     stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                    <path d="M10 6.5h7a2 2 0 0 1 2 2V14M14 17.5H7a2 2 0 0 1-2-2V10" />
+                </svg>
+                <p class="text-xs md:text-sm text-slate-400 font-medium">Start Class to generate visual diagrams live from speech.</p>
+                <p class="font-mono text-[10px] md:text-[11px] text-slate-600 mt-1">speech recorded -> diagrams auto-update -> on-demand study materials</p>
+            </div>
+        `;
+    }
+    const lastUp = $('last-update');
+    if (lastUp) lastUp.textContent = 'auto-updates from speech';
+    updateTimelineControls();
+
+    // 5. Clear Study Hub (Notes, Summary, Terms, Quiz, Flashcards)
+    renderSummaryAndNotes([], [], []);
+    renderQuiz([]);
+    renderFlashcards([]);
+    if ($('quiz-badge')) $('quiz-badge').textContent = '0';
+    if ($('flashcard-badge')) $('flashcard-badge').textContent = '0';
+    if ($('nav-study-badge')) $('nav-study-badge').textContent = '0';
+
+    // 6. Clear Expression Board Spoken Log
+    renderSpokenLog();
+
+    // 7. Update Dashboard Stats & clean last session
+    refreshStorageDashboard();
+    saveCurrentSessionToStorage();
+}
+
 function startListening() {
     if (!recognition) return;
-    if (!sessionStartTime) sessionStartTime = new Date();
+
+    // Reset and clear all previous session content when starting a new class
+    resetClassroomForNewClass();
+
     isListening = true;
 
     const dot = $('caption-dot');
@@ -770,13 +879,25 @@ function startListening() {
     const meter = $('audio-meter');
     if (meter) meter.classList.replace('hidden', 'flex');
 
+    if (autoDiagramInterval) clearInterval(autoDiagramInterval);
+    autoDiagramInterval = setInterval(() => checkAndTriggerAutoDiagram(), AUTO_DIAGRAM_INTERVAL_MS);
+
     setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
-    showToast('🎙️ Live speech transcribing across all pages. Click "Generate Diagram" whenever you want visuals!');
+    showToast('🎙️ New class started! Previous content cleared. Live speech transcribing...');
 }
 
 function stopListening() {
     isListening = false;
     if (recognition) recognition.stop();
+
+    if (autoDiagramInterval) {
+        clearInterval(autoDiagramInterval);
+        autoDiagramInterval = null;
+    }
+    if (autoDiagramTimer) {
+        clearTimeout(autoDiagramTimer);
+        autoDiagramTimer = null;
+    }
 
     const startBtn = $('start-class-btn');
     if (startBtn) {
@@ -793,9 +914,20 @@ function stopListening() {
         dot.classList.replace('bg-emerald-400', 'bg-slate-600');
     }
 
+    // Process any remaining speech captured right before stopping
+    checkAndTriggerAutoDiagram(true);
+
     setStatus('idle', 'bg-raised text-slate-400 border-edge');
-    saveCurrentSessionToStorage();
-    showToast('Class paused / mic stopped');
+
+    // Automatically archive the session snapshot with a description if there was speech or diagrams
+    const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+    if (fullText.length > 0 || sessionDiagrams.length > 0) {
+        autoSaveSessionOnClassEnd();
+        showToast('💾 Class ended. Session snapshot automatically saved to storage archive!');
+    } else {
+        saveCurrentSessionToStorage();
+        showToast('Class paused / mic stopped');
+    }
 }
 
 // ------------------------------------------------------------------
@@ -829,7 +961,8 @@ function initOnCommandGenerator() {
         }
 
         const chunk = raw.slice(-MAX_TRANSCRIPT_CHARS);
-        showToast('⚡ Generating diagram and summary on command...');
+        lastAutoDiagramTranscript = raw;
+        showToast('⚡ Refreshing diagram from speech...');
         enqueueApiTask('diagram', chunk);
     });
 }
@@ -1817,13 +1950,41 @@ function initChatbot() {
 // ------------------------------------------------------------------
 // Session Storage Archive & Export Engine
 // ------------------------------------------------------------------
+function generateSessionDescription(transcript, diagrams, keyTerms) {
+    const termsArr = Array.from(keyTerms || []);
+    if (termsArr.length > 0) {
+        return `Lecture covering ${termsArr.slice(0, 4).join(', ')}`;
+    }
+
+    if (diagrams && diagrams.length > 0) {
+        for (const d of diagrams) {
+            if (d.summary_bullets && d.summary_bullets.length > 0) {
+                const firstBullet = d.summary_bullets[0].trim();
+                if (firstBullet.length > 0) {
+                    return firstBullet.length > 60 ? firstBullet.slice(0, 57) + '...' : firstBullet;
+                }
+            }
+        }
+    }
+
+    const cleanText = (transcript || '').trim().replace(/\s+/g, ' ');
+    if (cleanText.length > 0) {
+        return cleanText.length > 50 ? cleanText.slice(0, 47) + '...' : cleanText;
+    }
+
+    return 'Classroom Lecture Session';
+}
+
 function saveCurrentSessionToStorage() {
+    const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+    const desc = generateSessionDescription(fullText, sessionDiagrams, allSessionKeyTerms);
     const currentSession = {
         id: sessionStartTime ? sessionStartTime.getTime() : Date.now(),
         date: sessionStartTime ? sessionStartTime.toLocaleString() : new Date().toLocaleString(),
-        transcript: interimBuffer,
-        diagrams: sessionDiagrams,
-        spokenLog: spokenHistory,
+        description: desc,
+        transcript: fullText,
+        diagrams: [...sessionDiagrams],
+        spokenLog: [...spokenHistory],
         keyTerms: Array.from(allSessionKeyTerms),
     };
     try {
@@ -1841,18 +2002,54 @@ function getSavedSessions() {
     }
 }
 
+function autoSaveSessionOnClassEnd() {
+    const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+    const desc = generateSessionDescription(fullText, sessionDiagrams, allSessionKeyTerms);
+    const sessionSnapshot = {
+        id: sessionStartTime ? sessionStartTime.getTime() : Date.now(),
+        date: sessionStartTime ? sessionStartTime.toLocaleString() : new Date().toLocaleString(),
+        description: desc,
+        transcript: fullText,
+        diagrams: [...sessionDiagrams],
+        spokenLog: [...spokenHistory],
+        keyTerms: Array.from(allSessionKeyTerms),
+    };
+
+    const list = getSavedSessions();
+    const existingIndex = list.findIndex((s) => s.id === sessionSnapshot.id);
+    if (existingIndex >= 0) {
+        list[existingIndex] = sessionSnapshot;
+    } else {
+        list.unshift(sessionSnapshot);
+        while (list.length > 15) list.pop();
+    }
+
+    try {
+        localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(list));
+        localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(sessionSnapshot));
+    } catch (e) {
+        console.warn('LocalStorage save error:', e);
+    }
+
+    renderSavedSessionsList();
+    refreshStorageDashboard();
+}
+
 function saveCurrentSnapshot() {
+    const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+    const desc = generateSessionDescription(fullText, sessionDiagrams, allSessionKeyTerms);
     const currentSession = {
         id: Date.now(),
         date: new Date().toLocaleString(),
-        transcript: interimBuffer,
-        diagrams: sessionDiagrams,
-        spokenLog: spokenHistory,
+        description: desc,
+        transcript: fullText,
+        diagrams: [...sessionDiagrams],
+        spokenLog: [...spokenHistory],
         keyTerms: Array.from(allSessionKeyTerms),
     };
     const list = getSavedSessions();
     list.unshift(currentSession);
-    while (list.length > 10) list.pop();
+    while (list.length > 15) list.pop();
     localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(list));
     renderSavedSessionsList();
     refreshStorageDashboard();
@@ -1874,25 +2071,32 @@ function renderSavedSessionsList() {
     if (!list.length) {
         listEl.innerHTML = `
             <div class="text-xs text-slate-500 italic p-4 bg-raised rounded-xl border border-edge text-center">
-                No saved sessions in archive. Click "+ Save Current Snapshot" above to save one.
+                No saved sessions in archive. Sessions are automatically saved when class ends.
             </div>
         `;
         return;
     }
 
     listEl.innerHTML = list.map((s, idx) => `
-        <div class="p-4 bg-raised border border-edge rounded-2xl flex items-center justify-between gap-4 text-xs shadow-sm">
-            <div>
-                <div class="font-semibold text-white text-sm">${escapeHtml(s.date)}</div>
-                <div class="text-xs text-slate-400 font-mono mt-0.5">
-                    ${s.diagrams ? s.diagrams.length : 0} diagrams • ${(s.transcript || '').length} chars • ${(s.spokenLog || []).length} questions spoken
+        <div class="p-4 bg-raised border border-edge rounded-2xl flex items-center justify-between gap-4 text-xs shadow-sm hover:border-accent/40 transition-colors">
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-white text-sm">${escapeHtml(s.date)}</span>
+                    <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/30 font-medium truncate max-w-sm">
+                        ${escapeHtml(s.description || 'Classroom Lecture Session')}
+                    </span>
+                </div>
+                <div class="text-xs text-slate-400 font-mono mt-1">
+                    ${s.diagrams ? s.diagrams.length : 0} diagrams • ${(s.transcript || '').length} chars • ${(s.keyTerms || []).length} key terms • ${(s.spokenLog || []).length} spoken questions
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="window.restoreSessionByIndex(${idx})" class="px-3.5 py-1.5 rounded-lg bg-panel hover:bg-edge text-slate-200 border border-edge font-mono font-medium transition-colors">
+            <div class="flex items-center gap-2 shrink-0">
+                <button onclick="window.restoreSessionByIndex(${idx})" title="Restore session to Classroom & Study Hub"
+                        class="px-3 py-1.5 rounded-lg bg-panel hover:bg-edge text-slate-200 border border-edge font-mono text-xs font-medium transition-colors">
                     Restore to View
                 </button>
-                <button onclick="window.deleteSessionByIndex(${idx})" class="p-1.5 rounded-lg hover:bg-red-950 text-slate-400 hover:text-red-400 transition-colors">
+                <button onclick="window.deleteSessionByIndex(${idx})" title="Delete archived session"
+                        class="p-1.5 rounded-lg hover:bg-red-950 text-slate-400 hover:text-red-400 transition-colors">
                     <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
@@ -2154,21 +2358,11 @@ function initStorageActions() {
     const restoreBtn = $('restore-last-session-btn');
     const dlMd = $('download-study-guide-btn');
     const dlHtml = $('download-html-report-btn');
-    const dlTxt = $('download-transcript-txt-btn');
-    const dlJson = $('download-session-json-btn');
 
     if (saveBtn) saveBtn.addEventListener('click', saveCurrentSnapshot);
     if (restoreBtn) restoreBtn.addEventListener('click', restoreLastSession);
     if (dlMd) dlMd.addEventListener('click', exportMarkdownStudyGuide);
     if (dlHtml) dlHtml.addEventListener('click', exportHtmlStudyReport);
-    if (dlTxt) {
-        dlTxt.addEventListener('click', () => {
-            const raw = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
-            downloadTextFile(`transcript_${fileStamp()}.txt`, raw);
-            showToast('Transcript text file downloaded');
-        });
-    }
-    if (dlJson) dlJson.addEventListener('click', exportSessionJson);
 }
 
 // ------------------------------------------------------------------

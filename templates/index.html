@@ -346,15 +346,15 @@
                 <!-- Rigid Diagram Canvas Container -->
                 <div id="diagram-container" class="flex-1 min-h-0 min-w-0 bg-ink flex items-center justify-center p-4 md:p-6 border-b border-edge overflow-auto">
                     <div id="diagram-svg-wrapper" class="w-full h-full min-h-0 min-w-0 flex items-center justify-center">
-                        <div class="text-center max-w-sm">
+                        <div class="text-center max-w-sm select-none">
                             <svg viewBox="0 0 24 24" class="w-8 h-8 md:w-9 md:h-9 mx-auto mb-2 text-slate-700" fill="none"
                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="3" y="3" width="7" height="7" rx="1.5" />
                                 <rect x="14" y="14" width="7" height="7" rx="1.5" />
                                 <path d="M10 6.5h7a2 2 0 0 1 2 2V14M14 17.5H7a2 2 0 0 1-2-2V10" />
                             </svg>
-                            <p class="text-xs md:text-sm text-slate-400 font-medium">Click "Generate Diagram" to create visuals on command.</p>
-                            <p class="font-mono text-[10px] md:text-[11px] text-slate-600 mt-1">speech recorded → click Generate → diagrams &amp; study pack</p>
+                            <p class="text-xs md:text-sm text-slate-400 font-medium">Start Class to generate visual diagrams live from speech.</p>
+                            <p class="font-mono text-[10px] md:text-[11px] text-slate-600 mt-1">speech recorded -> diagrams auto-update -> on-demand study materials</p>
                         </div>
                     </div>
                 </div>
@@ -733,7 +733,7 @@
             <!-- Export & Download Formats Grid -->
             <div class="bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-3 shrink-0">
                 <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">Download &amp; Export Center</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button id="download-study-guide-btn"
                             class="flex flex-col p-4 rounded-xl bg-raised hover:bg-edge border border-edge text-left transition-all group shadow-sm">
                         <div class="w-9 h-9 rounded-lg bg-accent/15 group-hover:bg-accent/25 text-accent flex items-center justify-center mb-3">
@@ -759,31 +759,6 @@
                         </div>
                         <div class="text-sm font-semibold text-white">Interactive HTML Report</div>
                         <div class="text-xs text-slate-400 mt-1">Standalone offline viewer with diagrams &amp; notes</div>
-                    </button>
-
-                    <button id="download-transcript-txt-btn"
-                            class="flex flex-col p-4 rounded-xl bg-raised hover:bg-edge border border-edge text-left transition-all group shadow-sm">
-                        <div class="w-9 h-9 rounded-lg bg-accent/15 group-hover:bg-accent/25 text-accent flex items-center justify-center mb-3">
-                            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="7 10 12 15 17 10"/>
-                                <line x1="12" y1="15" x2="12" y2="3"/>
-                            </svg>
-                        </div>
-                        <div class="text-sm font-semibold text-white">Transcript Only (.txt)</div>
-                        <div class="text-xs text-slate-400 mt-1">Clean plain text file of classroom speech</div>
-                    </button>
-
-                    <button id="download-session-json-btn"
-                            class="flex flex-col p-4 rounded-xl bg-raised hover:bg-edge border border-edge text-left transition-all group shadow-sm">
-                        <div class="w-9 h-9 rounded-lg bg-accent/15 group-hover:bg-accent/25 text-accent flex items-center justify-center mb-3">
-                            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                                <polyline points="17 21 17 13 7 13 7 21"/>
-                            </svg>
-                        </div>
-                        <div class="text-sm font-semibold text-white">Full Session Data (.json)</div>
-                        <div class="text-xs text-slate-400 mt-1">Complete structured backup for archival</div>
                     </button>
                 </div>
             </div>
