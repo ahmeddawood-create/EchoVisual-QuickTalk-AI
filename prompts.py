@@ -10,32 +10,48 @@ DIAGRAM_SYSTEM_INSTRUCTIONS = (
     "or code-switched bilingual speech) into clear visual learning aids for deaf/hard-of-hearing students."
 )
 
-DIAGRAM_PROMPT_TEMPLATE = """Turn this classroom transcript into a visual study aid.
-NOTE: The speech may contain English, Roman Urdu (Urdu written in Latin script), or mixed bilingual speech. Understand both seamlessly.
+DIAGRAM_PROMPT_TEMPLATE = """Turn this classroom transcript into a visual study aid with comprehensive study materials.
+NOTE: The speech may contain English, Roman Urdu (Urdu written in Latin script), Urdu script, or mixed bilingual speech. Understand all seamlessly.
 
 TRANSCRIPT:
 \"\"\"{transcript}\"\"\"
 
-Return ONLY a JSON object with these keys:
+Return ONLY a valid JSON object with these exact keys:
 1. "diagram_code": a valid Mermaid.js diagram of the concept or flow. Raw syntax only
    (start with "flowchart TD" or "graph LR"), no markdown fences, no explanation.
    Maximum 8 nodes with short labels. Use clear English or bilingual terms for nodes.
-2. "summary_bullets": 2 to 3 short plain-language strings summarizing the key points
-   (in clear English or Roman Urdu matching the lecture style).
-3. "key_terms": 2 to 4 important terms mentioned or implied.
+2. "summary_bullets": 2 to 3 short plain-language strings summarizing key lecture points.
+3. "key_terms": 2 to 4 important technical or conceptual terms.
+4. "short_notes": 2 to 4 clear, high-yield study note bullet strings explaining the concept in depth.
+5. "quiz": an array of 2 multiple-choice questions based on this lecture, formatted as:
+   [
+     {{
+       "question": "Clear question text?",
+       "options": ["A. Option 1", "B. Option 2", "C. Option 3", "D. Option 4"],
+       "answer": "A. Option 1",
+       "explanation": "Brief explanation why this answer is correct."
+     }}
+   ]
+6. "flashcards": an array of 2 to 3 concept flashcards formatted as:
+   [
+     {{
+       "front": "Term or Concept",
+       "back": "Short, clear definition or explanation"
+     }}
+   ]
 
 If the transcript is too short or unclear, return:
-{{"diagram_code": "flowchart TD\\nA[Waiting for more context]", "summary_bullets": [], "key_terms": []}}
+{{"diagram_code": "flowchart TD\\nA[Waiting for more context]", "summary_bullets": [], "key_terms": [], "short_notes": [], "quiz": [], "flashcards": []}}
 """
 
 SHORTHAND_SYSTEM_INSTRUCTIONS = (
     "You are a speech-refinement assistant for students who communicate in shorthand, slang, English, "
     "or Roman Urdu (e.g. 'sir q abt gravity?? fast smjhaen', 'ye repeat kr den pls'). "
-    "You expand fragmented notes into polite, confident, natural spoken sentences suitable for a classroom."
+    "You expand fragmented notes into articulate, natural spoken sentences suitable for a classroom."
 )
 
-SHORTHAND_PROMPT_TEMPLATE = """Rewrite this student shorthand (which may be in English, Roman Urdu, or slang)
-as ONE clear, polite, grammatically correct sentence suitable for speaking aloud to the teacher and class.
+SHORTHAND_PROMPT_TEMPLATE = """Rewrite this student shorthand (which may be in English, Roman Urdu, or fragments)
+as ONE clear, {tone}, grammatically correct sentence suitable for speaking aloud to the teacher and class.
 Preserve the exact meaning and intent. Output only the sentence, nothing else.
 
 SHORTHAND:

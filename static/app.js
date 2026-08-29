@@ -1,202 +1,108 @@
-/* EchoVisual & QuickTalk AI: Application Logic (v2.0) */
+/* ==========================================================================
+   EchoVisual & QuickTalk AI — Frontend Application Logic (v2.6)
+   Features:
+   1. Light/Dark Mode & 5 Color Palettes
+   2. Web Speech Live Continuous Transcription with Urdu (ur-PK) & English (en-US)
+   3. On-Command ONLY Generation for Diagrams, Short Notes, Quiz & Flashcards
+   4. Mermaid.js Diagrams + Timeline Slider + Resizing + Zoom + SVG/PNG Export
+   5. Interactive Study Hub (Notes & Summary, Interactive MCQs, 3D Flashcards)
+   6. Live Multi-Language Translation (Urdu Nastaliq RTL, Roman Urdu, Arabic, etc.)
+   7. Student Expression Board with Auto-speak on New Line, Tones, Presets & Log Replay
+   8. AI Chatbot Assistant with Lecture Context & Bilingual Capabilities
+   9. LocalStorage Session Archive & Study Guide Exports (.md, .html, .json)
+   ========================================================================== */
+
 'use strict';
 
 // ------------------------------------------------------------------
 // Configuration & Constants
 // ------------------------------------------------------------------
-const API_BASE = window.location.origin;          // served by FastAPI
-const CHUNK_FLUSH_MS = 8000;                      // finalize buffer every 8s
-const MIN_API_GAP_MS = 4100;                      // 1 req / 4.1s -> max 14/min (safely < 15 RPM cap)
-const MAX_TRANSCRIPT_CHARS = 4000;                // mirrors backend limit
+const API_BASE = window.location.origin;
+const MIN_API_GAP_MS = 3500;
+const MAX_TRANSCRIPT_CHARS = 4000;
 const LAST_SESSION_KEY = 'echovisual_last_session';
 const SAVED_SESSIONS_KEY = 'echovisual_saved_sessions';
 const THEME_STORAGE_KEY = 'echovisual_theme';
 const COLOR_MODE_KEY = 'echovisual_color_mode';
+const CUSTOM_PRESETS_KEY = 'echovisual_custom_presets';
 
 // ------------------------------------------------------------------
-// DOM references
+// Application State
 // ------------------------------------------------------------------
-const startBtn = document.getElementById('start-class-btn');
-const statusPill = document.getElementById('status-pill');
-const audioMeter = document.getElementById('audio-meter');
-const micWarning = document.getElementById('mic-warning');
-
-// Light/Dark Mode
-const colorModeToggleBtn = document.getElementById('color-mode-toggle-btn');
-const modeIcon = document.getElementById('mode-icon');
-const modeText = document.getElementById('mode-text');
-
-// Live Caption & Translation
-const captionBody = document.getElementById('caption-body');
-const captionFinal = document.getElementById('caption-final');
-const captionInterim = document.getElementById('caption-interim');
-const captionEmpty = document.getElementById('caption-empty');
-const captionDot = document.getElementById('caption-dot');
-const speakCaptionBtn = document.getElementById('speak-caption-btn');
-const speakCaptionLabel = document.getElementById('speak-caption-label');
-const copyCaptionBtn = document.getElementById('copy-caption-btn');
-const downloadCaptionBtn = document.getElementById('download-caption-btn');
-const clearCaptionBtn = document.getElementById('clear-caption-btn');
-
-// Translation Tab & Elements
-const tabOriginalBtn = document.getElementById('tab-original-btn');
-const tabTranslatedBtn = document.getElementById('tab-translated-btn');
-const transBadge = document.getElementById('trans-badge');
-const captionLangSelect = document.getElementById('caption-lang-select');
-const translateCaptionBtn = document.getElementById('translate-caption-btn');
-const captionTranslatedBody = document.getElementById('caption-translated-body');
-const translatedContentWrapper = document.getElementById('translated-content-wrapper');
-const translatedEmpty = document.getElementById('translated-empty');
-const translatedTextTarget = document.getElementById('translated-text-target');
-const translatedActions = document.getElementById('translated-actions');
-const translatedLangIndicator = document.getElementById('translated-lang-indicator');
-const speakTranslatedBtn = document.getElementById('speak-translated-btn');
-const copyTranslatedBtn = document.getElementById('copy-translated-btn');
-
-// Diagram & Stream
-const diagramContainer = document.getElementById('diagram-container');
-const diagramSvgWrapper = document.getElementById('diagram-svg-wrapper');
-const lastUpdate = document.getElementById('last-update');
-const summaryList = document.getElementById('summary-list');
-const termsList = document.getElementById('terms-list');
-const errorBanner = document.getElementById('error-banner');
-
-// Diagram Toolbar & Timeline Slider
-const prevDiagramBtn = document.getElementById('prev-diagram-btn');
-const nextDiagramBtn = document.getElementById('next-diagram-btn');
-const diagramSlider = document.getElementById('diagram-slider');
-const diagramCounter = document.getElementById('diagram-counter');
-const liveFollowToggle = document.getElementById('live-follow-toggle');
-const zoomInBtn = document.getElementById('zoom-in-btn');
-const zoomOutBtn = document.getElementById('zoom-out-btn');
-const zoomResetBtn = document.getElementById('zoom-reset-btn');
-const zoomLabel = document.getElementById('zoom-label');
-const diagramFullscreenBtn = document.getElementById('diagram-fullscreen-btn');
-const copyDiagramBtn = document.getElementById('copy-diagram-btn');
-const copySummaryBtn = document.getElementById('copy-summary-btn');
-const downloadSvgBtn = document.getElementById('download-svg-btn');
-const downloadPngBtn = document.getElementById('download-png-btn');
-const sessionDiagramBadge = document.getElementById('session-diagram-badge');
-
-// Student Expression Board
-const shorthandInput = document.getElementById('shorthand-input');
-const charCount = document.getElementById('char-count');
-const speakBtn = document.getElementById('speak-btn');
-const clearBtn = document.getElementById('clear-btn');
-const spokenLog = document.getElementById('spoken-log');
-
-// AI Chatbot
-const toggleChatBtn = document.getElementById('toggle-chat-btn');
-const chatDrawer = document.getElementById('chat-drawer');
-const closeChatBtn = document.getElementById('close-chat-btn');
-const clearChatBtn = document.getElementById('clear-chat-btn');
-const chatForm = document.getElementById('chat-form');
-const chatInput = document.getElementById('chat-input');
-const chatMessages = document.getElementById('chat-messages');
-const chatIncludeContext = document.getElementById('chat-include-context');
-
-// Session Storage Modal
-const openStorageBtn = document.getElementById('open-storage-btn');
-const storageModal = document.getElementById('storage-modal');
-const closeStorageModalBtn = document.getElementById('close-storage-modal-btn');
-const closeStorageModalBtn2 = document.getElementById('close-storage-modal-btn-2');
-const statDiagrams = document.getElementById('stat-diagrams');
-const statCaptions = document.getElementById('stat-captions');
-const statTerms = document.getElementById('stat-terms');
-const statStatus = document.getElementById('stat-status');
-const saveCurrentSessionBtn = document.getElementById('save-current-session-btn');
-const restoreLastSessionBtn = document.getElementById('restore-last-session-btn');
-const savedSessionsList = document.getElementById('saved-sessions-list');
-const downloadStudyGuideBtn = document.getElementById('download-study-guide-btn');
-const downloadHtmlReportBtn = document.getElementById('download-html-report-btn');
-const downloadTranscriptTxtBtn = document.getElementById('download-transcript-txt-btn');
-const downloadSessionJsonBtn = document.getElementById('download-session-json-btn');
-
-// Fullscreen & Toast
-const fullscreenModal = document.getElementById('fullscreen-modal');
-const fullscreenDiagramBody = document.getElementById('fullscreen-diagram-body');
-const closeFullscreenBtn = document.getElementById('close-fullscreen-btn');
-const toastContainer = document.getElementById('toast-container');
-
-// ------------------------------------------------------------------
-// State Variables
-// ------------------------------------------------------------------
-let sessionDiagrams = [];             // Array of { id, diagram_code, svg, summary_bullets, key_terms, timestamp, timeString }
-let currentDiagramIndex = -1;         // 0-indexed currently viewed diagram
-let sessionStartTime = null;
-let currentZoom = 1.0;
-let chatHistory = [];
+let sessionDiagrams = [];
+let currentDiagramIndex = -1;
 let allSessionKeyTerms = new Set();
 let spokenHistory = [];
+let chatHistory = [];
+let sessionStartTime = null;
+let currentThemeClass = 'theme-indigo';
+let currentColorMode = 'dark';
+let zoomLevel = 1.0;
+let currentTranslationText = '';
+let currentTargetLanguage = 'Urdu (اردو)';
+let isReadingAloud = false;
+let isGeneratingDiagram = false;
+let captionSpeechUtterance = null;
+let mermaidSeq = 0;
+
+// Speech Recognition State (Continuous Live Capture)
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let isListening = false;
+let interimBuffer = '';
+
+// Rate-limited API Queue State
+const apiQueue = [];
+let queueRunning = false;
+let lastApiCallAt = 0;
 
 // ------------------------------------------------------------------
-// Theme & Color Mode (Dark / Light) Management
+// DOM Reference Utilities
 // ------------------------------------------------------------------
-let currentColorMode = localStorage.getItem(COLOR_MODE_KEY) || 'dark';
-let currentThemeClass = localStorage.getItem(THEME_STORAGE_KEY) || 'theme-indigo';
-
-function applyThemeAndMode() {
-    document.documentElement.className = `${currentColorMode} ${currentThemeClass}`;
-    localStorage.setItem(COLOR_MODE_KEY, currentColorMode);
-    localStorage.setItem(THEME_STORAGE_KEY, currentThemeClass);
-    if (modeIcon && modeText) {
-        modeIcon.textContent = currentColorMode === 'dark' ? '☀️' : '🌙';
-        modeText.textContent = currentColorMode === 'dark' ? 'Light' : 'Dark';
-    }
-}
-
-function initThemesAndModes() {
-    applyThemeAndMode();
-
-    if (colorModeToggleBtn) {
-        colorModeToggleBtn.addEventListener('click', () => {
-            currentColorMode = currentColorMode === 'dark' ? 'light' : 'dark';
-            applyThemeAndMode();
-            showToast(`Switched to ${currentColorMode.toUpperCase()} mode`);
-        });
-    }
-
-    document.querySelectorAll('.theme-select-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            currentThemeClass = btn.dataset.theme;
-            applyThemeAndMode();
-            showToast(`Theme changed to ${btn.textContent.trim()}`);
-        });
-    });
-}
-
-function setTheme(themeClass) {
-    currentThemeClass = themeClass;
-    applyThemeAndMode();
-}
+const $ = (id) => document.getElementById(id);
+const $$ = (sel) => document.querySelectorAll(sel);
 
 // ------------------------------------------------------------------
-// Toast Notification Utility
+// Toast & Banner Notifications
 // ------------------------------------------------------------------
 function showToast(message, type = 'info') {
+    const container = $('toast-container');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = 'toast pointer-events-auto px-4 py-2.5 rounded-xl bg-panel border border-edge shadow-2xl text-xs font-mono text-slate-100 flex items-center gap-2 border-accent/40';
     toast.innerHTML = `
         <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
         <span>${escapeHtml(message)}</span>
     `;
-    toastContainer.appendChild(toast);
+    container.appendChild(toast);
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(8px)';
         toast.style.transition = 'all 0.3s ease';
         setTimeout(() => toast.remove(), 300);
-    }, 2400);
+    }, 2500);
 }
 
 function showError(message) {
     console.error('UI error:', message);
-    errorBanner.textContent = message;
-    errorBanner.classList.remove('invisible');
+    const banner = $('error-banner');
+    if (banner) {
+        banner.textContent = message;
+        banner.classList.remove('invisible');
+    }
 }
 
 function clearError() {
-    errorBanner.classList.add('invisible');
+    const banner = $('error-banner');
+    if (banner) banner.classList.add('invisible');
+}
+
+function setStatus(label, classes) {
+    const pill = $('status-pill');
+    if (pill) {
+        pill.textContent = label;
+        pill.className = `font-mono text-[11px] px-3 py-1.5 rounded-full border ${classes}`;
+    }
 }
 
 function stamp() {
@@ -205,21 +111,126 @@ function stamp() {
 
 function fileStamp() {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text ?? '');
+    return div.innerHTML;
+}
+
+function copyToClipboard(text, successMsg = 'Copied to clipboard!') {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast(successMsg)).catch(() => fallbackCopy(text, successMsg));
+    } else {
+        fallbackCopy(text, successMsg);
+    }
+}
+
+function fallbackCopy(text, successMsg) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        showToast(successMsg);
+    } catch {
+        showToast('Copy failed');
+    }
+    document.body.removeChild(ta);
 }
 
 // ------------------------------------------------------------------
-// Mermaid Setup & Diagram Engine
+// Theme & Light/Dark Mode Engine
 // ------------------------------------------------------------------
-mermaid.initialize({ startOnLoad: false, theme: 'dark', suppressErrors: true });
-let mermaidSeq = 0;
+function applyThemeAndMode() {
+    const html = document.documentElement;
+    const allThemes = ['theme-indigo', 'theme-cobalt', 'theme-emerald', 'theme-violet', 'theme-cyan'];
+    allThemes.forEach((t) => html.classList.remove(t));
+    html.classList.add(currentThemeClass);
 
-async function renderDiagram(code, recordHistory = true, customSummary = null, customTerms = null) {
+    if (currentColorMode === 'light') {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        if ($('mode-icon')) $('mode-icon').textContent = '☀️';
+        if ($('mode-text')) $('mode-text').textContent = 'Light';
+    } else {
+        html.classList.remove('light');
+        html.classList.add('dark');
+        if ($('mode-icon')) $('mode-icon').textContent = '🌙';
+        if ($('mode-text')) $('mode-text').textContent = 'Dark';
+    }
+
     try {
-        const clean = code.trim().replace(/^```(mermaid)?\s*/i, '').replace(/```$/, '');
-        await mermaid.parse(clean);
-        const id = `mermaid-graph-${++mermaidSeq}`;
-        const { svg } = await mermaid.render(id, clean);
+        localStorage.setItem(THEME_STORAGE_KEY, currentThemeClass);
+        localStorage.setItem(COLOR_MODE_KEY, currentColorMode);
+    } catch (e) {
+        console.warn('LocalStorage error:', e);
+    }
+}
+
+function initThemesAndModes() {
+    try {
+        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+        if (savedTheme) currentThemeClass = savedTheme;
+        const savedMode = localStorage.getItem(COLOR_MODE_KEY);
+        if (savedMode) currentColorMode = savedMode;
+    } catch (e) {
+        console.warn('LocalStorage error:', e);
+    }
+    applyThemeAndMode();
+
+    const modeBtn = $('color-mode-toggle-btn');
+    if (modeBtn) {
+        modeBtn.addEventListener('click', () => {
+            currentColorMode = currentColorMode === 'dark' ? 'light' : 'dark';
+            applyThemeAndMode();
+            showToast(`Switched to ${currentColorMode === 'dark' ? 'Dark 🌙' : 'Light ☀️'} Mode`);
+        });
+    }
+
+    $$('.theme-select-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const theme = btn.dataset.theme;
+            if (theme) {
+                currentThemeClass = theme;
+                applyThemeAndMode();
+                showToast(`Applied theme: ${theme.replace('theme-', '')}`);
+            }
+        });
+    });
+}
+
+// ------------------------------------------------------------------
+// Mermaid Engine & Interactive Study Materials
+// ------------------------------------------------------------------
+try {
+    if (typeof mermaid !== 'undefined') {
+        mermaid.initialize({ startOnLoad: false, theme: 'dark', suppressErrors: true });
+    }
+} catch (e) {
+    console.warn('Mermaid initialization warning:', e);
+}
+
+async function renderDiagram(code, recordHistory = true, customSummary = null, customTerms = null, customNotes = null, customQuiz = null, customFlashcards = null) {
+    try {
+        const clean = (code || '').trim().replace(/^```(mermaid)?\s*/i, '').replace(/```$/, '');
+        if (!clean) return false;
+
+        let svg = '';
+        if (typeof mermaid !== 'undefined') {
+            await mermaid.parse(clean);
+            const id = `mermaid-graph-${++mermaidSeq}`;
+            const result = await mermaid.render(id, clean);
+            svg = result.svg;
+        } else {
+            svg = `<pre class="text-xs font-mono text-slate-300 p-4">${escapeHtml(clean)}</pre>`;
+        }
 
         const snapshot = {
             id: mermaidSeq,
@@ -227,30 +238,32 @@ async function renderDiagram(code, recordHistory = true, customSummary = null, c
             svg: svg,
             summary_bullets: customSummary || [],
             key_terms: customTerms || [],
+            short_notes: customNotes || [],
+            quiz: customQuiz || [],
+            flashcards: customFlashcards || [],
             timestamp: new Date().toISOString(),
             timeString: stamp(),
         };
 
         if (recordHistory) {
             sessionDiagrams.push(snapshot);
-            snapshot.summary_bullets.forEach(b => {});
-            (customTerms || []).forEach(t => allSessionKeyTerms.add(t));
+            (customTerms || []).forEach((t) => allSessionKeyTerms.add(t));
             saveCurrentSessionToStorage();
         }
 
         const targetIndex = recordHistory ? sessionDiagrams.length - 1 : currentDiagramIndex;
-        if (liveFollowToggle.checked || !recordHistory) {
+        const liveFollow = $('live-follow-toggle');
+        if (!liveFollow || liveFollow.checked || !recordHistory) {
             displayDiagramSnapshot(targetIndex);
         } else {
             updateTimelineControls();
         }
 
         clearError();
-        console.log('Diagram rendered and recorded successfully');
         return true;
     } catch (err) {
-        console.error('Mermaid render failed, keeping previous diagram:', err);
-        showError('Gemini returned an invalid diagram. Keeping previous diagram on screen.');
+        console.error('Mermaid render error:', err);
+        showError('Gemini diagram syntax error. Showing previous diagram.');
         return false;
     }
 }
@@ -260,172 +273,624 @@ function displayDiagramSnapshot(index) {
     currentDiagramIndex = index;
     const snap = sessionDiagrams[index];
 
-    diagramSvgWrapper.innerHTML = `<div class="rise-in w-full flex items-center justify-center">${snap.svg}</div>`;
-    lastUpdate.textContent = `diagram ${snap.timeString}`;
+    const wrapper = $('diagram-svg-wrapper');
+    if (wrapper) {
+        wrapper.innerHTML = `<div class="rise-in w-full flex items-center justify-center">${snap.svg}</div>`;
+    }
 
-    renderSummary(snap.summary_bullets, snap.key_terms);
+    const lastUp = $('last-update');
+    if (lastUp) lastUp.textContent = `diagram ${snap.timeString}`;
+
+    renderSummaryAndNotes(snap.summary_bullets, snap.short_notes, snap.key_terms);
+    renderQuiz(snap.quiz);
+    renderFlashcards(snap.flashcards);
+
+    if ($('quiz-badge')) $('quiz-badge').textContent = String((snap.quiz || []).length);
+    if ($('flashcard-badge')) $('flashcard-badge').textContent = String((snap.flashcards || []).length);
+
     updateTimelineControls();
 }
 
 function updateTimelineControls() {
     const count = sessionDiagrams.length;
-    sessionDiagramBadge.textContent = String(count);
+    if ($('session-diagram-badge')) $('session-diagram-badge').textContent = String(count);
+
+    const slider = $('diagram-slider');
+    const prevBtn = $('prev-diagram-btn');
+    const nextBtn = $('next-diagram-btn');
+    const counter = $('diagram-counter');
 
     if (count === 0) {
-        diagramSlider.disabled = true;
-        diagramSlider.min = '1';
-        diagramSlider.max = '1';
-        diagramSlider.value = '1';
-        prevDiagramBtn.disabled = true;
-        nextDiagramBtn.disabled = true;
-        diagramCounter.textContent = '0 / 0';
+        if (slider) { slider.disabled = true; slider.min = '1'; slider.max = '1'; slider.value = '1'; }
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
+        if (counter) counter.textContent = '0 / 0';
         return;
     }
 
-    diagramSlider.disabled = false;
-    diagramSlider.min = '1';
-    diagramSlider.max = String(count);
-    diagramSlider.value = String(currentDiagramIndex + 1);
-
-    prevDiagramBtn.disabled = currentDiagramIndex <= 0;
-    nextDiagramBtn.disabled = currentDiagramIndex >= count - 1;
-    diagramCounter.textContent = `${currentDiagramIndex + 1} / ${count}`;
+    if (slider) {
+        slider.disabled = false;
+        slider.min = '1';
+        slider.max = String(count);
+        slider.value = String(currentDiagramIndex + 1);
+    }
+    if (prevBtn) prevBtn.disabled = currentDiagramIndex <= 0;
+    if (nextBtn) nextBtn.disabled = currentDiagramIndex >= count - 1;
+    if (counter) counter.textContent = `${currentDiagramIndex + 1} / ${count}`;
 }
 
-function renderSummary(bullets, terms) {
-    summaryList.innerHTML = (bullets && bullets.length)
-        ? bullets.map(b => `<li class="rise-in flex gap-2"><span class="text-accent font-mono mt-[1px]">›</span><span>${escapeHtml(b)}</span></li>`).join('')
-        : '<li class="text-slate-500 italic">No summary available.</li>';
+function renderSummaryAndNotes(bullets, notes, terms) {
+    const sumList = $('summary-list');
+    if (sumList) {
+        sumList.innerHTML = (bullets && bullets.length)
+            ? bullets.map((b) => `<li class="rise-in flex gap-2"><span class="text-accent font-mono mt-[1px]">›</span><span>${escapeHtml(b)}</span></li>`).join('')
+            : '<li class="text-slate-500 italic">No summary available.</li>';
+    }
 
-    termsList.innerHTML = (terms && terms.length)
-        ? terms.map(t => `<span class="rise-in px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent text-xs font-mono">${escapeHtml(t)}</span>`).join('')
-        : '<span class="text-slate-500 italic text-sm">None detected.</span>';
+    const nList = $('notes-list');
+    if (nList) {
+        nList.innerHTML = (notes && notes.length)
+            ? notes.map((n) => `<li class="rise-in flex gap-2"><span class="text-accent-soft font-mono mt-[1px]">▪</span><span>${escapeHtml(n)}</span></li>`).join('')
+            : '<li class="text-slate-500 italic">Structured notes appear when a diagram is created.</li>';
+    }
+
+    const tList = $('terms-list');
+    if (tList) {
+        tList.innerHTML = (terms && terms.length)
+            ? terms.map((t) => `<span class="rise-in px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent text-xs font-mono">${escapeHtml(t)}</span>`).join('')
+            : '<span class="text-slate-500 italic text-sm">None detected.</span>';
+    }
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
+function renderQuiz(quizItems) {
+    const container = $('quiz-questions-container');
+    if (!container) return;
+
+    if (!quizItems || !quizItems.length) {
+        container.innerHTML = '<p class="text-xs text-slate-500 italic">No quiz questions generated for this slide yet.</p>';
+        if ($('quiz-score-badge')) $('quiz-score-badge').textContent = 'Score: 0 / 0';
+        return;
+    }
+
+    let correctCount = 0;
+    const totalCount = quizItems.length;
+
+    function updateScore() {
+        if ($('quiz-score-badge')) $('quiz-score-badge').textContent = `Score: ${correctCount} / ${totalCount}`;
+    }
+    updateScore();
+
+    container.innerHTML = quizItems.map((q, qIdx) => `
+        <div class="bg-raised border border-edge rounded-xl p-3.5 space-y-2.5 rise-in" data-qidx="${qIdx}">
+            <div class="text-xs font-semibold text-white flex items-start gap-2">
+                <span class="text-accent font-mono">Q${qIdx + 1}.</span>
+                <span>${escapeHtml(q.question)}</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                ${(q.options || []).map((opt) => `
+                    <button class="quiz-option text-left px-3 py-2 rounded-lg bg-ink text-xs text-slate-200"
+                            data-qidx="${qIdx}" data-option="${escapeHtml(opt)}">
+                        ${escapeHtml(opt)}
+                    </button>
+                `).join('')}
+            </div>
+            <div class="quiz-explanation hidden p-2.5 rounded-lg bg-ink border border-edge text-xs text-slate-300">
+                <strong class="text-accent">Explanation:</strong> <span>${escapeHtml(q.explanation || 'Correct answer: ' + q.answer)}</span>
+            </div>
+        </div>
+    `).join('');
+
+    container.querySelectorAll('.quiz-option').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const card = btn.closest('[data-qidx]');
+            if (!card || card.classList.contains('answered')) return;
+            card.classList.add('answered');
+
+            const qIdx = Number(btn.dataset.qidx);
+            const selectedOpt = btn.dataset.option || '';
+            const correctOpt = quizItems[qIdx]?.answer || '';
+
+            const isCorrect = selectedOpt.trim().toLowerCase() === correctOpt.trim().toLowerCase() ||
+                              selectedOpt.slice(0, 2).toLowerCase() === correctOpt.slice(0, 2).toLowerCase();
+
+            if (isCorrect) {
+                btn.classList.add('correct');
+                correctCount++;
+                showToast('🎉 Correct answer!');
+            } else {
+                btn.classList.add('wrong');
+                card.querySelectorAll('.quiz-option').forEach((b) => {
+                    const optText = b.dataset.option || '';
+                    if (optText.trim().toLowerCase() === correctOpt.trim().toLowerCase() ||
+                        optText.slice(0, 2).toLowerCase() === correctOpt.slice(0, 2).toLowerCase()) {
+                        b.classList.add('correct');
+                    }
+                });
+                showToast('❌ Incorrect answer');
+            }
+
+            const expBox = card.querySelector('.quiz-explanation');
+            if (expBox) expBox.classList.remove('hidden');
+            updateScore();
+        });
+    });
+
+    const resetBtn = $('reset-quiz-btn');
+    if (resetBtn) {
+        resetBtn.onclick = () => renderQuiz(quizItems);
+    }
+}
+
+function renderFlashcards(flashcards) {
+    const grid = $('flashcards-grid');
+    if (!grid) return;
+
+    if (!flashcards || !flashcards.length) {
+        grid.innerHTML = '<p class="text-xs text-slate-500 italic col-span-full">No flashcards for this slide yet.</p>';
+        return;
+    }
+
+    grid.innerHTML = flashcards.map((fc, idx) => `
+        <div class="flashcard rise-in" data-card-idx="${idx}">
+            <div class="flashcard-inner">
+                <div class="flashcard-front bg-raised border border-edge text-slate-100 shadow-md">
+                    <span class="text-[10px] font-mono uppercase tracking-wider text-accent mb-1">Concept #${idx + 1}</span>
+                    <h4 class="text-xs font-semibold text-white px-2 leading-snug">${escapeHtml(fc.front)}</h4>
+                    <span class="text-[10px] text-slate-400 font-mono mt-2">↻ Click to flip</span>
+                </div>
+                <div class="flashcard-back bg-panel border border-accent/40 text-slate-200 shadow-lg">
+                    <span class="text-[10px] font-mono text-accent-soft mb-1">Explanation</span>
+                    <p class="text-xs text-slate-300 px-2 leading-relaxed">${escapeHtml(fc.back)}</p>
+                    <span class="text-[10px] text-slate-500 font-mono mt-2">↻ Click to flip back</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    grid.querySelectorAll('.flashcard').forEach((card) => {
+        card.addEventListener('click', () => card.classList.toggle('flipped'));
+    });
+}
+
+function initStudyTabs() {
+    const tabNotesBtn = $('tab-study-notes-btn');
+    const tabQuizBtn = $('tab-study-quiz-btn');
+    const tabFlashcardsBtn = $('tab-study-flashcards-btn');
+    const notesPane = $('study-notes-pane');
+    const quizPane = $('study-quiz-pane');
+    const flashcardsPane = $('study-flashcards-pane');
+
+    if (!tabNotesBtn || !tabQuizBtn || !tabFlashcardsBtn) return;
+
+    function resetTabs() {
+        tabNotesBtn.className = 'px-3 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+        tabQuizBtn.className = 'px-3 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+        tabFlashcardsBtn.className = 'px-3 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+        if (notesPane) notesPane.classList.add('hidden');
+        if (quizPane) quizPane.classList.add('hidden');
+        if (flashcardsPane) flashcardsPane.classList.add('hidden');
+    }
+
+    tabNotesBtn.addEventListener('click', () => {
+        resetTabs();
+        tabNotesBtn.className = 'px-3 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
+        if (notesPane) notesPane.classList.remove('hidden');
+    });
+
+    tabQuizBtn.addEventListener('click', () => {
+        resetTabs();
+        tabQuizBtn.className = 'px-3 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
+        if (quizPane) quizPane.classList.remove('hidden');
+    });
+
+    tabFlashcardsBtn.addEventListener('click', () => {
+        resetTabs();
+        tabFlashcardsBtn.className = 'px-3 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
+        if (flashcardsPane) flashcardsPane.classList.remove('hidden');
+    });
+
+    const copyBtn = $('copy-study-pack-btn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
+                showToast('No study notes to copy');
+                return;
+            }
+            const snap = sessionDiagrams[currentDiagramIndex];
+            const text = `Classroom Study Pack (${snap.timeString})\n\nSummary:\n${snap.summary_bullets.map((b) => `- ${b}`).join('\n')}\n\nNotes:\n${(snap.short_notes || []).map((n) => `- ${n}`).join('\n')}\n\nKey Terms: ${snap.key_terms.join(', ')}`;
+            copyToClipboard(text, '📋 Study notes copied!');
+        });
+    }
 }
 
 // ------------------------------------------------------------------
-// Diagram Timeline Slider Events
+// Zoom & Fullscreen Controls
 // ------------------------------------------------------------------
-diagramSlider.addEventListener('input', (e) => {
-    const targetIdx = Number(e.target.value) - 1;
-    if (targetIdx !== currentDiagramIndex) {
-        if (targetIdx < sessionDiagrams.length - 1) {
-            liveFollowToggle.checked = false;
+function setZoom(factor) {
+    zoomLevel = Math.max(0.5, Math.min(2.5, factor));
+    const wrapper = $('diagram-svg-wrapper');
+    if (wrapper) wrapper.style.transform = `scale(${zoomLevel})`;
+    const label = $('zoom-label');
+    if (label) label.textContent = `${Math.round(zoomLevel * 100)}%`;
+}
+
+function initZoomAndFullscreen() {
+    const zoomIn = $('zoom-in-btn');
+    if (zoomIn) zoomIn.addEventListener('click', () => setZoom(zoomLevel + 0.15));
+    const zoomOut = $('zoom-out-btn');
+    if (zoomOut) zoomOut.addEventListener('click', () => setZoom(zoomLevel - 0.15));
+    const zoomReset = $('zoom-reset-btn');
+    if (zoomReset) zoomReset.addEventListener('click', () => setZoom(1.0));
+
+    const slider = $('diagram-slider');
+    if (slider) {
+        slider.addEventListener('input', () => {
+            const idx = parseInt(slider.value, 10) - 1;
+            displayDiagramSnapshot(idx);
+        });
+    }
+
+    const prevBtn = $('prev-diagram-btn');
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+            if (currentDiagramIndex > 0) displayDiagramSnapshot(currentDiagramIndex - 1);
+        });
+    }
+
+    const nextBtn = $('next-diagram-btn');
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+            if (currentDiagramIndex < sessionDiagrams.length - 1) displayDiagramSnapshot(currentDiagramIndex + 1);
+        });
+    }
+
+    const fsBtn = $('diagram-fullscreen-btn');
+    const fsModal = $('fullscreen-modal');
+    const fsBody = $('fullscreen-diagram-body');
+    const closeFs = $('close-fullscreen-btn');
+
+    if (fsBtn && fsModal && fsBody) {
+        fsBtn.addEventListener('click', () => {
+            if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
+                showToast('No diagram to view in fullscreen');
+                return;
+            }
+            fsBody.innerHTML = sessionDiagrams[currentDiagramIndex].svg;
+            fsModal.classList.remove('hidden');
+        });
+    }
+    if (closeFs && fsModal) {
+        closeFs.addEventListener('click', () => fsModal.classList.add('hidden'));
+    }
+
+    const copyDiag = $('copy-diagram-btn');
+    if (copyDiag) {
+        copyDiag.addEventListener('click', () => {
+            if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
+                showToast('No diagram available to copy');
+                return;
+            }
+            copyToClipboard(sessionDiagrams[currentDiagramIndex].diagram_code, '📊 Mermaid code copied!');
+        });
+    }
+
+    const dlSvg = $('download-svg-btn');
+    if (dlSvg) {
+        dlSvg.addEventListener('click', () => {
+            if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
+                showToast('No diagram to download');
+                return;
+            }
+            const snap = sessionDiagrams[currentDiagramIndex];
+            downloadTextFile(`diagram_${snap.id}_${fileStamp()}.svg`, snap.svg);
+            showToast('SVG diagram downloaded');
+        });
+    }
+
+    const dlPng = $('download-png-btn');
+    if (dlPng) {
+        dlPng.addEventListener('click', () => {
+            if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
+                showToast('No diagram to download');
+                return;
+            }
+            const snap = sessionDiagrams[currentDiagramIndex];
+            convertSvgToPngAndDownload(snap.svg, `diagram_${snap.id}_${fileStamp()}.png`);
+        });
+    }
+}
+
+// ------------------------------------------------------------------
+// Live Captioning & Urdu Audio Recognition
+// ------------------------------------------------------------------
+function initLiveSpeechRecognition() {
+    const micLang = $('mic-lang-select');
+    const startBtn = $('start-class-btn');
+    const micWarning = $('mic-warning');
+
+    if (!SpeechRecognition) {
+        if (micWarning) micWarning.classList.remove('hidden');
+        if (startBtn) {
+            startBtn.disabled = true;
+            startBtn.classList.add('opacity-40', 'cursor-not-allowed');
         }
-        displayDiagramSnapshot(targetIdx);
+        console.warn('SpeechRecognition not supported in this browser');
+        return;
     }
-});
 
-prevDiagramBtn.addEventListener('click', () => {
-    if (currentDiagramIndex > 0) {
-        liveFollowToggle.checked = false;
-        displayDiagramSnapshot(currentDiagramIndex - 1);
-    }
-});
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = micLang ? micLang.value : 'en-US';
 
-nextDiagramBtn.addEventListener('click', () => {
-    if (currentDiagramIndex < sessionDiagrams.length - 1) {
-        displayDiagramSnapshot(currentDiagramIndex + 1);
-        if (currentDiagramIndex === sessionDiagrams.length - 1) {
-            liveFollowToggle.checked = true;
+    recognition.onresult = (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const text = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                interimBuffer += text + ' ';
+            } else {
+                interim += text;
+            }
         }
-    }
-});
+        renderCaption(interim);
+    };
 
-// ------------------------------------------------------------------
-// Diagram Zoom & Fullscreen Controls
-// ------------------------------------------------------------------
-function setZoom(level) {
-    currentZoom = Math.min(2.5, Math.max(0.4, Number(level.toFixed(2))));
-    diagramSvgWrapper.style.transform = `scale(${currentZoom})`;
-    zoomLabel.textContent = `${Math.round(currentZoom * 100)}%`;
+    recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
+            setStatus('mic blocked', 'bg-red-950 text-red-300 border-red-900');
+            stopListening();
+        }
+    };
+
+    recognition.onend = () => {
+        if (isListening) {
+            try { recognition.start(); } catch (e) {}
+        }
+    };
+
+    if (micLang) {
+        micLang.addEventListener('change', () => {
+            recognition.lang = micLang.value;
+            showToast(`🎙️ Microphone set to ${micLang.options[micLang.selectedIndex].text}`);
+            if (isListening) {
+                try {
+                    recognition.stop();
+                    setTimeout(() => {
+                        try { if (isListening) recognition.start(); } catch (e) {}
+                    }, 150);
+                } catch (e) {}
+            }
+        });
+    }
+
+    if (startBtn) {
+        startBtn.addEventListener('click', () => {
+            isListening ? stopListening() : startListening();
+        });
+    }
 }
 
-zoomInBtn.addEventListener('click', () => setZoom(currentZoom + 0.15));
-zoomOutBtn.addEventListener('click', () => setZoom(currentZoom - 0.15));
-zoomResetBtn.addEventListener('click', () => setZoom(1.0));
+function renderCaption(interimText) {
+    const finalSpan = $('caption-final');
+    const interimSpan = $('caption-interim');
+    const emptyP = $('caption-empty');
+    const body = $('caption-body');
 
-diagramFullscreenBtn.addEventListener('click', () => {
-    if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
-        fullscreenDiagramBody.innerHTML = `<div class="max-w-5xl w-full">${sessionDiagrams[currentDiagramIndex].svg}</div>`;
-        fullscreenModal.classList.remove('hidden');
+    if (finalSpan) finalSpan.textContent = interimBuffer;
+    if (interimSpan) interimSpan.textContent = interimText || '';
+    if (emptyP) emptyP.classList.toggle('hidden', (interimBuffer + (interimText || '')).trim().length > 0);
+    if (body) body.scrollTop = body.scrollHeight;
+
+    saveCurrentSessionToStorage();
+}
+
+function startListening() {
+    if (!recognition) return;
+    if (!sessionStartTime) sessionStartTime = new Date();
+    isListening = true;
+
+    const dot = $('caption-dot');
+    if (dot) {
+        dot.classList.replace('bg-slate-600', 'bg-emerald-400');
+        dot.classList.add('animate-pulse');
+    }
+
+    try { recognition.start(); } catch (e) {}
+
+    const startBtn = $('start-class-btn');
+    if (startBtn) {
+        startBtn.textContent = 'Stop Class';
+        startBtn.classList.replace('bg-accent', 'bg-red-600');
+    }
+
+    const meter = $('audio-meter');
+    if (meter) meter.classList.replace('hidden', 'flex');
+
+    setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
+    showToast('🎙️ Live speech transcribing. Click "Generate Diagram" whenever you want visuals!');
+}
+
+function stopListening() {
+    isListening = false;
+    if (recognition) recognition.stop();
+
+    const startBtn = $('start-class-btn');
+    if (startBtn) {
+        startBtn.textContent = 'Start Class';
+        startBtn.classList.replace('bg-red-600', 'bg-accent');
+    }
+
+    const meter = $('audio-meter');
+    if (meter) meter.classList.replace('flex', 'hidden');
+
+    const dot = $('caption-dot');
+    if (dot) {
+        dot.classList.remove('animate-pulse');
+        dot.classList.replace('bg-emerald-400', 'bg-slate-600');
+    }
+
+    setStatus('idle', 'bg-raised text-slate-400 border-edge');
+    saveCurrentSessionToStorage();
+    showToast('Class paused / mic stopped');
+}
+
+// ------------------------------------------------------------------
+// On-Command Diagram Generation (Triggered exclusively by Button Click)
+// ------------------------------------------------------------------
+function initOnCommandGenerator() {
+    const manualBtn = $('manual-generate-btn');
+    if (!manualBtn) return;
+
+    manualBtn.addEventListener('click', () => {
+        if (isGeneratingDiagram) {
+            showToast('⏳ Visual generation is already in progress...');
+            return;
+        }
+
+        const raw = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+        if (raw.length < 3) {
+            showToast('🎙️ Please start class and speak some lecture content first!');
+            return;
+        }
+
+        const chunk = raw.slice(-MAX_TRANSCRIPT_CHARS);
+        showToast('⚡ Generating diagram, notes, quiz & flashcards on command...');
+        enqueueApiTask('diagram', chunk);
+    });
+}
+
+function setGeneratingButtonState(loading) {
+    isGeneratingDiagram = loading;
+    const manualBtn = $('manual-generate-btn');
+    const label = $('generate-btn-label');
+    const icon = $('generate-btn-icon');
+
+    if (manualBtn) {
+        manualBtn.disabled = loading;
+        if (loading) {
+            manualBtn.classList.add('opacity-75', 'cursor-wait');
+        } else {
+            manualBtn.classList.remove('opacity-75', 'cursor-wait');
+        }
+    }
+    if (label) {
+        label.textContent = loading ? 'Generating...' : 'Generate Diagram';
+    }
+    if (icon) {
+        icon.innerHTML = loading
+            ? '<circle cx="12" cy="12" r="10" stroke-width="2" stroke-dasharray="32" stroke-dashoffset="16" class="animate-spin"/>'
+            : '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>';
+    }
+}
+
+// ------------------------------------------------------------------
+// Rate-Limited API Queue
+// ------------------------------------------------------------------
+function enqueueApiTask(kind, payload) {
+    if (kind === 'diagram') {
+        const last = apiQueue[apiQueue.length - 1];
+        if (last && last.kind === 'diagram') {
+            last.payload = payload;
+            return;
+        }
+    }
+    apiQueue.push({ kind, payload });
+    processApiQueue();
+}
+
+async function processApiQueue() {
+    if (queueRunning) return;
+    queueRunning = true;
+    while (apiQueue.length > 0) {
+        const elapsed = Date.now() - lastApiCallAt;
+        if (elapsed < MIN_API_GAP_MS) {
+            await sleep(MIN_API_GAP_MS - elapsed);
+        }
+        const task = apiQueue.shift();
+        lastApiCallAt = Date.now();
+        try {
+            if (task.kind === 'diagram') {
+                setGeneratingButtonState(true);
+                await sendTranscriptChunk(task.payload);
+            } else if (task.kind === 'speech') {
+                await refineAndSpeak(task.payload);
+            }
+        } catch (err) {
+            console.error(`API task (${task.kind}) failed:`, err);
+            showError(`${task.kind === 'diagram' ? 'Diagram' : 'Speech'} pipeline failed: ${err.message}`);
+        } finally {
+            if (task.kind === 'diagram') {
+                setGeneratingButtonState(false);
+            }
+        }
+    }
+    queueRunning = false;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function sendTranscriptChunk(transcript) {
+    setStatus('generating', 'bg-accent/15 text-accent border-accent/30');
+    if ($('last-update')) $('last-update').textContent = 'generating on command…';
+
+    const res = await fetch(`${API_BASE}/api/transcribe-to-diagram`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Backend responded ${res.status}`);
+    }
+
+    const data = await res.json();
+    if (typeof data.diagram_code !== 'string') {
+        throw new Error('Invalid response shape from backend');
+    }
+
+    await renderDiagram(
+        data.diagram_code,
+        true,
+        data.summary_bullets,
+        data.key_terms,
+        data.short_notes,
+        data.quiz,
+        data.flashcards
+    );
+    showToast('📊 Visual diagram, study notes, quiz & flashcards created!');
+
+    if (isListening) {
+        setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
     } else {
-        showToast('No diagram to display fullscreen');
-    }
-});
-
-closeFullscreenBtn.addEventListener('click', () => {
-    fullscreenModal.classList.add('hidden');
-});
-
-// ------------------------------------------------------------------
-// Copy & Download Actions
-// ------------------------------------------------------------------
-async function copyToClipboard(text, successMessage) {
-    try {
-        await navigator.clipboard.writeText(text);
-        showToast(successMessage);
-    } catch (err) {
-        console.error('Clipboard copy failed:', err);
-        showToast('Failed to copy to clipboard');
+        setStatus('idle', 'bg-raised text-slate-400 border-edge');
     }
 }
 
-copyCaptionBtn.addEventListener('click', () => {
-    const fullText = (interimBuffer + (captionInterim.textContent || '')).trim();
-    if (!fullText) {
-        showToast('No captions to copy yet');
-        return;
-    }
-    copyToClipboard(fullText, '📋 Live caption copied to clipboard!');
-});
-
-downloadCaptionBtn.addEventListener('click', () => {
-    const fullText = (interimBuffer + (captionInterim.textContent || '')).trim();
-    if (!fullText) {
-        showToast('No captions to export');
-        return;
-    }
-    downloadTextFile(`transcript_${fileStamp()}.txt`, fullText);
-    showToast('Transcript text file downloaded');
-});
-
-clearCaptionBtn.addEventListener('click', () => {
-    interimBuffer = '';
-    sentLength = 0;
-    captionFinal.textContent = '';
-    captionInterim.textContent = '';
-    captionEmpty.classList.remove('hidden');
-    showToast('Captions cleared');
-});
-
 // ------------------------------------------------------------------
-// Read Aloud Live Transcription (Text-to-Speech)
+// Read Aloud Live Captions
 // ------------------------------------------------------------------
-let captionSpeechUtterance = null;
-let isReadingAloud = false;
-
 function toggleSpeakCaptions() {
     if (!('speechSynthesis' in window)) {
         showToast('Speech synthesis not supported in this browser');
         return;
     }
 
+    const speakBtn = $('speak-caption-btn');
+    const label = $('speak-caption-label');
+
     if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
         isReadingAloud = false;
-        speakCaptionBtn.classList.remove('speaking-active');
-        speakCaptionLabel.textContent = 'Read Aloud';
+        if (speakBtn) speakBtn.classList.remove('speaking-active');
+        if (label) label.textContent = 'Read Aloud';
         showToast('⏹️ Caption read-aloud stopped');
         return;
     }
 
-    const fullText = (interimBuffer + (captionInterim.textContent || '')).trim();
+    const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
     if (!fullText) {
         showToast('No caption text to speak aloud yet');
         return;
@@ -434,66 +899,109 @@ function toggleSpeakCaptions() {
     window.speechSynthesis.cancel();
     captionSpeechUtterance = new SpeechSynthesisUtterance(fullText);
     captionSpeechUtterance.rate = 1.0;
-    captionSpeechUtterance.pitch = 1.0;
+
+    if (/[\u0600-\u06FF]/.test(fullText)) {
+        captionSpeechUtterance.lang = 'ur-PK';
+    }
 
     captionSpeechUtterance.onstart = () => {
         isReadingAloud = true;
-        speakCaptionBtn.classList.add('speaking-active');
-        speakCaptionLabel.textContent = 'Stop Audio';
+        if (speakBtn) speakBtn.classList.add('speaking-active');
+        if (label) label.textContent = 'Stop Audio';
         showToast('🔊 Speaking live captions aloud...');
     };
 
     captionSpeechUtterance.onend = () => {
         isReadingAloud = false;
-        speakCaptionBtn.classList.remove('speaking-active');
-        speakCaptionLabel.textContent = 'Read Aloud';
+        if (speakBtn) speakBtn.classList.remove('speaking-active');
+        if (label) label.textContent = 'Read Aloud';
     };
 
-    captionSpeechUtterance.onerror = (e) => {
-        console.error('Speech synthesis error:', e);
+    captionSpeechUtterance.onerror = () => {
         isReadingAloud = false;
-        speakCaptionBtn.classList.remove('speaking-active');
-        speakCaptionLabel.textContent = 'Read Aloud';
+        if (speakBtn) speakBtn.classList.remove('speaking-active');
+        if (label) label.textContent = 'Read Aloud';
     };
 
     window.speechSynthesis.speak(captionSpeechUtterance);
 }
 
-if (speakCaptionBtn) {
-    speakCaptionBtn.addEventListener('click', toggleSpeakCaptions);
+function initCaptionToolbar() {
+    const speakBtn = $('speak-caption-btn');
+    if (speakBtn) speakBtn.addEventListener('click', toggleSpeakCaptions);
+
+    const copyBtn = $('copy-caption-btn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            const raw = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+            if (!raw) {
+                showToast('No caption text to copy');
+                return;
+            }
+            copyToClipboard(raw, '📋 Captions copied to clipboard!');
+        });
+    }
+
+    const dlBtn = $('download-caption-btn');
+    if (dlBtn) {
+        dlBtn.addEventListener('click', () => {
+            const raw = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+            if (!raw) {
+                showToast('No caption text to download');
+                return;
+            }
+            downloadTextFile(`captions_${fileStamp()}.txt`, raw);
+            showToast('Captions downloaded');
+        });
+    }
+
+    const clearBtn = $('clear-caption-btn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            interimBuffer = '';
+            renderCaption('');
+            showToast('Captions cleared');
+        });
+    }
 }
 
 // ------------------------------------------------------------------
-// Live Caption Multi-Language Translation
+// Live Multi-Language Translation
 // ------------------------------------------------------------------
-let currentTranslationText = '';
-let currentTargetLanguage = 'Urdu (اردو)';
-
 function initTranslationControls() {
-    if (!tabOriginalBtn || !tabTranslatedBtn) return;
+    const tabOrig = $('tab-original-btn');
+    const tabTrans = $('tab-translated-btn');
+    const capBody = $('caption-body');
+    const capTransBody = $('caption-translated-body');
 
-    tabOriginalBtn.addEventListener('click', () => {
-        tabOriginalBtn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm';
-        tabTranslatedBtn.className = 'px-2.5 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1';
-        captionBody.classList.remove('hidden');
-        captionTranslatedBody.classList.add('hidden');
-        captionTranslatedBody.classList.remove('flex');
+    if (!tabOrig || !tabTrans) return;
+
+    tabOrig.addEventListener('click', () => {
+        tabOrig.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm';
+        tabTrans.className = 'px-2.5 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1';
+        if (capBody) capBody.classList.remove('hidden');
+        if (capTransBody) {
+            capTransBody.classList.add('hidden');
+            capTransBody.classList.remove('flex');
+        }
     });
 
-    tabTranslatedBtn.addEventListener('click', () => {
-        tabTranslatedBtn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1';
-        tabOriginalBtn.className = 'px-2.5 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all';
-        captionBody.classList.add('hidden');
-        captionTranslatedBody.classList.remove('hidden');
-        captionTranslatedBody.classList.add('flex');
+    tabTrans.addEventListener('click', () => {
+        tabTrans.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1';
+        tabOrig.className = 'px-2.5 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all';
+        if (capBody) capBody.classList.add('hidden');
+        if (capTransBody) {
+            capTransBody.classList.remove('hidden');
+            capTransBody.classList.add('flex');
+        }
     });
 
-    if (translateCaptionBtn) {
-        translateCaptionBtn.addEventListener('click', translateLiveCaptions);
-    }
+    const transBtn = $('translate-caption-btn');
+    if (transBtn) transBtn.addEventListener('click', translateLiveCaptions);
 
-    if (copyTranslatedBtn) {
-        copyTranslatedBtn.addEventListener('click', () => {
+    const copyTrans = $('copy-translated-btn');
+    if (copyTrans) {
+        copyTrans.addEventListener('click', () => {
             if (!currentTranslationText) {
                 showToast('No translated text to copy');
                 return;
@@ -502,8 +1010,9 @@ function initTranslationControls() {
         });
     }
 
-    if (speakTranslatedBtn) {
-        speakTranslatedBtn.addEventListener('click', () => {
+    const speakTrans = $('speak-translated-btn');
+    if (speakTrans) {
+        speakTrans.addEventListener('click', () => {
             if (!currentTranslationText) {
                 showToast('No translated text to read aloud');
                 return;
@@ -514,26 +1023,36 @@ function initTranslationControls() {
 }
 
 async function translateLiveCaptions() {
-    const rawText = (interimBuffer + (captionInterim.textContent || '')).trim();
+    const rawText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
     if (!rawText) {
         showToast('No speech transcript to translate yet');
         return;
     }
 
-    const targetLang = captionLangSelect.value;
+    const langSelect = $('caption-lang-select');
+    const targetLang = langSelect ? langSelect.value : 'Urdu (اردو)';
     currentTargetLanguage = targetLang;
 
-    // Switch to translated view
-    tabTranslatedBtn.click();
-    translatedEmpty.classList.add('hidden');
-    translatedActions.classList.add('hidden');
-    translatedActions.classList.remove('flex');
-    translatedTextTarget.innerHTML = `
-        <div class="flex items-center gap-2 text-sm text-accent py-8">
-            <span class="w-2.5 h-2.5 rounded-full bg-accent animate-ping"></span>
-            <span>Translating classroom transcript into <strong>${escapeHtml(targetLang)}</strong>...</span>
-        </div>
-    `;
+    const tabTrans = $('tab-translated-btn');
+    if (tabTrans) tabTrans.click();
+
+    const empty = $('translated-empty');
+    if (empty) empty.classList.add('hidden');
+    const actions = $('translated-actions');
+    if (actions) {
+        actions.classList.add('hidden');
+        actions.classList.remove('flex');
+    }
+
+    const targetEl = $('translated-text-target');
+    if (targetEl) {
+        targetEl.innerHTML = `
+            <div class="flex items-center gap-2 text-sm text-accent py-8">
+                <span class="w-2.5 h-2.5 rounded-full bg-accent animate-ping"></span>
+                <span>Translating classroom transcript into <strong>${escapeHtml(targetLang)}</strong>...</span>
+            </div>
+        `;
+    }
 
     try {
         const res = await fetch(`${API_BASE}/api/translate`, {
@@ -554,23 +1073,34 @@ async function translateLiveCaptions() {
         currentTranslationText = data.translated_text;
 
         const isRtl = /Urdu|Arabic|Sindhi|Pashto|Punjabi/i.test(targetLang);
-        translatedTextTarget.className = isRtl
-            ? 'urdu-script text-right text-xl md:text-2xl leading-loose text-slate-100'
-            : 'text-base md:text-lg leading-relaxed text-slate-100';
-        translatedTextTarget.setAttribute('dir', isRtl ? 'rtl' : 'ltr');
-        translatedTextTarget.textContent = currentTranslationText;
+        if (targetEl) {
+            targetEl.className = isRtl
+                ? 'urdu-script text-right text-xl md:text-2xl leading-loose text-slate-100'
+                : 'text-base md:text-lg leading-relaxed text-slate-100';
+            targetEl.setAttribute('dir', isRtl ? 'rtl' : 'ltr');
+            targetEl.textContent = currentTranslationText;
+        }
 
-        transBadge.textContent = targetLang.split(' ')[0];
-        transBadge.classList.remove('hidden');
+        const badge = $('trans-badge');
+        if (badge) {
+            badge.textContent = targetLang.split(' ')[0];
+            badge.classList.remove('hidden');
+        }
 
-        translatedLangIndicator.textContent = `Translated: ${targetLang}`;
-        translatedActions.classList.remove('hidden');
-        translatedActions.classList.add('flex');
+        const ind = $('translated-lang-indicator');
+        if (ind) ind.textContent = `Translated: ${targetLang}`;
+
+        if (actions) {
+            actions.classList.remove('hidden');
+            actions.classList.add('flex');
+        }
 
         showToast(`🌐 Translated into ${targetLang}!`);
     } catch (err) {
         console.error('Translation error:', err);
-        translatedTextTarget.innerHTML = `<span class="text-xs text-red-400 font-mono">Translation failed: ${escapeHtml(err.message)}</span>`;
+        if (targetEl) {
+            targetEl.innerHTML = `<span class="text-xs text-red-400 font-mono">Translation failed: ${escapeHtml(err.message)}</span>`;
+        }
         showToast('Translation failed');
     }
 }
@@ -597,488 +1127,420 @@ function speakTranslatedText(text, language) {
     window.speechSynthesis.speak(utterance);
 }
 
-copyDiagramBtn.addEventListener('click', () => {
-    if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
-        showToast('No diagram available to copy');
-        return;
-    }
-    copyToClipboard(sessionDiagrams[currentDiagramIndex].diagram_code, '📊 Mermaid code copied!');
-});
-
-copySummaryBtn.addEventListener('click', () => {
-    if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
-        showToast('No summary to copy');
-        return;
-    }
-    const snap = sessionDiagrams[currentDiagramIndex];
-    const text = `Summary:\n${snap.summary_bullets.map(b => `- ${b}`).join('\n')}\n\nKey Terms: ${snap.key_terms.join(', ')}`;
-    copyToClipboard(text, '📝 Summary copied!');
-});
-
-downloadSvgBtn.addEventListener('click', () => {
-    if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
-        showToast('No diagram to download');
-        return;
-    }
-    const snap = sessionDiagrams[currentDiagramIndex];
-    downloadTextFile(`diagram_${snap.id}_${fileStamp()}.svg`, snap.svg);
-    showToast('SVG diagram downloaded');
-});
-
-downloadPngBtn.addEventListener('click', () => {
-    if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
-        showToast('No diagram to download');
-        return;
-    }
-    const snap = sessionDiagrams[currentDiagramIndex];
-    convertSvgToPngAndDownload(snap.svg, `diagram_${snap.id}_${fileStamp()}.png`);
-});
-
-function downloadTextFile(filename, content, mimeType = 'text/plain;charset=utf-8') {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
-function convertSvgToPngAndDownload(svgString, filename) {
-    try {
-        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-        const URLObj = window.URL || window.webkitURL || window;
-        const blobURL = URLObj.createObjectURL(svgBlob);
-
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const scale = 2; // high resolution export
-            canvas.width = (img.width || 800) * scale;
-            canvas.height = (img.height || 600) * scale;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#0d121c';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-            canvas.toBlob((blob) => {
-                if (!blob) throw new Error('Canvas conversion failed');
-                const pngURL = URLObj.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = pngURL;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URLObj.revokeObjectURL(pngURL);
-                URLObj.revokeObjectURL(blobURL);
-                showToast('🖼️ PNG image downloaded!');
-            }, 'image/png');
-        };
-        img.onerror = () => {
-            URLObj.revokeObjectURL(blobURL);
-            downloadTextFile(filename.replace('.png', '.svg'), svgString, 'image/svg+xml');
-            showToast('Downloaded SVG (PNG rendering not supported by browser)');
-        };
-        img.src = blobURL;
-    } catch (e) {
-        console.error('PNG export failed:', e);
-        downloadTextFile(filename.replace('.png', '.svg'), svgString, 'image/svg+xml');
-    }
-}
-
 // ------------------------------------------------------------------
-// Live Captioning (Module 1: Teacher -> Student)
+// Student Expression Board (Shorthand refinement + Speech)
 // ------------------------------------------------------------------
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
-let isListening = false;
-let interimBuffer = '';
-let sentLength = 0;
-let flushTimer = null;
+function initStudentExpressionBoard() {
+    const input = $('shorthand-input');
+    const count = $('char-count');
+    const speakBtn = $('speak-btn');
+    const clearBtn = $('clear-btn');
+    const autoToggle = $('auto-speak-toggle');
+    const toneSelect = $('shorthand-tone-select');
+    const speedSlider = $('tts-speed-slider');
+    const speedLabel = $('tts-speed-label');
 
-if (!SpeechRecognition) {
-    micWarning.classList.remove('hidden');
-    startBtn.disabled = true;
-    startBtn.classList.add('opacity-40', 'cursor-not-allowed');
-    console.warn('SpeechRecognition not supported in this browser');
-} else {
-    recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    if (speedSlider && speedLabel) {
+        speedSlider.addEventListener('input', () => {
+            speedLabel.textContent = `${speedSlider.value}x`;
+        });
+    }
 
-    recognition.onresult = (event) => {
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-            const text = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                interimBuffer += text + ' ';
-                console.log('Final result appended to buffer:', text);
-            } else {
-                interim += text;
+    if (input && count) {
+        input.addEventListener('input', () => {
+            count.textContent = String(input.value.length);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (autoToggle && autoToggle.checked && e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (speakBtn) speakBtn.click();
+                return;
             }
-        }
-        renderCaption(interim);
-    };
-
-    recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        if (event.error === 'not-allowed') {
-            setStatus('mic blocked', 'bg-red-950 text-red-300 border-red-900');
-            stopListening();
-        }
-    };
-
-    recognition.onend = () => {
-        if (isListening) {
-            console.log('Recognition ended, auto-restarting');
-            try { recognition.start(); } catch (e) { /* already started */ }
-        }
-    };
-}
-
-function renderCaption(interimText) {
-    captionFinal.textContent = interimBuffer;
-    captionInterim.textContent = interimText ? interimText : '';
-    const hasContent = (interimBuffer + interimText).trim().length > 0;
-    captionEmpty.classList.toggle('hidden', hasContent);
-    captionBody.scrollTop = captionBody.scrollHeight;
-    saveCurrentSessionToStorage();
-}
-
-function startListening() {
-    if (!recognition) return;
-    if (!sessionStartTime) sessionStartTime = new Date();
-    isListening = true;
-    captionDot.classList.replace('bg-slate-600', 'bg-emerald-400');
-    captionDot.classList.add('animate-pulse');
-    try {
-        recognition.start();
-        console.log('Listening started');
-    } catch (e) {
-        console.warn('Recognition start threw:', e.message);
-    }
-    startBtn.textContent = 'Stop Class';
-    startBtn.classList.replace('bg-accent', 'bg-red-600');
-    audioMeter.classList.replace('hidden', 'flex');
-    setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
-    flushTimer = setInterval(flushTranscriptChunk, CHUNK_FLUSH_MS);
-    console.log(`Chunk flush timer started (every ${CHUNK_FLUSH_MS / 1000}s)`);
-}
-
-function stopListening() {
-    isListening = false;
-    if (recognition) recognition.stop();
-    clearInterval(flushTimer);
-    flushTimer = null;
-    startBtn.textContent = 'Start Class';
-    startBtn.classList.replace('bg-red-600', 'bg-accent');
-    audioMeter.classList.replace('flex', 'hidden');
-    setStatus('idle', 'bg-raised text-slate-400 border-edge');
-    captionDot.classList.remove('animate-pulse');
-    captionDot.classList.replace('bg-emerald-400', 'bg-slate-600');
-    saveCurrentSessionToStorage();
-    console.log('Listening stopped');
-}
-
-function flushTranscriptChunk() {
-    const pending = interimBuffer.slice(sentLength).trim();
-    if (pending.length < 10) {
-        console.log('Flush skipped, not enough new speech yet');
-        return;
-    }
-    const chunk = pending.slice(0, MAX_TRANSCRIPT_CHARS);
-    sentLength = interimBuffer.length;
-    if (interimBuffer.length > 8000) {
-        interimBuffer = interimBuffer.slice(-4000);
-        sentLength = 0;
-    }
-    console.log(`Chunk sent (${chunk.length} chars): "${chunk.slice(0, 60)}..."`);
-    enqueueApiTask('diagram', chunk);
-}
-
-// ------------------------------------------------------------------
-// Rate-limited API Queue
-// ------------------------------------------------------------------
-const apiQueue = [];
-let queueRunning = false;
-let lastApiCallAt = 0;
-
-function enqueueApiTask(kind, payload) {
-    if (kind === 'diagram') {
-        const last = apiQueue[apiQueue.length - 1];
-        if (last && last.kind === 'diagram') {
-            last.payload = payload;
-            console.log('Chunk merged into queued request');
-            return;
-        }
-    }
-    apiQueue.push({ kind, payload });
-    processApiQueue();
-}
-
-async function processApiQueue() {
-    if (queueRunning) return;
-    queueRunning = true;
-    while (apiQueue.length > 0) {
-        const elapsed = Date.now() - lastApiCallAt;
-        if (elapsed < MIN_API_GAP_MS) {
-            await sleep(MIN_API_GAP_MS - elapsed);
-        }
-        const task = apiQueue.shift();
-        lastApiCallAt = Date.now();
-        try {
-            if (task.kind === 'diagram') {
-                await sendTranscriptChunk(task.payload);
-            } else if (task.kind === 'speech') {
-                await refineAndSpeak(task.payload);
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (speakBtn) speakBtn.click();
             }
-        } catch (err) {
-            console.error(`API task (${task.kind}) failed:`, err);
-            showError(`${task.kind === 'diagram' ? 'Diagram' : 'Speech'} pipeline failed: ${err.message}`);
-        }
+        });
     }
-    queueRunning = false;
-}
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+    if (speakBtn && input) {
+        speakBtn.addEventListener('click', () => {
+            const text = input.value.trim();
+            if (!text) return;
+            const tone = toneSelect ? toneSelect.value : 'polite and respectful academic question';
+            enqueueApiTask('speech', { shorthand: text, tone });
+            input.value = '';
+            if (count) count.textContent = '0';
+        });
+    }
 
-async function sendTranscriptChunk(transcript) {
-    setStatus('generating', 'bg-accent/15 text-accent border-accent/30');
-    lastUpdate.textContent = 'generating…';
-    const res = await fetch(`${API_BASE}/api/transcribe-to-diagram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript }),
+    if (clearBtn && input) {
+        clearBtn.addEventListener('click', () => {
+            input.value = '';
+            if (count) count.textContent = '0';
+            input.focus();
+        });
+    }
+
+    $$('.preset-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const text = btn.dataset.text;
+            const tone = toneSelect ? toneSelect.value : 'polite';
+            if (text) enqueueApiTask('speech', { shorthand: text, tone });
+        });
     });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Backend responded ${res.status}`);
+
+    const savePresetBtn = $('save-preset-btn');
+    const customInput = $('custom-preset-input');
+    if (savePresetBtn && customInput) {
+        savePresetBtn.addEventListener('click', () => {
+            const val = customInput.value.trim();
+            if (!val) return;
+            saveCustomPreset(val);
+            customInput.value = '';
+        });
+        customInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                savePresetBtn.click();
+            }
+        });
     }
-    const data = await res.json();
-    if (typeof data.diagram_code !== 'string' || !Array.isArray(data.summary_bullets) || !Array.isArray(data.key_terms)) {
-        throw new Error('Invalid response shape from backend');
-    }
-    await renderDiagram(data.diagram_code, true, data.summary_bullets, data.key_terms);
-    if (isListening) {
-        setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
-    }
+
+    renderCustomPresets();
 }
 
-// ------------------------------------------------------------------
-// Module 2: Student Expression Board (Shorthand refinement + Speech)
-// ------------------------------------------------------------------
-async function refineAndSpeak(text) {
-    speakBtn.disabled = true;
+async function refineAndSpeak(payload) {
+    const rawShorthand = typeof payload === 'string' ? payload : (payload.shorthand || '');
+    const tone = (typeof payload === 'object' && payload.tone) ? payload.tone : 'polite';
+    if (!rawShorthand.trim()) return;
+
+    const speakBtn = $('speak-btn');
+    if (speakBtn) speakBtn.disabled = true;
     setStatus('refining', 'bg-accent/15 text-accent border-accent/30');
+
+    let refinedText = rawShorthand;
     try {
         const res = await fetch(`${API_BASE}/api/shorthand-to-speech`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shorthand: text }),
+            body: JSON.stringify({ shorthand: rawShorthand, tone }),
         });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.detail || `Backend responded ${res.status}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (typeof data.refined_text === 'string' && data.refined_text.length > 0) {
+                refinedText = data.refined_text;
+            }
         }
-        const data = await res.json();
-        if (typeof data.refined_text !== 'string' || data.refined_text.length === 0) {
-            throw new Error('Invalid response shape from backend');
-        }
-        speak(data.refined_text);
     } catch (err) {
-        console.error('Speech pipeline failed, speaking raw input instead:', err.message);
-        speak(text);
+        console.warn('Speech refinement failed, speaking raw input:', err.message);
     } finally {
-        speakBtn.disabled = false;
+        if (speakBtn) speakBtn.disabled = false;
         if (isListening) {
             setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
         } else {
             setStatus('idle', 'bg-raised text-slate-400 border-edge');
         }
     }
+
+    speak(refinedText, rawShorthand);
 }
 
-function speak(text) {
+function speak(text, rawShorthand = '') {
     if (!('speechSynthesis' in window)) {
         console.error('speechSynthesis not supported');
+        showToast('Speech synthesis not supported on this device');
         return;
     }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
+    const speedSlider = $('tts-speed-slider');
+    const speed = speedSlider ? parseFloat(speedSlider.value) || 1.0 : 1.0;
+    utterance.rate = speed;
+
+    if (/[\u0600-\u06FF]/.test(text)) {
+        utterance.lang = 'ur-PK';
+    } else {
+        utterance.lang = 'en-US';
+    }
+
     window.speechSynthesis.speak(utterance);
-    logSpoken(text);
+    logSpoken(text, rawShorthand);
 }
 
-function logSpoken(text) {
-    const item = { time: stamp(), text };
-    spokenHistory.push(item);
-    const li = document.createElement('li');
-    li.className = 'rise-in bg-ink border border-edge rounded-lg px-3 py-2 text-slate-300 flex items-start gap-2.5';
-    li.innerHTML = `<span class="font-mono text-[10px] text-slate-500 mt-[3px] shrink-0">${item.time}</span><span></span>`;
-    li.lastElementChild.textContent = text;
-    if (spokenLog.firstElementChild && spokenLog.firstElementChild.classList.contains('italic')) {
-        spokenLog.innerHTML = '';
-    }
-    spokenLog.prepend(li);
-    while (spokenLog.children.length > 20) spokenLog.lastChild.remove();
+function logSpoken(text, rawShorthand = '') {
+    const item = { time: stamp(), text, raw: rawShorthand || text };
+    spokenHistory.unshift(item);
+    renderSpokenLog();
     saveCurrentSessionToStorage();
 }
 
-function setStatus(label, classes) {
-    statusPill.textContent = label;
-    statusPill.className = `font-mono text-[11px] px-3 py-1.5 rounded-full border ${classes}`;
+function renderSpokenLog() {
+    const log = $('spoken-log');
+    if (!log) return;
+
+    if (!spokenHistory.length) {
+        log.innerHTML = '<li class="text-slate-500 italic text-xs">Nothing spoken yet.</li>';
+        return;
+    }
+
+    log.innerHTML = spokenHistory.slice(0, 15).map((item) => `
+        <li class="rise-in p-2 rounded-lg bg-ink border border-edge flex items-center justify-between gap-2 text-xs">
+            <div class="min-w-0 flex-1">
+                <div class="text-slate-200 font-medium leading-snug">${escapeHtml(item.text)}</div>
+                <div class="text-[10px] font-mono text-slate-500 flex items-center gap-1.5 mt-0.5">
+                    <span>${escapeHtml(item.time)}</span>
+                    ${item.raw && item.raw !== item.text ? `<span class="truncate text-slate-600">‹ ${escapeHtml(item.raw)}</span>` : ''}
+                </div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+                <button class="replay-btn px-1.5 py-0.5 rounded bg-raised hover:bg-edge text-slate-300 hover:text-white text-[11px]"
+                        data-text="${escapeHtml(item.text)}" title="Replay voice">
+                    🔊
+                </button>
+                <button class="copy-spoken-btn px-1.5 py-0.5 rounded bg-raised hover:bg-edge text-slate-300 hover:text-white text-[11px]"
+                        data-text="${escapeHtml(item.text)}" title="Copy text">
+                    📋
+                </button>
+            </div>
+        </li>
+    `).join('');
+
+    log.querySelectorAll('.replay-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            speak(btn.dataset.text || '');
+            showToast('🔊 Replaying speech...');
+        });
+    });
+
+    log.querySelectorAll('.copy-spoken-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            copyToClipboard(btn.dataset.text || '', '📋 Spoken phrase copied!');
+        });
+    });
+}
+
+function getSavedPresets() {
+    try {
+        return JSON.parse(localStorage.getItem(CUSTOM_PRESETS_KEY) || '[]');
+    } catch {
+        return [];
+    }
+}
+
+function saveCustomPreset(phrase) {
+    const list = getSavedPresets();
+    if (!list.includes(phrase)) {
+        list.push(phrase);
+        localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(list));
+        renderCustomPresets();
+        showToast(`Saved preset: "${phrase.slice(0, 20)}..."`);
+    }
+}
+
+function deleteCustomPreset(phrase) {
+    let list = getSavedPresets();
+    list = list.filter((p) => p !== phrase);
+    localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(list));
+    renderCustomPresets();
+    showToast('Preset removed');
+}
+
+function renderCustomPresets() {
+    const container = $('custom-presets-container');
+    if (!container) return;
+    const list = getSavedPresets();
+    if (!list.length) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = list.map((phrase) => `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 border border-accent/30 text-accent text-xs font-mono">
+            <button class="custom-preset-btn hover:underline" data-text="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>
+            <button class="del-preset-btn text-slate-400 hover:text-red-400 font-bold ml-1" data-phrase="${escapeHtml(phrase)}">×</button>
+        </span>
+    `).join('');
+
+    const toneSelect = $('shorthand-tone-select');
+    container.querySelectorAll('.custom-preset-btn').forEach((b) => {
+        b.addEventListener('click', () => {
+            const tone = toneSelect ? toneSelect.value : 'polite';
+            enqueueApiTask('speech', { shorthand: b.dataset.text || '', tone });
+        });
+    });
+
+    container.querySelectorAll('.del-preset-btn').forEach((b) => {
+        b.addEventListener('click', () => {
+            deleteCustomPreset(b.dataset.phrase || '');
+        });
+    });
 }
 
 // ------------------------------------------------------------------
 // AI Chatbot Assistant
 // ------------------------------------------------------------------
-toggleChatBtn.addEventListener('click', () => {
-    chatDrawer.classList.toggle('hidden');
-    if (!chatDrawer.classList.contains('hidden')) {
-        chatInput.focus();
+function initChatbot() {
+    const toggleBtn = $('toggle-chat-btn');
+    const drawer = $('chat-drawer');
+    const closeBtn = $('close-chat-btn');
+    const clearBtn = $('clear-chat-btn');
+    const form = $('chat-form');
+    const input = $('chat-input');
+    const messages = $('chat-messages');
+    const incContext = $('chat-include-context');
+
+    if (toggleBtn && drawer) {
+        toggleBtn.addEventListener('click', () => {
+            drawer.classList.toggle('hidden');
+            if (!drawer.classList.contains('hidden') && input) {
+                input.focus();
+            }
+        });
     }
-});
 
-closeChatBtn.addEventListener('click', () => {
-    chatDrawer.classList.add('hidden');
-});
+    if (closeBtn && drawer) {
+        closeBtn.addEventListener('click', () => drawer.classList.add('hidden'));
+    }
 
-clearChatBtn.addEventListener('click', () => {
-    chatHistory = [];
-    chatMessages.innerHTML = `
-        <div class="chat-msg chat-msg-bot flex gap-2.5 items-start">
-            <div class="w-6 h-6 rounded-md bg-accent/20 text-accent flex items-center justify-center shrink-0 text-xs mt-0.5">🤖</div>
-            <div class="bg-raised border border-edge rounded-xl p-3 text-xs text-slate-200 max-w-[85%] leading-relaxed">
-                Chat cleared. Ask me anything about the lecture concepts, diagrams, or key terms!
-            </div>
-        </div>
-    `;
-    showToast('Chat history cleared');
-});
+    if (clearBtn && messages) {
+        clearBtn.addEventListener('click', () => {
+            chatHistory = [];
+            messages.innerHTML = `
+                <div class="chat-msg chat-msg-bot flex gap-2.5 items-start">
+                    <div class="w-6 h-6 rounded-md bg-accent/20 text-accent flex items-center justify-center shrink-0 text-xs mt-0.5">🤖</div>
+                    <div class="bg-raised border border-edge rounded-xl p-3 text-xs text-slate-200 max-w-[85%] leading-relaxed">
+                        Chat cleared. Ask me anything about the lecture concepts, diagrams, or key terms!
+                    </div>
+                </div>
+            `;
+            showToast('Chat history cleared');
+        });
+    }
 
-document.querySelectorAll('.chat-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-        const promptText = chip.dataset.prompt;
-        chatInput.value = promptText;
-        chatForm.dispatchEvent(new Event('submit'));
+    $$('.chat-chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+            const prompt = chip.dataset.prompt;
+            if (prompt) sendChatMessage(prompt);
+        });
     });
-});
 
-chatForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const query = chatInput.value.trim();
-    if (!query) return;
+    if (form && input) {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const text = input.value.trim();
+            if (!text) return;
+            sendChatMessage(text);
+            input.value = '';
+        });
+    }
 
-    chatInput.value = '';
-    appendChatMessage('user', query);
+    async function sendChatMessage(userText) {
+        appendChatMessage('user', userText);
+        const loadingId = appendChatLoading();
 
-    const loadingId = appendChatLoading();
+        let contextString = '';
+        if (incContext && incContext.checked) {
+            const currentDiag = (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex])
+                ? sessionDiagrams[currentDiagramIndex]
+                : (sessionDiagrams[sessionDiagrams.length - 1] || null);
 
-    try {
-        let contextText = '';
-        if (chatIncludeContext.checked) {
-            const currentTranscript = (interimBuffer + (captionInterim.textContent || '')).trim();
-            const currentDiagram = sessionDiagrams[currentDiagramIndex];
-            contextText = `RECENT TRANSCRIPT:\n${currentTranscript.slice(-2500) || 'None yet'}\n\n`;
-            if (currentDiagram) {
-                contextText += `CURRENT DIAGRAM MERMAID:\n${currentDiagram.diagram_code}\n`;
-                contextText += `CURRENT SUMMARY: ${(currentDiagram.summary_bullets || []).join('; ')}\n`;
-                contextText += `CURRENT KEY TERMS: ${(currentDiagram.key_terms || []).join(', ')}\n`;
+            const recentSpeech = (interimBuffer + ($('caption-interim')?.textContent || '')).slice(-1000).trim();
+            contextString = `Recent Classroom Speech:\n${recentSpeech || 'None'}\n\n`;
+            if (currentDiag) {
+                contextString += `Current Diagram Mermaid Code:\n${currentDiag.diagram_code}\n\nSummary Points:\n${currentDiag.summary_bullets.join(', ')}\n\nKey Terms: ${currentDiag.key_terms.join(', ')}`;
             }
         }
 
-        const res = await fetch(`${API_BASE}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message: query,
-                context: contextText,
-                history: chatHistory.slice(-6),
-            }),
-        });
+        try {
+            const res = await fetch(`${API_BASE}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: userText,
+                    context: contextString,
+                    history: chatHistory.slice(-6),
+                }),
+            });
 
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.detail || `Server responded with ${res.status}`);
+            removeChatLoading(loadingId);
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `Server error ${res.status}`);
+            }
+
+            const data = await res.json();
+            appendChatMessage('bot', data.reply);
+        } catch (err) {
+            removeChatLoading(loadingId);
+            appendChatMessage('bot', `⚠️ Could not reach AI assistant: ${err.message}`);
+        }
+    }
+
+    function appendChatMessage(role, text) {
+        if (!messages) return;
+        chatHistory.push({ role, content: text });
+        const wrapper = document.createElement('div');
+        wrapper.className = `chat-msg chat-msg-${role} flex gap-2.5 items-start ${role === 'user' ? 'justify-end' : 'justify-start'} rise-in`;
+
+        if (role === 'user') {
+            wrapper.innerHTML = `
+                <div class="bg-accent text-white rounded-xl rounded-tr-sm p-3 text-xs max-w-[85%] leading-relaxed shadow-md">
+                    ${escapeHtml(text)}
+                </div>
+            `;
+        } else {
+            wrapper.innerHTML = `
+                <div class="w-6 h-6 rounded-md bg-accent/20 text-accent flex items-center justify-center shrink-0 text-xs mt-0.5">🤖</div>
+                <div class="bg-raised border border-edge rounded-xl rounded-tl-sm p-3 text-xs text-slate-200 max-w-[85%] leading-relaxed">
+                    ${formatMarkdownChat(text)}
+                </div>
+            `;
         }
 
-        const data = await res.json();
-        removeChatLoading(loadingId);
-        appendChatMessage('assistant', data.reply);
-        chatHistory.push({ role: 'user', content: query });
-        chatHistory.push({ role: 'assistant', content: data.reply });
-    } catch (err) {
-        removeChatLoading(loadingId);
-        appendChatMessage('assistant', `⚠️ Sorry, I couldn't reach the AI: ${err.message}`);
-    }
-});
-
-function appendChatMessage(role, text) {
-    const isUser = role === 'user';
-    const wrapper = document.createElement('div');
-    wrapper.className = `chat-msg flex gap-2.5 items-start ${isUser ? 'justify-end' : 'justify-start'} rise-in`;
-
-    const bubble = document.createElement('div');
-    bubble.className = isUser
-        ? 'bg-accent text-white rounded-xl p-3 text-xs max-w-[85%] leading-relaxed shadow-sm'
-        : 'bg-raised border border-edge rounded-xl p-3 text-xs text-slate-200 max-w-[85%] leading-relaxed';
-    bubble.innerHTML = formatMarkdownChat(text);
-
-    if (isUser) {
-        wrapper.appendChild(bubble);
-    } else {
-        const avatar = document.createElement('div');
-        avatar.className = 'w-6 h-6 rounded-md bg-accent/20 text-accent flex items-center justify-center shrink-0 text-xs mt-0.5';
-        avatar.textContent = '🤖';
-        wrapper.appendChild(avatar);
-        wrapper.appendChild(bubble);
+        messages.appendChild(wrapper);
+        messages.scrollTop = messages.scrollHeight;
     }
 
-    chatMessages.appendChild(wrapper);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
+    let loadingCounter = 0;
+    function appendChatLoading() {
+        if (!messages) return '';
+        const id = `chat-loading-${++loadingCounter}`;
+        const wrapper = document.createElement('div');
+        wrapper.id = id;
+        wrapper.className = 'chat-msg flex gap-2.5 items-start justify-start rise-in';
+        wrapper.innerHTML = `
+            <div class="w-6 h-6 rounded-md bg-accent/20 text-accent flex items-center justify-center shrink-0 text-xs mt-0.5">🤖</div>
+            <div class="bg-raised border border-edge rounded-xl p-3 text-xs text-slate-400 font-mono flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-accent animate-bounce"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style="animation-delay:0.15s"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style="animation-delay:0.3s"></span>
+                <span class="ml-1">thinking...</span>
+            </div>
+        `;
+        messages.appendChild(wrapper);
+        messages.scrollTop = messages.scrollHeight;
+        return id;
+    }
 
-let loadingCounter = 0;
-function appendChatLoading() {
-    const id = `chat-loading-${++loadingCounter}`;
-    const wrapper = document.createElement('div');
-    wrapper.id = id;
-    wrapper.className = 'chat-msg flex gap-2.5 items-start justify-start rise-in';
-    wrapper.innerHTML = `
-        <div class="w-6 h-6 rounded-md bg-accent/20 text-accent flex items-center justify-center shrink-0 text-xs mt-0.5">🤖</div>
-        <div class="bg-raised border border-edge rounded-xl p-3 text-xs text-slate-400 font-mono flex items-center gap-1.5">
-            <span class="w-1.5 h-1.5 rounded-full bg-accent animate-bounce"></span>
-            <span class="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style="animation-delay:0.15s"></span>
-            <span class="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style="animation-delay:0.3s"></span>
-            <span class="ml-1">thinking...</span>
-        </div>
-    `;
-    chatMessages.appendChild(wrapper);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    return id;
-}
+    function removeChatLoading(id) {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    }
 
-function removeChatLoading(id) {
-    const el = document.getElementById(id);
-    if (el) el.remove();
-}
-
-function formatMarkdownChat(raw) {
-    let clean = escapeHtml(raw);
-    clean = clean.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    clean = clean.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    clean = clean.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-ink border border-edge font-mono text-[11px]">$1</code>');
-    clean = clean.replace(/\n/g, '<br/>');
-    return clean;
+    function formatMarkdownChat(raw) {
+        let clean = escapeHtml(raw);
+        clean = clean.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        clean = clean.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        clean = clean.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-ink border border-edge font-mono text-[11px]">$1</code>');
+        clean = clean.replace(/\n/g, '<br/>');
+        return clean;
+    }
 }
 
 // ------------------------------------------------------------------
-// Session Storage & Export System (Feature 2)
+// Session Storage Archive & Export Engine
 // ------------------------------------------------------------------
 function saveCurrentSessionToStorage() {
     const currentSession = {
@@ -1099,7 +1561,7 @@ function saveCurrentSessionToStorage() {
 function getSavedSessions() {
     try {
         return JSON.parse(localStorage.getItem(SAVED_SESSIONS_KEY) || '[]');
-    } catch (e) {
+    } catch {
         return [];
     }
 }
@@ -1122,9 +1584,11 @@ function saveCurrentSnapshot() {
 }
 
 function renderSavedSessionsList() {
+    const listEl = $('saved-sessions-list');
+    if (!listEl) return;
     const list = getSavedSessions();
     if (!list.length) {
-        savedSessionsList.innerHTML = `
+        listEl.innerHTML = `
             <div class="text-xs text-slate-500 italic p-3 bg-raised rounded-xl border border-edge text-center">
                 No saved sessions in archive. Click "Save Current Snapshot" above to save one.
             </div>
@@ -1132,7 +1596,7 @@ function renderSavedSessionsList() {
         return;
     }
 
-    savedSessionsList.innerHTML = list.map((s, idx) => `
+    listEl.innerHTML = list.map((s, idx) => `
         <div class="p-3 bg-raised border border-edge rounded-xl flex items-center justify-between gap-3 text-xs">
             <div>
                 <div class="font-semibold text-white">${escapeHtml(s.date)}</div>
@@ -1141,10 +1605,10 @@ function renderSavedSessionsList() {
                 </div>
             </div>
             <div class="flex items-center gap-1.5">
-                <button onclick="restoreSessionByIndex(${idx})" class="px-2.5 py-1 rounded bg-panel hover:bg-edge text-slate-200 border border-edge font-mono">
+                <button onclick="window.restoreSessionByIndex(${idx})" class="px-2.5 py-1 rounded bg-panel hover:bg-edge text-slate-200 border border-edge font-mono">
                     Restore
                 </button>
-                <button onclick="deleteSessionByIndex(${idx})" class="p-1 rounded hover:bg-red-950 text-slate-400 hover:text-red-400">
+                <button onclick="window.deleteSessionByIndex(${idx})" class="p-1 rounded hover:bg-red-950 text-slate-400 hover:text-red-400">
                     <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
@@ -1159,7 +1623,8 @@ window.restoreSessionByIndex = function(idx) {
     const list = getSavedSessions();
     if (list[idx]) {
         restoreSession(list[idx]);
-        storageModal.classList.add('hidden');
+        const modal = $('storage-modal');
+        if (modal) modal.classList.add('hidden');
     }
 };
 
@@ -1168,30 +1633,18 @@ window.deleteSessionByIndex = function(idx) {
     list.splice(idx, 1);
     localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(list));
     renderSavedSessionsList();
-    showToast('Session deleted from archive');
+    showToast('Saved session removed');
 };
 
 function restoreSession(session) {
     if (!session) return;
     interimBuffer = session.transcript || '';
-    sentLength = interimBuffer.length;
-    captionFinal.textContent = interimBuffer;
-    captionInterim.textContent = '';
-    captionEmpty.classList.toggle('hidden', interimBuffer.trim().length > 0);
-
-    sessionDiagrams = (session.diagrams || []).map(d => ({ ...d }));
+    sessionDiagrams = session.diagrams || [];
+    spokenHistory = session.spokenLog || [];
     allSessionKeyTerms = new Set(session.keyTerms || []);
 
-    if (session.spokenLog && Array.isArray(session.spokenLog)) {
-        spokenHistory = session.spokenLog;
-        spokenLog.innerHTML = '';
-        spokenHistory.slice(-15).forEach(item => {
-            const li = document.createElement('li');
-            li.className = 'bg-ink border border-edge rounded-lg px-3 py-2 text-slate-300 flex items-start gap-2.5';
-            li.innerHTML = `<span class="font-mono text-[10px] text-slate-500 mt-[3px] shrink-0">${item.time}</span><span>${escapeHtml(item.text)}</span>`;
-            spokenLog.appendChild(li);
-        });
-    }
+    renderCaption('');
+    renderSpokenLog();
 
     if (sessionDiagrams.length > 0) {
         displayDiagramSnapshot(sessionDiagrams.length - 1);
@@ -1211,24 +1664,25 @@ function restoreLastSession() {
         }
         const session = JSON.parse(lastRaw);
         restoreSession(session);
-        storageModal.classList.add('hidden');
-    } catch (e) {
+        const modal = $('storage-modal');
+        if (modal) modal.classList.add('hidden');
+    } catch {
         showToast('Failed to restore previous session');
     }
 }
 
 // ------------------------------------------------------------------
-// Export & Download Generators
+// Exports & Downloads (.md, .html, .json, .txt, .svg, .png)
 // ------------------------------------------------------------------
 function exportMarkdownStudyGuide() {
-    const fullTranscript = (interimBuffer + (captionInterim.textContent || '')).trim();
+    const fullTranscript = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
     let md = `# EchoVisual Classroom Study Guide\n\n`;
     md += `**Date:** ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n`;
     md += `**Total Diagrams Generated:** ${sessionDiagrams.length}\n`;
     md += `**Key Terms Covered:** ${Array.from(allSessionKeyTerms).join(', ') || 'None'}\n\n`;
     md += `---\n\n`;
 
-    md += `## 1. Visual Study Diagrams & Summaries\n\n`;
+    md += `## 1. Visual Study Diagrams, Notes & Quizzes\n\n`;
     if (sessionDiagrams.length === 0) {
         md += `*No diagrams recorded in this session.*\n\n`;
     } else {
@@ -1237,9 +1691,28 @@ function exportMarkdownStudyGuide() {
             md += `\`\`\`mermaid\n${snap.diagram_code}\n\`\`\`\n\n`;
             md += `**Summary:**\n`;
             if (snap.summary_bullets && snap.summary_bullets.length) {
-                snap.summary_bullets.forEach(b => { md += `- ${b}\n`; });
+                snap.summary_bullets.forEach((b) => { md += `- ${b}\n`; });
             } else {
                 md += `- No summary points recorded.\n`;
+            }
+            if (snap.short_notes && snap.short_notes.length) {
+                md += `\n**Structured Study Notes:**\n`;
+                snap.short_notes.forEach((n) => { md += `- ${n}\n`; });
+            }
+            if (snap.quiz && snap.quiz.length) {
+                md += `\n**Quiz Questions:**\n`;
+                snap.quiz.forEach((q, qIdx) => {
+                    md += `**Q${qIdx + 1}: ${q.question}**\n`;
+                    (q.options || []).forEach((opt) => { md += `  - ${opt}\n`; });
+                    md += `  *Correct Answer: ${q.answer}*\n`;
+                    if (q.explanation) md += `  *Explanation: ${q.explanation}*\n`;
+                });
+            }
+            if (snap.flashcards && snap.flashcards.length) {
+                md += `\n**Flashcards:**\n`;
+                snap.flashcards.forEach((fc) => {
+                    md += `- **Front:** ${fc.front} | **Back:** ${fc.back}\n`;
+                });
             }
             md += `\n**Key Terms:** ${(snap.key_terms || []).join(', ') || 'None'}\n\n`;
         });
@@ -1254,17 +1727,35 @@ function exportMarkdownStudyGuide() {
 }
 
 function exportHtmlStudyReport() {
-    const fullTranscript = (interimBuffer + (captionInterim.textContent || '')).trim();
+    const fullTranscript = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
     const diagramsHtml = sessionDiagrams.map((snap, idx) => `
         <div style="background:#10141b; border:1px solid #212836; border-radius:12px; padding:20px; margin-bottom:24px;">
-            <div style="font-family:monospace; color:#818cf8; font-size:12px; margin-bottom:8px;">DIAGRAM ${idx+1} • ${snap.timeString}</div>
+            <div style="font-family:monospace; color:#818cf8; font-size:12px; margin-bottom:8px;">DIAGRAM ${idx + 1} • ${snap.timeString}</div>
             <div class="mermaid" style="display:flex; justify-content:center; margin:16px 0;">${escapeHtml(snap.diagram_code)}</div>
             <h4 style="color:#ffffff; margin:12px 0 6px 0;">Summary Points</h4>
             <ul style="color:#cbd5e1; font-size:14px; line-height:1.6;">
-                ${(snap.summary_bullets || []).map(b => `<li>${escapeHtml(b)}</li>`).join('')}
+                ${(snap.summary_bullets || []).map((b) => `<li>${escapeHtml(b)}</li>`).join('')}
             </ul>
+            ${(snap.short_notes && snap.short_notes.length) ? `
+                <h4 style="color:#38bdf8; margin:12px 0 6px 0;">Study Notes</h4>
+                <ul style="color:#cbd5e1; font-size:14px; line-height:1.6;">
+                    ${snap.short_notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('')}
+                </ul>
+            ` : ''}
+            ${(snap.quiz && snap.quiz.length) ? `
+                <h4 style="color:#f59e0b; margin:12px 0 6px 0;">Classroom Quiz</h4>
+                <div style="font-size:13px; color:#e2e8f0;">
+                    ${snap.quiz.map((q, qIdx) => `
+                        <div style="margin-bottom:10px; background:#07090e; padding:10px; border-radius:8px;">
+                            <strong>Q${qIdx + 1}: ${escapeHtml(q.question)}</strong><br/>
+                            <span style="color:#94a3b8;">Options: ${(q.options || []).map((o) => escapeHtml(o)).join(' | ')}</span><br/>
+                            <span style="color:#10b981;">Answer: ${escapeHtml(q.answer)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
             <div style="margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;">
-                ${(snap.key_terms || []).map(t => `<span style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#818cf8; padding:2px 8px; border-radius:6px; font-size:12px; font-family:monospace;">${escapeHtml(t)}</span>`).join('')}
+                ${(snap.key_terms || []).map((t) => `<span style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#818cf8; padding:2px 8px; border-radius:6px; font-size:12px; font-family:monospace;">${escapeHtml(t)}</span>`).join('')}
             </div>
         </div>
     `).join('');
@@ -1291,7 +1782,7 @@ function exportHtmlStudyReport() {
         <div class="meta">Recorded on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
 
         <div class="section">
-            <h2>Visual Learning Diagrams (${sessionDiagrams.length})</h2>
+            <h2>Visual Learning Diagrams, Notes & Quizzes (${sessionDiagrams.length})</h2>
             ${diagramsHtml || '<p style="color:#64748b;">No diagrams in this session.</p>'}
         </div>
 
@@ -1310,7 +1801,7 @@ function exportHtmlStudyReport() {
 function exportSessionJson() {
     const sessionObj = {
         app: 'EchoVisual & QuickTalk AI',
-        version: '2.0.0',
+        version: '2.6.0',
         exportedAt: new Date().toISOString(),
         transcript: interimBuffer,
         diagrams: sessionDiagrams,
@@ -1321,82 +1812,120 @@ function exportSessionJson() {
     showToast('💾 Session JSON backup downloaded!');
 }
 
-// ------------------------------------------------------------------
-// Storage Modal Event Listeners
-// ------------------------------------------------------------------
-openStorageBtn.addEventListener('click', () => {
-    statDiagrams.textContent = String(sessionDiagrams.length);
-    statCaptions.textContent = `${(interimBuffer + (captionInterim.textContent || '')).length} chars`;
-    statTerms.textContent = String(allSessionKeyTerms.size);
-    statStatus.textContent = isListening ? 'Listening' : 'Idle';
-    renderSavedSessionsList();
-    storageModal.classList.remove('hidden');
-});
+function downloadTextFile(filename, content, mimeType = 'text/plain;charset=utf-8') {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
 
-closeStorageModalBtn.addEventListener('click', () => storageModal.classList.add('hidden'));
-closeStorageModalBtn2.addEventListener('click', () => storageModal.classList.add('hidden'));
-saveCurrentSessionBtn.addEventListener('click', saveCurrentSnapshot);
-restoreLastSessionBtn.addEventListener('click', restoreLastSession);
-downloadStudyGuideBtn.addEventListener('click', exportMarkdownStudyGuide);
-downloadHtmlReportBtn.addEventListener('click', exportHtmlStudyReport);
-downloadTranscriptTxtBtn.addEventListener('click', () => {
-    downloadTextFile(`transcript_${fileStamp()}.txt`, (interimBuffer + (captionInterim.textContent || '')).trim());
-    showToast('Transcript text file downloaded');
-});
-downloadSessionJsonBtn.addEventListener('click', exportSessionJson);
+function convertSvgToPngAndDownload(svgString, filename) {
+    try {
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const URLObj = window.URL || window.webkitURL || window;
+        const blobURL = URLObj.createObjectURL(svgBlob);
 
-// ------------------------------------------------------------------
-// Student Expression Board Event Wiring
-// ------------------------------------------------------------------
-startBtn.addEventListener('click', () => {
-    isListening ? stopListening() : startListening();
-});
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const scale = 2;
+            canvas.width = (img.width || 800) * scale;
+            canvas.height = (img.height || 600) * scale;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0d121c';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-speakBtn.addEventListener('click', () => {
-    const text = shorthandInput.value.trim();
-    if (!text) {
-        console.log('Speak skipped, empty input');
-        return;
+            canvas.toBlob((blob) => {
+                if (!blob) throw new Error('Canvas conversion failed');
+                const pngURL = URLObj.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = pngURL;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URLObj.revokeObjectURL(pngURL);
+                URLObj.revokeObjectURL(blobURL);
+                showToast('🖼️ PNG image downloaded!');
+            }, 'image/png');
+        };
+        img.onerror = () => {
+            URLObj.revokeObjectURL(blobURL);
+            downloadTextFile(filename.replace('.png', '.svg'), svgString, 'image/svg+xml');
+            showToast('Downloaded SVG format');
+        };
+        img.src = blobURL;
+    } catch {
+        downloadTextFile(filename.replace('.png', '.svg'), svgString, 'image/svg+xml');
     }
-    enqueueApiTask('speech', text);
-    shorthandInput.value = '';
-    charCount.textContent = '0';
-});
+}
 
-clearBtn.addEventListener('click', () => {
-    shorthandInput.value = '';
-    charCount.textContent = '0';
-    shorthandInput.focus();
-});
+function initStorageModal() {
+    const openBtn = $('open-storage-btn');
+    const modal = $('storage-modal');
+    const closeBtn1 = $('close-storage-modal-btn');
+    const closeBtn2 = $('close-storage-modal-btn-2');
+    const saveBtn = $('save-current-session-btn');
+    const restoreBtn = $('restore-last-session-btn');
+    const dlMd = $('download-study-guide-btn');
+    const dlHtml = $('download-html-report-btn');
+    const dlTxt = $('download-transcript-txt-btn');
+    const dlJson = $('download-session-json-btn');
 
-shorthandInput.addEventListener('input', () => {
-    charCount.textContent = String(shorthandInput.value.length);
-});
-
-shorthandInput.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        speakBtn.click();
+    if (openBtn && modal) {
+        openBtn.addEventListener('click', () => {
+            if ($('stat-diagrams')) $('stat-diagrams').textContent = String(sessionDiagrams.length);
+            if ($('stat-captions')) $('stat-captions').textContent = `${(interimBuffer + ($('caption-interim')?.textContent || '')).length} chars`;
+            if ($('stat-terms')) $('stat-terms').textContent = String(allSessionKeyTerms.size);
+            if ($('stat-status')) $('stat-status').textContent = isListening ? 'Listening' : 'Idle';
+            renderSavedSessionsList();
+            modal.classList.remove('hidden');
+        });
     }
-});
 
-document.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const text = btn.dataset.text;
-        console.log('Preset pressed:', text);
-        enqueueApiTask('speech', text);
-    });
-});
-
-if (!window.isSecureContext) {
-    micWarning.classList.remove('hidden');
-    console.warn('Not a secure context, microphone APIs may be blocked');
+    if (closeBtn1 && modal) closeBtn1.addEventListener('click', () => modal.classList.add('hidden'));
+    if (closeBtn2 && modal) closeBtn2.addEventListener('click', () => modal.classList.add('hidden'));
+    if (saveBtn) saveBtn.addEventListener('click', saveCurrentSnapshot);
+    if (restoreBtn) restoreBtn.addEventListener('click', restoreLastSession);
+    if (dlMd) dlMd.addEventListener('click', exportMarkdownStudyGuide);
+    if (dlHtml) dlHtml.addEventListener('click', exportHtmlStudyReport);
+    if (dlTxt) {
+        dlTxt.addEventListener('click', () => {
+            const raw = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+            downloadTextFile(`transcript_${fileStamp()}.txt`, raw);
+            showToast('Transcript text file downloaded');
+        });
+    }
+    if (dlJson) dlJson.addEventListener('click', exportSessionJson);
 }
 
 // ------------------------------------------------------------------
-// Initialization
+// Application Initialization
 // ------------------------------------------------------------------
-initThemesAndModes();
-initTranslationControls();
-updateTimelineControls();
-console.log('EchoVisual & QuickTalk AI v2.0 ready');
+document.addEventListener('DOMContentLoaded', () => {
+    initThemesAndModes();
+    initLiveSpeechRecognition();
+    initOnCommandGenerator();
+    initStudyTabs();
+    initZoomAndFullscreen();
+    initCaptionToolbar();
+    initTranslationControls();
+    initStudentExpressionBoard();
+    initChatbot();
+    initStorageModal();
+    updateTimelineControls();
+
+    const micWarning = $('mic-warning');
+    if (!window.isSecureContext && micWarning) {
+        micWarning.classList.remove('hidden');
+        console.warn('Not a secure context, microphone APIs may be blocked');
+    }
+
+    console.log('EchoVisual & QuickTalk AI v2.6 initialized (On-Command Generation Only)');
+});

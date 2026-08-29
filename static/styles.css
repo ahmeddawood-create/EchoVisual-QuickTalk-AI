@@ -300,15 +300,134 @@ html.light #diagram-container svg text {
     letter-spacing: 0.02em;
 }
 
+/* ==========================================================================
+   3D Interactive Flashcards
+   ========================================================================== */
+.flashcards-grid {
+    perspective: 1000px;
+}
+.flashcard {
+    perspective: 1000px;
+    height: 140px;
+    cursor: pointer;
+}
+.flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-style: preserve-3d;
+}
+.flashcard.flipped .flashcard-inner {
+    transform: rotateY(180deg);
+}
+.flashcard-front, .flashcard-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    border-radius: 0.75rem;
+}
+.flashcard-back {
+    transform: rotateY(180deg);
+}
+
+/* ==========================================================================
+   Interactive Quiz Card
+   ========================================================================== */
+.quiz-option {
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-edge);
+}
+.quiz-option:hover:not(.answered) {
+    border-color: var(--accent-primary);
+    background-color: var(--bg-raised);
+}
+.quiz-option.correct {
+    background-color: rgba(16, 185, 129, 0.18) !important;
+    border-color: #10b981 !important;
+    color: #34d399 !important;
+}
+.quiz-option.wrong {
+    background-color: rgba(239, 68, 68, 0.18) !important;
+    border-color: #ef4444 !important;
+    color: #f87171 !important;
+}
+
+/* On-Command Generate Button Glow */
+@keyframes cmd-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+    50% { box-shadow: 0 0 12px 2px var(--accent-glow); }
+}
+.cmd-pulse-btn {
+    animation: cmd-pulse 2s infinite ease-in-out;
+}
+
 /* Scrollbars */
 .slim-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
 .slim-scroll::-webkit-scrollbar-thumb { background: var(--border-edge); border-radius: 4px; }
 .slim-scroll::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
 
+/* ==========================================================================
+   Multi-Page Navigation & View Transitions
+   ========================================================================== */
+.page-view {
+    display: none;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.page-view.active {
+    display: flex;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.nav-link {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.nav-link.active {
+    background-color: var(--bg-raised);
+    color: #ffffff;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 14px var(--accent-glow);
+}
+
+.nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    background: var(--accent-primary);
+    border-radius: 2px;
+}
+
+/* Mobile Bottom Navigation */
+.mobile-nav-link.active {
+    color: var(--accent-soft);
+}
+.mobile-nav-link.active svg {
+    stroke: var(--accent-primary);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .rise-in, .toast { animation: none; }
     .meter-bar { animation: none; transform: scaleY(0.6); }
-    .pulse-glow, .speaking-active { animation: none; }
+    .pulse-glow, .speaking-active, .cmd-pulse-btn { animation: none; }
+    .flashcard-inner { transition: none; }
+    .page-view { transition: none; transform: none; }
 }
 
 

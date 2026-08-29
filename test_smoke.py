@@ -24,6 +24,21 @@ VALID_DIAGRAM_JSON = json.dumps({
     "diagram_code": "flowchart TD\nA[Photosynthesis] --> B[Sunlight]",
     "summary_bullets": ["Plants use sunlight", "CO2 becomes sugar"],
     "key_terms": ["Photosynthesis", "Chlorophyll"],
+    "short_notes": ["Chloroplasts absorb photons", "Calvin cycle converts CO2"],
+    "quiz": [
+        {
+            "question": "What gas do plants absorb during photosynthesis?",
+            "options": ["A. Oxygen", "B. Carbon Dioxide", "C. Nitrogen", "D. Helium"],
+            "answer": "B. Carbon Dioxide",
+            "explanation": "Plants take in carbon dioxide and release oxygen."
+        }
+    ],
+    "flashcards": [
+        {
+            "front": "Chlorophyll",
+            "back": "The green pigment in plants that absorbs light energy."
+        }
+    ]
 })
 
 
@@ -66,6 +81,11 @@ class TestTranscribeToDiagram(unittest.TestCase):
         self.assertIn("diagram_code", body)
         self.assertIsInstance(body["summary_bullets"], list)
         self.assertIsInstance(body["key_terms"], list)
+        self.assertIsInstance(body["short_notes"], list)
+        self.assertIsInstance(body["quiz"], list)
+        self.assertIsInstance(body["flashcards"], list)
+        self.assertEqual(len(body["quiz"]), 1)
+        self.assertEqual(len(body["flashcards"]), 1)
 
     def test_gemini_json_wrapped_in_prose_is_recovered(self):
         async def messy_gemini(prompt, system, mime):
@@ -110,6 +130,17 @@ class TestShorthandToSpeech(unittest.TestCase):
             res = client.post(
                 "/api/shorthand-to-speech",
                 json={"shorthand": "repeat last pt pls"},
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(
+            res.json()["refined_text"], "Could you please repeat the last point?"
+        )
+
+    def test_shorthand_with_custom_tone(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            res = client.post(
+                "/api/shorthand-to-speech",
+                json={"shorthand": "repeat last pt pls", "tone": "polite academic clarification"},
             )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(

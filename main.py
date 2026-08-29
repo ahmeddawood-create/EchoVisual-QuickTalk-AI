@@ -83,16 +83,32 @@ class TranscriptInput(BaseModel):
     transcript: str = Field(..., min_length=1, max_length=MAX_TRANSCRIPT_CHARS)
 
 
+class QuizQuestion(BaseModel):
+    question: str
+    options: list[str] = Field(default_factory=list)
+    answer: str = ""
+    explanation: str = ""
+
+
+class Flashcard(BaseModel):
+    front: str
+    back: str
+
+
 class DiagramOutput(BaseModel):
     """Strict schema for what Gemini must return for the diagram pipeline."""
 
     diagram_code: str
-    summary_bullets: list[str]
-    key_terms: list[str]
+    summary_bullets: list[str] = Field(default_factory=list)
+    key_terms: list[str] = Field(default_factory=list)
+    short_notes: list[str] = Field(default_factory=list)
+    quiz: list[QuizQuestion] = Field(default_factory=list)
+    flashcards: list[Flashcard] = Field(default_factory=list)
 
 
 class ShorthandInput(BaseModel):
     shorthand: str = Field(..., min_length=1, max_length=MAX_SHORTHAND_CHARS)
+    tone: str = Field(default="polite", max_length=50)
 
 
 class SpeechOutput(BaseModel):
@@ -241,7 +257,10 @@ async def shorthand_to_speech(payload: ShorthandInput) -> SpeechOutput:
     _require_api_key()
     _check_rate_limit()
 
-    prompt = prompts.SHORTHAND_PROMPT_TEMPLATE.format(shorthand=payload.shorthand)
+    tone_desc = payload.tone.strip() if payload.tone else "polite"
+    prompt = prompts.SHORTHAND_PROMPT_TEMPLATE.format(
+        tone=tone_desc, shorthand=payload.shorthand
+    )
     try:
         text = await _call_gemini(
             prompt, prompts.SHORTHAND_SYSTEM_INSTRUCTIONS, "text/plain"
