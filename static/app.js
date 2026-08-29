@@ -1,15 +1,11 @@
 /* ==========================================================================
-   EchoVisual & QuickTalk AI — Frontend Application Logic (v2.6)
-   Features:
-   1. Light/Dark Mode & 5 Color Palettes
-   2. Web Speech Live Continuous Transcription with Urdu (ur-PK) & English (en-US)
-   3. On-Command ONLY Generation for Diagrams, Short Notes, Quiz & Flashcards
-   4. Mermaid.js Diagrams + Timeline Slider + Resizing + Zoom + SVG/PNG Export
-   5. Interactive Study Hub (Notes & Summary, Interactive MCQs, 3D Flashcards)
-   6. Live Multi-Language Translation (Urdu Nastaliq RTL, Roman Urdu, Arabic, etc.)
-   7. Student Expression Board with Auto-speak on New Line, Tones, Presets & Log Replay
-   8. AI Chatbot Assistant with Lecture Context & Bilingual Capabilities
-   9. LocalStorage Session Archive & Study Guide Exports (.md, .html, .json)
+   EchoVisual & QuickTalk AI — Multi-Page Application Logic (v3.0)
+   5 Dedicated Views with Continuous Live Background Recording:
+   1. 🎙️ Classroom View (#classroom): Live Speech + Urdu/Eng + Multi-Lang Translation + Visual Stream
+   2. 🗣️ Student Expression Board (#expression): Full-page voice composer, Pakistani soundboards & spoken history
+   3. 📚 Study Hub & Quiz Arena (#study): Structured study notes, interactive MCQs & 3D flashcards
+   4. 🤖 AI Classroom Tutor (#tutor): Full-screen contextual conversational tutor (Roman Urdu & English)
+   5. 💾 Session Storage & Downloads (#storage): Session archives, 1-click restore & multi-format export center
    ========================================================================== */
 
 'use strict';
@@ -101,7 +97,7 @@ function setStatus(label, classes) {
     const pill = $('status-pill');
     if (pill) {
         pill.textContent = label;
-        pill.className = `font-mono text-[11px] px-3 py-1.5 rounded-full border ${classes}`;
+        pill.className = `font-mono text-[11px] px-3 py-1.5 rounded-full border hidden sm:inline-block ${classes}`;
     }
 }
 
@@ -143,6 +139,68 @@ function fallbackCopy(text, successMsg) {
         showToast('Copy failed');
     }
     document.body.removeChild(ta);
+}
+
+// ------------------------------------------------------------------
+// Multi-Page SPA Router
+// ------------------------------------------------------------------
+const VALID_PAGES = ['classroom', 'expression', 'study', 'tutor', 'storage'];
+
+function navigateToPage(pageName) {
+    if (!VALID_PAGES.includes(pageName)) {
+        pageName = 'classroom';
+    }
+
+    // Update URL hash without triggering double events
+    if (window.location.hash !== `#${pageName}`) {
+        window.location.hash = `#${pageName}`;
+    }
+
+    // Hide all views & remove active nav classes
+    VALID_PAGES.forEach((p) => {
+        const viewEl = $(`view-${p}`);
+        if (viewEl) viewEl.classList.remove('active');
+
+        const navLink = $(`nav-${p}`);
+        if (navLink) navLink.classList.remove('active');
+    });
+
+    $$('.mobile-nav-link').forEach((link) => link.classList.remove('active'));
+
+    // Show active page view & highlight links
+    const activeView = $(`view-${pageName}`);
+    if (activeView) activeView.classList.add('active');
+
+    const activeNav = $(`nav-${pageName}`);
+    if (activeNav) activeNav.classList.add('active');
+
+    const activeMobileNav = document.querySelector(`.mobile-nav-link[data-page="${pageName}"]`);
+    if (activeMobileNav) activeMobileNav.classList.add('active');
+
+    // Page-specific on-enter hooks
+    if (pageName === 'storage') {
+        refreshStorageDashboard();
+    } else if (pageName === 'study') {
+        if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
+            displayDiagramSnapshot(currentDiagramIndex);
+        }
+    } else if (pageName === 'expression') {
+        const input = $('shorthand-input');
+        if (input) input.focus();
+    } else if (pageName === 'tutor') {
+        const input = $('chat-input');
+        if (input) input.focus();
+    }
+}
+
+function initPageRouter() {
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash.replace('#', '') || 'classroom';
+        navigateToPage(hash);
+    });
+
+    const initialPage = window.location.hash.replace('#', '') || 'classroom';
+    navigateToPage(initialPage);
 }
 
 // ------------------------------------------------------------------
@@ -287,13 +345,14 @@ function displayDiagramSnapshot(index) {
 
     if ($('quiz-badge')) $('quiz-badge').textContent = String((snap.quiz || []).length);
     if ($('flashcard-badge')) $('flashcard-badge').textContent = String((snap.flashcards || []).length);
+    if ($('nav-study-badge')) $('nav-study-badge').textContent = String(sessionDiagrams.length);
 
     updateTimelineControls();
 }
 
 function updateTimelineControls() {
     const count = sessionDiagrams.length;
-    if ($('session-diagram-badge')) $('session-diagram-badge').textContent = String(count);
+    if ($('nav-study-badge')) $('nav-study-badge').textContent = String(count);
 
     const slider = $('diagram-slider');
     const prevBtn = $('prev-diagram-btn');
@@ -337,8 +396,8 @@ function renderSummaryAndNotes(bullets, notes, terms) {
     const tList = $('terms-list');
     if (tList) {
         tList.innerHTML = (terms && terms.length)
-            ? terms.map((t) => `<span class="rise-in px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 text-accent text-xs font-mono">${escapeHtml(t)}</span>`).join('')
-            : '<span class="text-slate-500 italic text-sm">None detected.</span>';
+            ? terms.map((t) => `<span class="rise-in px-2.5 py-1 rounded-lg bg-accent/15 border border-accent/30 text-accent text-xs font-mono">${escapeHtml(t)}</span>`).join('')
+            : '<span class="text-slate-500 italic text-xs">None detected yet.</span>';
     }
 }
 
@@ -347,7 +406,7 @@ function renderQuiz(quizItems) {
     if (!container) return;
 
     if (!quizItems || !quizItems.length) {
-        container.innerHTML = '<p class="text-xs text-slate-500 italic">No quiz questions generated for this slide yet.</p>';
+        container.innerHTML = '<p class="text-xs text-slate-500 italic">No quiz questions generated for this lecture slide yet.</p>';
         if ($('quiz-score-badge')) $('quiz-score-badge').textContent = 'Score: 0 / 0';
         return;
     }
@@ -361,20 +420,20 @@ function renderQuiz(quizItems) {
     updateScore();
 
     container.innerHTML = quizItems.map((q, qIdx) => `
-        <div class="bg-raised border border-edge rounded-xl p-3.5 space-y-2.5 rise-in" data-qidx="${qIdx}">
-            <div class="text-xs font-semibold text-white flex items-start gap-2">
+        <div class="bg-raised border border-edge rounded-xl p-4 space-y-3 rise-in" data-qidx="${qIdx}">
+            <div class="text-xs md:text-sm font-semibold text-white flex items-start gap-2">
                 <span class="text-accent font-mono">Q${qIdx + 1}.</span>
                 <span>${escapeHtml(q.question)}</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 ${(q.options || []).map((opt) => `
-                    <button class="quiz-option text-left px-3 py-2 rounded-lg bg-ink text-xs text-slate-200"
+                    <button class="quiz-option text-left px-3.5 py-2.5 rounded-lg bg-ink text-xs text-slate-200"
                             data-qidx="${qIdx}" data-option="${escapeHtml(opt)}">
                         ${escapeHtml(opt)}
                     </button>
                 `).join('')}
             </div>
-            <div class="quiz-explanation hidden p-2.5 rounded-lg bg-ink border border-edge text-xs text-slate-300">
+            <div class="quiz-explanation hidden p-3 rounded-lg bg-ink border border-edge text-xs text-slate-300">
                 <strong class="text-accent">Explanation:</strong> <span>${escapeHtml(q.explanation || 'Correct answer: ' + q.answer)}</span>
             </div>
         </div>
@@ -426,7 +485,7 @@ function renderFlashcards(flashcards) {
     if (!grid) return;
 
     if (!flashcards || !flashcards.length) {
-        grid.innerHTML = '<p class="text-xs text-slate-500 italic col-span-full">No flashcards for this slide yet.</p>';
+        grid.innerHTML = '<p class="text-xs text-slate-500 italic col-span-full">No flashcards generated for this lecture slide yet.</p>';
         return;
     }
 
@@ -435,7 +494,7 @@ function renderFlashcards(flashcards) {
             <div class="flashcard-inner">
                 <div class="flashcard-front bg-raised border border-edge text-slate-100 shadow-md">
                     <span class="text-[10px] font-mono uppercase tracking-wider text-accent mb-1">Concept #${idx + 1}</span>
-                    <h4 class="text-xs font-semibold text-white px-2 leading-snug">${escapeHtml(fc.front)}</h4>
+                    <h4 class="text-xs md:text-sm font-semibold text-white px-2 leading-snug">${escapeHtml(fc.front)}</h4>
                     <span class="text-[10px] text-slate-400 font-mono mt-2">↻ Click to flip</span>
                 </div>
                 <div class="flashcard-back bg-panel border border-accent/40 text-slate-200 shadow-lg">
@@ -463,9 +522,9 @@ function initStudyTabs() {
     if (!tabNotesBtn || !tabQuizBtn || !tabFlashcardsBtn) return;
 
     function resetTabs() {
-        tabNotesBtn.className = 'px-3 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
-        tabQuizBtn.className = 'px-3 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
-        tabFlashcardsBtn.className = 'px-3 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+        tabNotesBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+        tabQuizBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+        tabFlashcardsBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
         if (notesPane) notesPane.classList.add('hidden');
         if (quizPane) quizPane.classList.add('hidden');
         if (flashcardsPane) flashcardsPane.classList.add('hidden');
@@ -473,19 +532,19 @@ function initStudyTabs() {
 
     tabNotesBtn.addEventListener('click', () => {
         resetTabs();
-        tabNotesBtn.className = 'px-3 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
+        tabNotesBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
         if (notesPane) notesPane.classList.remove('hidden');
     });
 
     tabQuizBtn.addEventListener('click', () => {
         resetTabs();
-        tabQuizBtn.className = 'px-3 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
+        tabQuizBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
         if (quizPane) quizPane.classList.remove('hidden');
     });
 
     tabFlashcardsBtn.addEventListener('click', () => {
         resetTabs();
-        tabFlashcardsBtn.className = 'px-3 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
+        tabFlashcardsBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
         if (flashcardsPane) flashcardsPane.classList.remove('hidden');
     });
 
@@ -493,7 +552,7 @@ function initStudyTabs() {
     if (copyBtn) {
         copyBtn.addEventListener('click', () => {
             if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
-                showToast('No study notes to copy');
+                showToast('No study notes available to copy');
                 return;
             }
             const snap = sessionDiagrams[currentDiagramIndex];
@@ -709,7 +768,7 @@ function startListening() {
     if (meter) meter.classList.replace('hidden', 'flex');
 
     setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
-    showToast('🎙️ Live speech transcribing. Click "Generate Diagram" whenever you want visuals!');
+    showToast('🎙️ Live speech transcribing across all pages. Click "Generate Diagram" whenever you want visuals!');
 }
 
 function stopListening() {
@@ -737,7 +796,7 @@ function stopListening() {
 }
 
 // ------------------------------------------------------------------
-// On-Command Diagram Generation (Triggered exclusively by Button Click)
+// On-Command Diagram Generation
 // ------------------------------------------------------------------
 function initOnCommandGenerator() {
     const manualBtn = $('manual-generate-btn');
@@ -1285,21 +1344,21 @@ function renderSpokenLog() {
         return;
     }
 
-    log.innerHTML = spokenHistory.slice(0, 15).map((item) => `
-        <li class="rise-in p-2 rounded-lg bg-ink border border-edge flex items-center justify-between gap-2 text-xs">
+    log.innerHTML = spokenHistory.slice(0, 20).map((item) => `
+        <li class="rise-in p-3 rounded-xl bg-ink border border-edge flex items-center justify-between gap-3 text-xs">
             <div class="min-w-0 flex-1">
-                <div class="text-slate-200 font-medium leading-snug">${escapeHtml(item.text)}</div>
-                <div class="text-[10px] font-mono text-slate-500 flex items-center gap-1.5 mt-0.5">
+                <div class="text-slate-200 font-semibold text-sm leading-snug">${escapeHtml(item.text)}</div>
+                <div class="text-[11px] font-mono text-slate-500 flex items-center gap-2 mt-1">
                     <span>${escapeHtml(item.time)}</span>
                     ${item.raw && item.raw !== item.text ? `<span class="truncate text-slate-600">‹ ${escapeHtml(item.raw)}</span>` : ''}
                 </div>
             </div>
-            <div class="flex items-center gap-1 shrink-0">
-                <button class="replay-btn px-1.5 py-0.5 rounded bg-raised hover:bg-edge text-slate-300 hover:text-white text-[11px]"
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button class="replay-btn px-2.5 py-1 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white text-xs border border-edge"
                         data-text="${escapeHtml(item.text)}" title="Replay voice">
-                    🔊
+                    🔊 Replay
                 </button>
-                <button class="copy-spoken-btn px-1.5 py-0.5 rounded bg-raised hover:bg-edge text-slate-300 hover:text-white text-[11px]"
+                <button class="copy-spoken-btn px-2 py-1 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white text-xs border border-edge"
                         data-text="${escapeHtml(item.text)}" title="Copy text">
                     📋
                 </button>
@@ -1356,7 +1415,7 @@ function renderCustomPresets() {
         return;
     }
     container.innerHTML = list.map((phrase) => `
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 border border-accent/30 text-accent text-xs font-mono">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/15 border border-accent/30 text-accent text-xs font-mono">
             <button class="custom-preset-btn hover:underline" data-text="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>
             <button class="del-preset-btn text-slate-400 hover:text-red-400 font-bold ml-1" data-phrase="${escapeHtml(phrase)}">×</button>
         </span>
@@ -1378,38 +1437,22 @@ function renderCustomPresets() {
 }
 
 // ------------------------------------------------------------------
-// AI Chatbot Assistant
+// AI Chatbot Assistant (Full-Page Tutor)
 // ------------------------------------------------------------------
 function initChatbot() {
-    const toggleBtn = $('toggle-chat-btn');
-    const drawer = $('chat-drawer');
-    const closeBtn = $('close-chat-btn');
     const clearBtn = $('clear-chat-btn');
     const form = $('chat-form');
     const input = $('chat-input');
     const messages = $('chat-messages');
     const incContext = $('chat-include-context');
 
-    if (toggleBtn && drawer) {
-        toggleBtn.addEventListener('click', () => {
-            drawer.classList.toggle('hidden');
-            if (!drawer.classList.contains('hidden') && input) {
-                input.focus();
-            }
-        });
-    }
-
-    if (closeBtn && drawer) {
-        closeBtn.addEventListener('click', () => drawer.classList.add('hidden'));
-    }
-
     if (clearBtn && messages) {
         clearBtn.addEventListener('click', () => {
             chatHistory = [];
             messages.innerHTML = `
-                <div class="chat-msg chat-msg-bot flex gap-2.5 items-start">
-                    <div class="w-6 h-6 rounded-md bg-accent/20 text-accent flex items-center justify-center shrink-0 text-xs mt-0.5">🤖</div>
-                    <div class="bg-raised border border-edge rounded-xl p-3 text-xs text-slate-200 max-w-[85%] leading-relaxed">
+                <div class="chat-msg chat-msg-bot flex gap-3 items-start">
+                    <div class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center shrink-0 text-sm mt-0.5">🤖</div>
+                    <div class="bg-raised border border-edge rounded-2xl p-4 text-xs md:text-sm text-slate-200 max-w-[80%] leading-relaxed shadow-sm">
                         Chat cleared. Ask me anything about the lecture concepts, diagrams, or key terms!
                     </div>
                 </div>
@@ -1482,18 +1525,18 @@ function initChatbot() {
         if (!messages) return;
         chatHistory.push({ role, content: text });
         const wrapper = document.createElement('div');
-        wrapper.className = `chat-msg chat-msg-${role} flex gap-2.5 items-start ${role === 'user' ? 'justify-end' : 'justify-start'} rise-in`;
+        wrapper.className = `chat-msg chat-msg-${role} flex gap-3 items-start ${role === 'user' ? 'justify-end' : 'justify-start'} rise-in`;
 
         if (role === 'user') {
             wrapper.innerHTML = `
-                <div class="bg-accent text-white rounded-xl rounded-tr-sm p-3 text-xs max-w-[85%] leading-relaxed shadow-md">
+                <div class="bg-accent text-white rounded-2xl rounded-tr-sm p-4 text-xs md:text-sm max-w-[80%] leading-relaxed shadow-md">
                     ${escapeHtml(text)}
                 </div>
             `;
         } else {
             wrapper.innerHTML = `
-                <div class="w-6 h-6 rounded-md bg-accent/20 text-accent flex items-center justify-center shrink-0 text-xs mt-0.5">🤖</div>
-                <div class="bg-raised border border-edge rounded-xl rounded-tl-sm p-3 text-xs text-slate-200 max-w-[85%] leading-relaxed">
+                <div class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center shrink-0 text-sm mt-0.5">🤖</div>
+                <div class="bg-raised border border-edge rounded-2xl rounded-tl-sm p-4 text-xs md:text-sm text-slate-200 max-w-[80%] leading-relaxed shadow-sm">
                     ${formatMarkdownChat(text)}
                 </div>
             `;
@@ -1509,10 +1552,10 @@ function initChatbot() {
         const id = `chat-loading-${++loadingCounter}`;
         const wrapper = document.createElement('div');
         wrapper.id = id;
-        wrapper.className = 'chat-msg flex gap-2.5 items-start justify-start rise-in';
+        wrapper.className = 'chat-msg flex gap-3 items-start justify-start rise-in';
         wrapper.innerHTML = `
-            <div class="w-6 h-6 rounded-md bg-accent/20 text-accent flex items-center justify-center shrink-0 text-xs mt-0.5">🤖</div>
-            <div class="bg-raised border border-edge rounded-xl p-3 text-xs text-slate-400 font-mono flex items-center gap-1.5">
+            <div class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center shrink-0 text-sm mt-0.5">🤖</div>
+            <div class="bg-raised border border-edge rounded-2xl p-4 text-xs font-mono text-slate-400 flex items-center gap-1.5">
                 <span class="w-1.5 h-1.5 rounded-full bg-accent animate-bounce"></span>
                 <span class="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style="animation-delay:0.15s"></span>
                 <span class="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style="animation-delay:0.3s"></span>
@@ -1533,7 +1576,7 @@ function initChatbot() {
         let clean = escapeHtml(raw);
         clean = clean.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         clean = clean.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        clean = clean.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-ink border border-edge font-mono text-[11px]">$1</code>');
+        clean = clean.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-ink border border-edge font-mono text-[11px]">$1</code>');
         clean = clean.replace(/\n/g, '<br/>');
         return clean;
     }
@@ -1580,7 +1623,16 @@ function saveCurrentSnapshot() {
     while (list.length > 10) list.pop();
     localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(list));
     renderSavedSessionsList();
-    showToast('Session snapshot saved to storage!');
+    refreshStorageDashboard();
+    showToast('Session snapshot saved to storage archive!');
+}
+
+function refreshStorageDashboard() {
+    if ($('stat-diagrams')) $('stat-diagrams').textContent = String(sessionDiagrams.length);
+    if ($('stat-captions')) $('stat-captions').textContent = `${(interimBuffer + ($('caption-interim')?.textContent || '')).length} chars`;
+    if ($('stat-terms')) $('stat-terms').textContent = String(allSessionKeyTerms.size);
+    if ($('stat-status')) $('stat-status').textContent = isListening ? 'Active (Recording)' : 'Idle';
+    renderSavedSessionsList();
 }
 
 function renderSavedSessionsList() {
@@ -1589,27 +1641,27 @@ function renderSavedSessionsList() {
     const list = getSavedSessions();
     if (!list.length) {
         listEl.innerHTML = `
-            <div class="text-xs text-slate-500 italic p-3 bg-raised rounded-xl border border-edge text-center">
-                No saved sessions in archive. Click "Save Current Snapshot" above to save one.
+            <div class="text-xs text-slate-500 italic p-4 bg-raised rounded-xl border border-edge text-center">
+                No saved sessions in archive. Click "+ Save Current Snapshot" above to save one.
             </div>
         `;
         return;
     }
 
     listEl.innerHTML = list.map((s, idx) => `
-        <div class="p-3 bg-raised border border-edge rounded-xl flex items-center justify-between gap-3 text-xs">
+        <div class="p-4 bg-raised border border-edge rounded-2xl flex items-center justify-between gap-4 text-xs shadow-sm">
             <div>
-                <div class="font-semibold text-white">${escapeHtml(s.date)}</div>
-                <div class="text-[11px] text-slate-400 font-mono mt-0.5">
-                    ${s.diagrams ? s.diagrams.length : 0} diagrams • ${(s.transcript || '').length} chars
+                <div class="font-semibold text-white text-sm">${escapeHtml(s.date)}</div>
+                <div class="text-xs text-slate-400 font-mono mt-0.5">
+                    ${s.diagrams ? s.diagrams.length : 0} diagrams • ${(s.transcript || '').length} chars • ${(s.spokenLog || []).length} questions spoken
                 </div>
             </div>
-            <div class="flex items-center gap-1.5">
-                <button onclick="window.restoreSessionByIndex(${idx})" class="px-2.5 py-1 rounded bg-panel hover:bg-edge text-slate-200 border border-edge font-mono">
-                    Restore
+            <div class="flex items-center gap-2">
+                <button onclick="window.restoreSessionByIndex(${idx})" class="px-3.5 py-1.5 rounded-lg bg-panel hover:bg-edge text-slate-200 border border-edge font-mono font-medium transition-colors">
+                    Restore to View
                 </button>
-                <button onclick="window.deleteSessionByIndex(${idx})" class="p-1 rounded hover:bg-red-950 text-slate-400 hover:text-red-400">
-                    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5">
+                <button onclick="window.deleteSessionByIndex(${idx})" class="p-1.5 rounded-lg hover:bg-red-950 text-slate-400 hover:text-red-400 transition-colors">
+                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
                     </svg>
@@ -1623,8 +1675,7 @@ window.restoreSessionByIndex = function(idx) {
     const list = getSavedSessions();
     if (list[idx]) {
         restoreSession(list[idx]);
-        const modal = $('storage-modal');
-        if (modal) modal.classList.add('hidden');
+        navigateToPage('classroom');
     }
 };
 
@@ -1652,6 +1703,7 @@ function restoreSession(session) {
         updateTimelineControls();
     }
 
+    refreshStorageDashboard();
     showToast(`Session restored (${sessionDiagrams.length} diagrams, ${interimBuffer.length} chars)`);
 }
 
@@ -1664,8 +1716,7 @@ function restoreLastSession() {
         }
         const session = JSON.parse(lastRaw);
         restoreSession(session);
-        const modal = $('storage-modal');
-        if (modal) modal.classList.add('hidden');
+        navigateToPage('classroom');
     } catch {
         showToast('Failed to restore previous session');
     }
@@ -1801,7 +1852,7 @@ function exportHtmlStudyReport() {
 function exportSessionJson() {
     const sessionObj = {
         app: 'EchoVisual & QuickTalk AI',
-        version: '2.6.0',
+        version: '3.0.0',
         exportedAt: new Date().toISOString(),
         transcript: interimBuffer,
         diagrams: sessionDiagrams,
@@ -1866,11 +1917,7 @@ function convertSvgToPngAndDownload(svgString, filename) {
     }
 }
 
-function initStorageModal() {
-    const openBtn = $('open-storage-btn');
-    const modal = $('storage-modal');
-    const closeBtn1 = $('close-storage-modal-btn');
-    const closeBtn2 = $('close-storage-modal-btn-2');
+function initStorageActions() {
     const saveBtn = $('save-current-session-btn');
     const restoreBtn = $('restore-last-session-btn');
     const dlMd = $('download-study-guide-btn');
@@ -1878,19 +1925,6 @@ function initStorageModal() {
     const dlTxt = $('download-transcript-txt-btn');
     const dlJson = $('download-session-json-btn');
 
-    if (openBtn && modal) {
-        openBtn.addEventListener('click', () => {
-            if ($('stat-diagrams')) $('stat-diagrams').textContent = String(sessionDiagrams.length);
-            if ($('stat-captions')) $('stat-captions').textContent = `${(interimBuffer + ($('caption-interim')?.textContent || '')).length} chars`;
-            if ($('stat-terms')) $('stat-terms').textContent = String(allSessionKeyTerms.size);
-            if ($('stat-status')) $('stat-status').textContent = isListening ? 'Listening' : 'Idle';
-            renderSavedSessionsList();
-            modal.classList.remove('hidden');
-        });
-    }
-
-    if (closeBtn1 && modal) closeBtn1.addEventListener('click', () => modal.classList.add('hidden'));
-    if (closeBtn2 && modal) closeBtn2.addEventListener('click', () => modal.classList.add('hidden'));
     if (saveBtn) saveBtn.addEventListener('click', saveCurrentSnapshot);
     if (restoreBtn) restoreBtn.addEventListener('click', restoreLastSession);
     if (dlMd) dlMd.addEventListener('click', exportMarkdownStudyGuide);
@@ -1910,6 +1944,7 @@ function initStorageModal() {
 // ------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
     initThemesAndModes();
+    initPageRouter();
     initLiveSpeechRecognition();
     initOnCommandGenerator();
     initStudyTabs();
@@ -1918,8 +1953,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initTranslationControls();
     initStudentExpressionBoard();
     initChatbot();
-    initStorageModal();
+    initStorageActions();
     updateTimelineControls();
+    refreshStorageDashboard();
 
     const micWarning = $('mic-warning');
     if (!window.isSecureContext && micWarning) {
@@ -1927,5 +1963,5 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Not a secure context, microphone APIs may be blocked');
     }
 
-    console.log('EchoVisual & QuickTalk AI v2.6 initialized (On-Command Generation Only)');
+    console.log('EchoVisual & QuickTalk AI v3.0 Multi-Page Suite initialized successfully');
 });
