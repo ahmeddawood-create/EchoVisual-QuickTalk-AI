@@ -30,6 +30,10 @@ VALID_DIAGRAM_JSON = json.dumps({
 async def fake_call_gemini(prompt, system, response_mime):
     if response_mime == "application/json":
         return VALID_DIAGRAM_JSON
+    if "EchoVisual AI" in system:
+        return "Photosynthesis is the process by which plants turn sunlight into energy."
+    if "translator" in system.lower():
+        return "پودے سورج کی روشنی استعمال کر کے خوراک بناتے ہیں۔"
     return "Could you please repeat the last point?"
 
 
@@ -114,6 +118,51 @@ class TestShorthandToSpeech(unittest.TestCase):
 
     def test_empty_shorthand_rejected(self):
         res = client.post("/api/shorthand-to-speech", json={"shorthand": ""})
+        self.assertEqual(res.status_code, 422)
+
+
+class TestChatAssistant(unittest.TestCase):
+    def setUp(self):
+        reset_rate_limiter()
+
+    def test_valid_chat_query_returns_reply(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            res = client.post(
+                "/api/chat",
+                json={
+                    "message": "What is photosynthesis?",
+                    "context": "Teacher discussed sunlight and plants.",
+                    "history": [{"role": "user", "content": "Hello"}],
+                },
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Photosynthesis", res.json()["reply"])
+
+    def test_empty_chat_message_rejected(self):
+        res = client.post("/api/chat", json={"message": ""})
+        self.assertEqual(res.status_code, 422)
+
+
+class TestTranslation(unittest.TestCase):
+    def setUp(self):
+        reset_rate_limiter()
+
+    def test_valid_translation_returns_text(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            res = client.post(
+                "/api/translate",
+                json={
+                    "text": "Plants use sunlight to make food.",
+                    "target_language": "Urdu",
+                },
+            )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIn("پودے", body["translated_text"])
+        self.assertEqual(body["target_language"], "Urdu")
+
+    def test_empty_translation_text_rejected(self):
+        res = client.post("/api/translate", json={"text": "", "target_language": "Urdu"})
         self.assertEqual(res.status_code, 422)
 
 

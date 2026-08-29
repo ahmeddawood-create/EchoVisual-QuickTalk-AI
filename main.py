@@ -47,6 +47,8 @@ RATE_LIMIT_MAX_REQUESTS = 15      # Gemini free tier allows 15 req/min
 RATE_LIMIT_WINDOW_SECONDS = 60
 MAX_TRANSCRIPT_CHARS = 4000
 MAX_SHORTHAND_CHARS = 1000
+MAX_CHAT_MESSAGE_CHARS = 2000
+MAX_CHAT_CONTEXT_CHARS = 4000
 
 # Configure the SDK once at startup. Tests may run without a key; that is
 # handled gracefully per request instead of crashing at import time.
@@ -95,6 +97,31 @@ class ShorthandInput(BaseModel):
 
 class SpeechOutput(BaseModel):
     refined_text: str
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatInput(BaseModel):
+    message: str = Field(..., min_length=1, max_length=MAX_CHAT_MESSAGE_CHARS)
+    context: str = Field(default="", max_length=MAX_CHAT_CONTEXT_CHARS)
+    history: list[ChatMessage] = Field(default_factory=list)
+
+
+class ChatOutput(BaseModel):
+    reply: str
+
+
+class TranslateInput(BaseModel):
+    text: str = Field(..., min_length=1, max_length=MAX_TRANSCRIPT_CHARS)
+    target_language: str = Field(default="Urdu", min_length=1, max_length=50)
+
+
+class TranslateOutput(BaseModel):
+    translated_text: str
+    target_language: str
 
 
 class HealthResponse(BaseModel):
@@ -229,6 +256,67 @@ async def shorthand_to_speech(payload: ShorthandInput) -> SpeechOutput:
         raise HTTPException(
             status_code=502,
             detail=f"Gemini speech pipeline failed: {exc}",
+        ) from exc
+
+
+@app.post("/api/chat", response_model=ChatOutput)
+async def chat_assistant(payload: ChatInput) -> ChatOutput:
+    _require_api_key()
+    _check_rate_limit()
+
+    formatted_history = "\n".join(
+        f"{msg.role.capitalize()}: {msg.content}" for msg in payload.history[-6:]
+    ) or "None"
+    context = payload.context.strip() or "No recent classroom transcript or diagram available."
+
+    prompt = prompts.CHAT_PROMPT_TEMPLATE.format(
+        context=context,
+        history=formatted_history,
+        message=payload.message,
+    )
+    try:
+        reply = await _call_gemini(
+            prompt, prompts.CHAT_SYSTEM_INSTRUCTIONS, "text/plain"
+        )
+        cleaned = reply.strip()
+        if not cleaned:
+            raise ValueError("Gemini returned an empty reply.")
+        return ChatOutput(reply=cleaned)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini chat pipeline failed: {exc}",
+        ) from exc
+
+
+@app.post("/api/translate", response_model=TranslateOutput)
+async def translate_text(payload: TranslateInput) -> TranslateOutput:
+    _require_api_key()
+    _check_rate_limit()
+
+    prompt = prompts.TRANSLATE_PROMPT_TEMPLATE.format(
+        target_language=payload.target_language,
+        text=payload.text,
+    )
+    try:
+        translated = await _call_gemini(
+            prompt, prompts.TRANSLATE_SYSTEM_INSTRUCTIONS, "text/plain"
+        )
+        cleaned = translated.strip().strip('"').strip("'").strip()
+        if not cleaned:
+            raise ValueError("Gemini returned an empty translation.")
+        return TranslateOutput(
+            translated_text=cleaned,
+            target_language=payload.target_language,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini translation pipeline failed: {exc}",
         ) from exc
 
 
