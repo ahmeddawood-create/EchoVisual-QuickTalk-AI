@@ -2241,6 +2241,18 @@ function exportHtmlStudyReport() {
                     `).join('')}
                 </div>
             ` : ''}
+            ${(snap.flashcards && snap.flashcards.length) ? `
+                <h4 style="color:#a855f7; margin:14px 0 8px 0;">Concept Flashcards (${snap.flashcards.length})</h4>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-bottom:12px;">
+                    ${snap.flashcards.map((fc, fcIdx) => `
+                        <div class="flashcard-box">
+                            <div class="fc-tag">Flashcard #${fcIdx + 1}</div>
+                            <div class="fc-front">${escapeHtml(fc.front)}</div>
+                            <div class="fc-back">${escapeHtml(fc.back)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
             <div style="margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;">
                 ${(snap.key_terms || []).map((t) => `<span style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#818cf8; padding:2px 8px; border-radius:6px; font-size:12px; font-family:monospace;">${escapeHtml(t)}</span>`).join('')}
             </div>
@@ -2258,9 +2270,16 @@ function exportHtmlStudyReport() {
         body { background:#07090e; color:#f1f5f9; font-family:system-ui,-apple-system,sans-serif; margin:0; padding:32px 20px; }
         .container { max-width:900px; margin:0 auto; }
         h1 { color:#ffffff; font-size:24px; margin-bottom:4px; }
+        h2 { color:#ffffff; font-size:18px; margin-top:0; border-bottom:1px solid #1e2a40; padding-bottom:10px; }
+        h4 { font-size:14px; font-weight:600; }
         .meta { font-family:monospace; color:#94a3b8; font-size:13px; margin-bottom:24px; }
         .section { background:#0d121c; border:1px solid #1e2a40; border-radius:16px; padding:24px; margin-bottom:24px; }
         .transcript-box { background:#07090e; border:1px solid #1e2a40; border-radius:12px; padding:16px; font-size:15px; line-height:1.7; color:#e2e8f0; max-height:400px; overflow-y:auto; }
+        .flashcard-box { background:#07090e; border:1px solid #1e2a40; border-radius:12px; padding:14px; transition:border-color 0.2s; }
+        .flashcard-box:hover { border-color:#818cf8; }
+        .fc-tag { font-size:10px; font-family:monospace; color:#818cf8; text-transform:uppercase; margin-bottom:4px; font-weight:600; }
+        .fc-front { font-weight:600; color:#ffffff; font-size:13px; margin-bottom:8px; }
+        .fc-back { font-size:12px; color:#cbd5e1; border-top:1px dashed #334155; padding-top:8px; line-height:1.5; }
     </style>
 </head>
 <body>
@@ -2269,7 +2288,7 @@ function exportHtmlStudyReport() {
         <div class="meta">Recorded on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
 
         <div class="section">
-            <h2>Visual Learning Diagrams, Notes & Quizzes (${sessionDiagrams.length})</h2>
+            <h2>Visual Learning Diagrams, Notes, Quizzes & Flashcards (${sessionDiagrams.length})</h2>
             ${diagramsHtml || '<p style="color:#64748b;">No diagrams in this session.</p>'}
         </div>
 
@@ -2282,7 +2301,7 @@ function exportHtmlStudyReport() {
 </html>`;
 
     downloadTextFile(`lecture-report_${fileStamp()}.html`, html, 'text/html;charset=utf-8');
-    showToast('🌐 HTML Study Report downloaded!');
+    showToast('🌐 HTML Study Report with Flashcards downloaded!');
 }
 
 function exportSessionJson() {
