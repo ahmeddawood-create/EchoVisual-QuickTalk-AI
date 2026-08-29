@@ -1,5 +1,5 @@
 /* ==========================================================================
-   EchoVisual & QuickTalk AI — Multi-Page Application Logic (v3.0)
+   EchoVisual & QuickTalk AI - Multi-Page Application Logic (v3.0)
    5 Dedicated Views with Continuous Live Background Recording:
    1. 🎙️ Classroom View (#classroom): Live Speech + Urdu/Eng + Multi-Lang Translation + Visual Stream
    2. 🗣️ Student Expression Board (#expression): Full-page voice composer, Pakistani soundboards & spoken history
@@ -38,6 +38,9 @@ let currentTranslationText = '';
 let currentTargetLanguage = 'Urdu (اردو)';
 let isReadingAloud = false;
 let isGeneratingDiagram = false;
+let isGeneratingNotes = false;
+let isGeneratingQuiz = false;
+let isGeneratingFlashcards = false;
 let captionSpeechUtterance = null;
 let mermaidSeq = 0;
 
@@ -333,7 +336,7 @@ function displayDiagramSnapshot(index) {
 
     const wrapper = $('diagram-svg-wrapper');
     if (wrapper) {
-        wrapper.innerHTML = `<div class="rise-in w-full flex items-center justify-center">${snap.svg}</div>`;
+        wrapper.innerHTML = `<div class="rise-in w-full h-full min-h-0 min-w-0 flex items-center justify-center">${snap.svg}</div>`;
     }
 
     const lastUp = $('last-update');
@@ -383,21 +386,21 @@ function renderSummaryAndNotes(bullets, notes, terms) {
     if (sumList) {
         sumList.innerHTML = (bullets && bullets.length)
             ? bullets.map((b) => `<li class="rise-in flex gap-2"><span class="text-accent font-mono mt-[1px]">›</span><span>${escapeHtml(b)}</span></li>`).join('')
-            : '<li class="text-slate-500 italic">No summary available.</li>';
+            : '<li class="text-slate-500 italic">No summary points generated yet. Click "Generate Diagram" on the Classroom page to create one.</li>';
     }
 
     const nList = $('notes-list');
     if (nList) {
         nList.innerHTML = (notes && notes.length)
             ? notes.map((n) => `<li class="rise-in flex gap-2"><span class="text-accent-soft font-mono mt-[1px]">▪</span><span>${escapeHtml(n)}</span></li>`).join('')
-            : '<li class="text-slate-500 italic">Structured notes appear when a diagram is created.</li>';
+            : '<li class="text-slate-500 italic">No study notes generated yet. Click "Generate Short Notes" above to create them on demand.</li>';
     }
 
     const tList = $('terms-list');
     if (tList) {
         tList.innerHTML = (terms && terms.length)
             ? terms.map((t) => `<span class="rise-in px-2.5 py-1 rounded-lg bg-accent/15 border border-accent/30 text-accent text-xs font-mono">${escapeHtml(t)}</span>`).join('')
-            : '<span class="text-slate-500 italic text-xs">None detected yet.</span>';
+            : '<span class="text-slate-500 italic text-xs">No key terms recorded yet.</span>';
     }
 }
 
@@ -406,7 +409,7 @@ function renderQuiz(quizItems) {
     if (!container) return;
 
     if (!quizItems || !quizItems.length) {
-        container.innerHTML = '<p class="text-xs text-slate-500 italic">No quiz questions generated for this lecture slide yet.</p>';
+        container.innerHTML = '<p class="text-xs text-slate-500 italic">No quiz generated yet. Click "Generate Quiz" above to create comprehension questions on demand.</p>';
         if ($('quiz-score-badge')) $('quiz-score-badge').textContent = 'Score: 0 / 0';
         return;
     }
@@ -485,7 +488,7 @@ function renderFlashcards(flashcards) {
     if (!grid) return;
 
     if (!flashcards || !flashcards.length) {
-        grid.innerHTML = '<p class="text-xs text-slate-500 italic col-span-full">No flashcards generated for this lecture slide yet.</p>';
+        grid.innerHTML = '<p class="text-xs text-slate-500 italic col-span-full">No flashcards generated yet. Click "Generate Flashcards" above to create concept revision cards on demand.</p>';
         return;
     }
 
@@ -525,27 +528,27 @@ function initStudyTabs() {
         tabNotesBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
         tabQuizBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
         tabFlashcardsBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
-        if (notesPane) notesPane.classList.add('hidden');
-        if (quizPane) quizPane.classList.add('hidden');
-        if (flashcardsPane) flashcardsPane.classList.add('hidden');
+        if (notesPane) { notesPane.classList.add('hidden'); notesPane.classList.remove('grid'); }
+        if (quizPane) { quizPane.classList.add('hidden'); quizPane.classList.remove('flex'); }
+        if (flashcardsPane) { flashcardsPane.classList.add('hidden'); flashcardsPane.classList.remove('flex'); }
     }
 
     tabNotesBtn.addEventListener('click', () => {
         resetTabs();
         tabNotesBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
-        if (notesPane) notesPane.classList.remove('hidden');
+        if (notesPane) { notesPane.classList.remove('hidden'); notesPane.classList.add('grid'); }
     });
 
     tabQuizBtn.addEventListener('click', () => {
         resetTabs();
         tabQuizBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
-        if (quizPane) quizPane.classList.remove('hidden');
+        if (quizPane) { quizPane.classList.remove('hidden'); quizPane.classList.add('flex'); }
     });
 
     tabFlashcardsBtn.addEventListener('click', () => {
         resetTabs();
         tabFlashcardsBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
-        if (flashcardsPane) flashcardsPane.classList.remove('hidden');
+        if (flashcardsPane) { flashcardsPane.classList.remove('hidden'); flashcardsPane.classList.add('flex'); }
     });
 
     const copyBtn = $('copy-study-pack-btn');
@@ -796,7 +799,18 @@ function stopListening() {
 }
 
 // ------------------------------------------------------------------
-// On-Command Diagram Generation
+// Transcript Helper
+// ------------------------------------------------------------------
+function getCurrentLectureTranscript() {
+    let raw = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+    if (!raw && typeof fullTranscript !== 'undefined' && fullTranscript) {
+        raw = fullTranscript.trim();
+    }
+    return raw;
+}
+
+// ------------------------------------------------------------------
+// On-Command Diagram & Study Generators (Separate On-Demand Triggers)
 // ------------------------------------------------------------------
 function initOnCommandGenerator() {
     const manualBtn = $('manual-generate-btn');
@@ -808,16 +822,69 @@ function initOnCommandGenerator() {
             return;
         }
 
-        const raw = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
+        const raw = getCurrentLectureTranscript();
         if (raw.length < 3) {
             showToast('🎙️ Please start class and speak some lecture content first!');
             return;
         }
 
         const chunk = raw.slice(-MAX_TRANSCRIPT_CHARS);
-        showToast('⚡ Generating diagram, notes, quiz & flashcards on command...');
+        showToast('⚡ Generating diagram and summary on command...');
         enqueueApiTask('diagram', chunk);
     });
+}
+
+function initStudyGenerators() {
+    const notesBtn = $('generate-notes-btn');
+    if (notesBtn) {
+        notesBtn.addEventListener('click', () => {
+            if (isGeneratingNotes) {
+                showToast('⏳ Notes generation already in progress...');
+                return;
+            }
+            const chunk = getCurrentLectureTranscript();
+            if (chunk.length < 3) {
+                showToast('🎙️ Please start class and speak some lecture content first!');
+                return;
+            }
+            showToast('⚡ Generating high-yield study notes...');
+            enqueueApiTask('notes', chunk.slice(-MAX_TRANSCRIPT_CHARS));
+        });
+    }
+
+    const quizBtn = $('generate-quiz-btn');
+    if (quizBtn) {
+        quizBtn.addEventListener('click', () => {
+            if (isGeneratingQuiz) {
+                showToast('⏳ Quiz generation already in progress...');
+                return;
+            }
+            const chunk = getCurrentLectureTranscript();
+            if (chunk.length < 3) {
+                showToast('🎙️ Please start class and speak some lecture content first!');
+                return;
+            }
+            showToast('⚡ Generating interactive comprehension quiz...');
+            enqueueApiTask('quiz', chunk.slice(-MAX_TRANSCRIPT_CHARS));
+        });
+    }
+
+    const flashcardsBtn = $('generate-flashcards-btn');
+    if (flashcardsBtn) {
+        flashcardsBtn.addEventListener('click', () => {
+            if (isGeneratingFlashcards) {
+                showToast('⏳ Flashcards generation already in progress...');
+                return;
+            }
+            const chunk = getCurrentLectureTranscript();
+            if (chunk.length < 3) {
+                showToast('🎙️ Please start class and speak some lecture content first!');
+                return;
+            }
+            showToast('⚡ Generating 3D concept flashcards...');
+            enqueueApiTask('flashcards', chunk.slice(-MAX_TRANSCRIPT_CHARS));
+        });
+    }
 }
 
 function setGeneratingButtonState(loading) {
@@ -841,6 +908,78 @@ function setGeneratingButtonState(loading) {
         icon.innerHTML = loading
             ? '<circle cx="12" cy="12" r="10" stroke-width="2" stroke-dasharray="32" stroke-dashoffset="16" class="animate-spin"/>'
             : '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>';
+    }
+}
+
+function setGeneratingNotesButtonState(loading) {
+    isGeneratingNotes = loading;
+    const btn = $('generate-notes-btn');
+    const label = $('generate-notes-label');
+    const icon = $('generate-notes-icon');
+
+    if (btn) {
+        btn.disabled = loading;
+        if (loading) {
+            btn.classList.add('opacity-75', 'cursor-wait');
+        } else {
+            btn.classList.remove('opacity-75', 'cursor-wait');
+        }
+    }
+    if (label) {
+        label.textContent = loading ? 'Generating Notes...' : 'Generate Short Notes';
+    }
+    if (icon) {
+        icon.innerHTML = loading
+            ? '<circle cx="12" cy="12" r="10" stroke-width="2" stroke-dasharray="32" stroke-dashoffset="16" class="animate-spin"/>'
+            : '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>';
+    }
+}
+
+function setGeneratingQuizButtonState(loading) {
+    isGeneratingQuiz = loading;
+    const btn = $('generate-quiz-btn');
+    const label = $('generate-quiz-label');
+    const icon = $('generate-quiz-icon');
+
+    if (btn) {
+        btn.disabled = loading;
+        if (loading) {
+            btn.classList.add('opacity-75', 'cursor-wait');
+        } else {
+            btn.classList.remove('opacity-75', 'cursor-wait');
+        }
+    }
+    if (label) {
+        label.textContent = loading ? 'Generating Quiz...' : 'Generate Quiz';
+    }
+    if (icon) {
+        icon.innerHTML = loading
+            ? '<circle cx="12" cy="12" r="10" stroke-width="2" stroke-dasharray="32" stroke-dashoffset="16" class="animate-spin"/>'
+            : '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>';
+    }
+}
+
+function setGeneratingFlashcardsButtonState(loading) {
+    isGeneratingFlashcards = loading;
+    const btn = $('generate-flashcards-btn');
+    const label = $('generate-flashcards-label');
+    const icon = $('generate-flashcards-icon');
+
+    if (btn) {
+        btn.disabled = loading;
+        if (loading) {
+            btn.classList.add('opacity-75', 'cursor-wait');
+        } else {
+            btn.classList.remove('opacity-75', 'cursor-wait');
+        }
+    }
+    if (label) {
+        label.textContent = loading ? 'Generating Cards...' : 'Generate Flashcards';
+    }
+    if (icon) {
+        icon.innerHTML = loading
+            ? '<circle cx="12" cy="12" r="10" stroke-width="2" stroke-dasharray="32" stroke-dashoffset="16" class="animate-spin"/>'
+            : '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>';
     }
 }
 
@@ -875,13 +1014,28 @@ async function processApiQueue() {
                 await sendTranscriptChunk(task.payload);
             } else if (task.kind === 'speech') {
                 await refineAndSpeak(task.payload);
+            } else if (task.kind === 'notes') {
+                setGeneratingNotesButtonState(true);
+                await sendNotesRequest(task.payload);
+            } else if (task.kind === 'quiz') {
+                setGeneratingQuizButtonState(true);
+                await sendQuizRequest(task.payload);
+            } else if (task.kind === 'flashcards') {
+                setGeneratingFlashcardsButtonState(true);
+                await sendFlashcardsRequest(task.payload);
             }
         } catch (err) {
             console.error(`API task (${task.kind}) failed:`, err);
-            showError(`${task.kind === 'diagram' ? 'Diagram' : 'Speech'} pipeline failed: ${err.message}`);
+            showError(`${task.kind} pipeline failed: ${err.message}`);
         } finally {
             if (task.kind === 'diagram') {
                 setGeneratingButtonState(false);
+            } else if (task.kind === 'notes') {
+                setGeneratingNotesButtonState(false);
+            } else if (task.kind === 'quiz') {
+                setGeneratingQuizButtonState(false);
+            } else if (task.kind === 'flashcards') {
+                setGeneratingFlashcardsButtonState(false);
             }
         }
     }
@@ -892,7 +1046,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function sendTranscriptChunk(transcript) {
     setStatus('generating', 'bg-accent/15 text-accent border-accent/30');
-    if ($('last-update')) $('last-update').textContent = 'generating on command…';
+    if ($('last-update')) $('last-update').textContent = 'generating diagram…';
 
     const res = await fetch(`${API_BASE}/api/transcribe-to-diagram`, {
         method: 'POST',
@@ -910,22 +1064,100 @@ async function sendTranscriptChunk(transcript) {
         throw new Error('Invalid response shape from backend');
     }
 
+    // Auto-generate ONLY diagram, summary, and key terms; notes, quiz, and flashcards remain on-demand
     await renderDiagram(
         data.diagram_code,
         true,
-        data.summary_bullets,
-        data.key_terms,
-        data.short_notes,
-        data.quiz,
-        data.flashcards
+        data.summary_bullets || [],
+        data.key_terms || [],
+        [],
+        [],
+        []
     );
-    showToast('📊 Visual diagram, study notes, quiz & flashcards created!');
+    showToast('📊 Visual diagram & summary created!');
 
     if (isListening) {
         setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
     } else {
         setStatus('idle', 'bg-raised text-slate-400 border-edge');
     }
+}
+
+async function sendNotesRequest(transcript) {
+    const res = await fetch(`${API_BASE}/api/generate-notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Backend responded ${res.status}`);
+    }
+
+    const data = await res.json();
+    const notes = data.short_notes || [];
+
+    if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
+        sessionDiagrams[currentDiagramIndex].short_notes = notes;
+        saveCurrentSessionToStorage();
+        renderSummaryAndNotes(
+            sessionDiagrams[currentDiagramIndex].summary_bullets,
+            notes,
+            sessionDiagrams[currentDiagramIndex].key_terms
+        );
+    } else {
+        renderSummaryAndNotes([], notes, []);
+    }
+    showToast(`📋 ${notes.length} high-yield study notes generated!`);
+}
+
+async function sendQuizRequest(transcript) {
+    const res = await fetch(`${API_BASE}/api/generate-quiz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Backend responded ${res.status}`);
+    }
+
+    const data = await res.json();
+    const quiz = data.quiz || [];
+
+    if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
+        sessionDiagrams[currentDiagramIndex].quiz = quiz;
+        saveCurrentSessionToStorage();
+    }
+    renderQuiz(quiz);
+    if ($('quiz-badge')) $('quiz-badge').textContent = String(quiz.length);
+    showToast(`❓ ${quiz.length} quiz questions generated!`);
+}
+
+async function sendFlashcardsRequest(transcript) {
+    const res = await fetch(`${API_BASE}/api/generate-flashcards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Backend responded ${res.status}`);
+    }
+
+    const data = await res.json();
+    const flashcards = data.flashcards || [];
+
+    if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
+        sessionDiagrams[currentDiagramIndex].flashcards = flashcards;
+        saveCurrentSessionToStorage();
+    }
+    renderFlashcards(flashcards);
+    if ($('flashcard-badge')) $('flashcard-badge').textContent = String(flashcards.length);
+    showToast(`🎴 ${flashcards.length} concept flashcards generated!`);
 }
 
 // ------------------------------------------------------------------
@@ -1815,7 +2047,7 @@ function exportHtmlStudyReport() {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>EchoVisual Classroom Report — ${new Date().toLocaleDateString()}</title>
+    <title>EchoVisual Classroom Report - ${new Date().toLocaleDateString()}</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
     <script>mermaid.initialize({startOnLoad:true, theme:'dark'});</script>
     <style>
@@ -1829,7 +2061,7 @@ function exportHtmlStudyReport() {
 </head>
 <body>
     <div class="container">
-        <h1>EchoVisual & QuickTalk AI — Classroom Study Report</h1>
+        <h1>EchoVisual & QuickTalk AI - Classroom Study Report</h1>
         <div class="meta">Recorded on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
 
         <div class="section">
@@ -1947,6 +2179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPageRouter();
     initLiveSpeechRecognition();
     initOnCommandGenerator();
+    initStudyGenerators();
     initStudyTabs();
     initZoomAndFullscreen();
     initCaptionToolbar();

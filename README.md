@@ -102,8 +102,13 @@ Then open **http://127.0.0.1:8000** in Chrome or Edge, allow microphone access, 
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness check; reports API-key status and active model |
-| `POST` | `/api/transcribe-to-diagram` | Transcript chunk (≤ 4000 chars) → `{ diagram_code, summary_bullets, key_terms }` |
-| `POST` | `/api/shorthand-to-speech` | Shorthand (≤ 1000 chars) → `{ refined_text }` |
+| `POST` | `/api/transcribe-to-diagram` | Transcript chunk (≤ 4000 chars) -> `{ diagram_code, summary_bullets, key_terms }` |
+| `POST` | `/api/generate-notes` | Transcript chunk (≤ 4000 chars) -> `{ short_notes }` on-demand study notes |
+| `POST` | `/api/generate-quiz` | Transcript chunk (≤ 4000 chars) -> `{ quiz }` on-demand comprehension MCQs |
+| `POST` | `/api/generate-flashcards` | Transcript chunk (≤ 4000 chars) -> `{ flashcards }` on-demand 3D concept cards |
+| `POST` | `/api/shorthand-to-speech` | Shorthand (≤ 1000 chars) -> `{ refined_text }` |
+| `POST` | `/api/chat` | Bilingual conversational tutoring query -> `{ reply }` |
+| `POST` | `/api/translate` | Multi-language translation -> `{ translated_text, target_language }` |
 
 Interactive docs are available at **http://127.0.0.1:8000/docs** while the server runs.
 

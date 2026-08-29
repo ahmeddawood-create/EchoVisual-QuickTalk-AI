@@ -10,7 +10,7 @@ DIAGRAM_SYSTEM_INSTRUCTIONS = (
     "or code-switched bilingual speech) into clear visual learning aids for deaf/hard-of-hearing students."
 )
 
-DIAGRAM_PROMPT_TEMPLATE = """Turn this classroom transcript into a visual study aid with comprehensive study materials.
+DIAGRAM_PROMPT_TEMPLATE = """Turn this classroom transcript into a visual study aid with key summary points.
 NOTE: The speech may contain English, Roman Urdu (Urdu written in Latin script), Urdu script, or mixed bilingual speech. Understand all seamlessly.
 
 TRANSCRIPT:
@@ -22,26 +22,82 @@ Return ONLY a valid JSON object with these exact keys:
    Maximum 8 nodes with short labels. Use clear English or bilingual terms for nodes.
 2. "summary_bullets": 2 to 3 short plain-language strings summarizing key lecture points.
 3. "key_terms": 2 to 4 important technical or conceptual terms.
-4. "short_notes": 2 to 4 clear, high-yield study note bullet strings explaining the concept in depth.
-5. "quiz": an array of 2 multiple-choice questions based on this lecture, formatted as:
-   [
-     {{
-       "question": "Clear question text?",
-       "options": ["A. Option 1", "B. Option 2", "C. Option 3", "D. Option 4"],
-       "answer": "A. Option 1",
-       "explanation": "Brief explanation why this answer is correct."
-     }}
-   ]
-6. "flashcards": an array of 2 to 3 concept flashcards formatted as:
-   [
-     {{
-       "front": "Term or Concept",
-       "back": "Short, clear definition or explanation"
-     }}
-   ]
 
 If the transcript is too short or unclear, return:
-{{"diagram_code": "flowchart TD\\nA[Waiting for more context]", "summary_bullets": [], "key_terms": [], "short_notes": [], "quiz": [], "flashcards": []}}
+{{"diagram_code": "flowchart TD\\nA[Waiting for more context]", "summary_bullets": [], "key_terms": []}}
+"""
+
+NOTES_SYSTEM_INSTRUCTIONS = (
+    "You are an expert academic tutor. You extract structured, high-yield study notes from classroom lectures. "
+    "You understand English, Roman Urdu, and bilingual classroom speech seamlessly."
+)
+
+NOTES_PROMPT_TEMPLATE = """Create comprehensive, high-yield study notes from this classroom lecture transcript.
+The speech may contain English, Roman Urdu, or code-switched phrases.
+
+TRANSCRIPT:
+\"\"\"{transcript}\"\"\"
+
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "short_notes": [
+    "Clear, concise high-yield bullet note covering a key concept or rule.",
+    "Another structured bullet note with key formula, definition, or takeaway.",
+    "Another important observation or nuance from the lecture."
+  ]
+}}
+
+Provide 3 to 5 clear, high-yield notes. If transcript is insufficient, return:
+{{"short_notes": []}}
+"""
+
+QUIZ_SYSTEM_INSTRUCTIONS = (
+    "You are an expert educational assessment creator. You generate multiple-choice quiz questions to test student comprehension "
+    "of classroom lecture concepts in English and Roman Urdu."
+)
+
+QUIZ_PROMPT_TEMPLATE = """Create 2 to 3 multiple-choice comprehension questions based on this classroom lecture transcript.
+
+TRANSCRIPT:
+\"\"\"{transcript}\"\"\"
+
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "quiz": [
+    {{
+      "question": "Clear and specific question based on lecture content?",
+      "options": ["A. Option 1", "B. Option 2", "C. Option 3", "D. Option 4"],
+      "answer": "A. Option 1",
+      "explanation": "Brief explanation of why this answer is correct."
+    }}
+  ]
+}}
+
+If transcript is insufficient, return:
+{{"quiz": []}}
+"""
+
+FLASHCARDS_SYSTEM_INSTRUCTIONS = (
+    "You are an active-recall study coach. You create 3D concept flashcards for students from lecture transcripts."
+)
+
+FLASHCARDS_PROMPT_TEMPLATE = """Generate 3 to 4 concept revision flashcards from this classroom lecture transcript.
+
+TRANSCRIPT:
+\"\"\"{transcript}\"\"\"
+
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "flashcards": [
+    {{
+      "front": "Term, Formula, or Question",
+      "back": "Clear, accurate definition, explanation, or answer"
+    }}
+  ]
+}}
+
+If transcript is insufficient, return:
+{{"flashcards": []}}
 """
 
 SHORTHAND_SYSTEM_INSTRUCTIONS = (
@@ -91,5 +147,6 @@ Ensure the translation is natural, clear, and easy for students to read. Output 
 TRANSCRIPT:
 \"\"\"{text}\"\"\"
 """
+
 
 

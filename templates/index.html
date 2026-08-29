@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" class="dark theme-indigo">
+<html lang="en" class="dark theme-indigo h-full">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EchoVisual &amp; QuickTalk AI — Multi-Page Classroom Suite</title>
+    <title>EchoVisual &amp; QuickTalk AI - Multi-Page Classroom Suite</title>
     <!-- Tailwind CSS via CDN (no build step per AGENTS.md) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -40,10 +40,10 @@
     <!-- App styles -->
     <link rel="stylesheet" href="/static/styles.css" />
 </head>
-<body class="bg-ink text-slate-200 min-h-[100dvh] flex flex-col font-sans antialiased selection:bg-accent/30 selection:text-white pb-16 md:pb-0">
+<body class="bg-ink text-slate-200 h-screen h-[100dvh] max-h-screen overflow-hidden flex flex-col font-sans antialiased selection:bg-accent/30 selection:text-white pb-14 md:pb-0">
 
     <!-- ======================= Top Global Header (64px) ======================= -->
-    <header class="h-16 shrink-0 flex items-center justify-between px-4 lg:px-6 border-b border-edge bg-panel sticky top-0 z-30 shadow-md">
+    <header class="h-16 shrink-0 flex items-center justify-between px-3 sm:px-4 lg:px-6 border-b border-edge bg-panel sticky top-0 z-30 shadow-md">
         <!-- Logo & Brand -->
         <div class="flex items-center gap-3 shrink-0">
             <div class="w-9 h-9 shrink-0 rounded-xl bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
@@ -143,43 +143,43 @@
     <p id="error-banner" class="invisible text-xs text-red-300 bg-red-950/50 border-b border-red-900/60 px-5 py-2 font-mono text-center"></p>
 
     <!-- ========================================================================= -->
-    <!-- MAIN MULTI-PAGE VIEWS CONTAINER                                           -->
+    <!-- MAIN MULTI-PAGE VIEWS CONTAINER (Rigid 100% Height Shell)                 -->
     <!-- ========================================================================= -->
-    <main class="flex-1 flex flex-col p-4 min-h-0 relative overflow-auto slim-scroll">
+    <main class="flex-1 min-h-0 min-w-0 flex flex-col p-2.5 sm:p-3 md:p-4 overflow-hidden relative">
 
         <!-- ===================================================================== -->
         <!-- PAGE 1: LIVE CLASSROOM & VISUAL STREAM                                -->
         <!-- ===================================================================== -->
-        <section id="view-classroom" class="page-view active flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0">
-            <!-- Left Column: Live Captioning & Translation Sidebar -->
-            <div class="lg:col-span-5 flex flex-col bg-panel border border-edge rounded-2xl overflow-hidden min-h-[380px] lg:min-h-0 shadow-lg">
-                <!-- Caption Header -->
-                <div class="flex items-center justify-between px-4 py-3 border-b border-edge bg-raised/40">
+        <section id="view-classroom" class="page-view active grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0 h-full w-full">
+            <!-- Left Column: Live Captioning & Translation Sidebar (5 cols) -->
+            <div class="lg:col-span-5 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl overflow-hidden shadow-lg">
+                <!-- Caption Header (shrink-0, fixed height) -->
+                <div class="h-12 shrink-0 flex items-center justify-between px-3 md:px-4 border-b border-edge bg-raised/40">
                     <div class="flex items-center gap-2">
                         <span id="caption-dot" class="w-2.5 h-2.5 rounded-full bg-slate-600 transition-colors"></span>
-                        <h2 class="text-sm font-semibold text-white tracking-tight">Live Caption</h2>
+                        <h2 class="text-xs md:text-sm font-semibold text-white tracking-tight">Live Caption</h2>
                         <select id="mic-lang-select" title="Microphone recognition language"
                                 class="bg-ink border border-edge rounded-lg px-2 py-0.5 text-[10px] text-slate-300 font-mono focus:outline-none focus:ring-1 focus:ring-accent cursor-pointer">
                             <option value="en-US" selected>🎙️ English</option>
                             <option value="ur-PK">🎙️ Urdu (اردو)</option>
                         </select>
                     </div>
-                    <div class="flex items-center gap-1.5">
+                    <div class="flex items-center gap-1 sm:gap-1.5">
                         <button id="speak-caption-btn" title="Speak loud live transcription text"
-                                class="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-raised hover:bg-edge border border-edge text-slate-300 hover:text-white transition-all">
+                                class="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-raised hover:bg-edge border border-edge text-slate-300 hover:text-white transition-all">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
                                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
                             </svg>
-                            <span id="speak-caption-label">Read Aloud</span>
+                            <span id="speak-caption-label" class="hidden sm:inline">Read Aloud</span>
                         </button>
                         <button id="copy-caption-btn" title="Copy live caption text"
-                                class="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-raised hover:bg-edge border border-edge text-slate-300 hover:text-white transition-colors">
+                                class="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-raised hover:bg-edge border border-edge text-slate-300 hover:text-white transition-colors">
                             <svg viewBox="0 0 24 24" class="w-3 h-3 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                             </svg>
-                            <span>Copy</span>
+                            <span class="hidden sm:inline">Copy</span>
                         </button>
                         <button id="download-caption-btn" title="Download caption text as .txt"
                                 class="p-1.5 text-xs rounded-md bg-raised hover:bg-edge border border-edge text-slate-300 hover:text-white transition-colors">
@@ -196,8 +196,8 @@
                     </div>
                 </div>
 
-                <!-- Translation Toolbar -->
-                <div class="px-3 py-2 border-b border-edge bg-raised/30 flex flex-wrap items-center justify-between gap-2">
+                <!-- Translation Toolbar (shrink-0, fixed height) -->
+                <div class="h-11 shrink-0 px-3 border-b border-edge bg-raised/30 flex items-center justify-between gap-2">
                     <div class="flex items-center gap-1 bg-ink/70 p-0.5 rounded-lg border border-edge">
                         <button id="tab-original-btn" class="px-2.5 py-1 rounded text-xs font-semibold bg-raised text-white transition-all shadow-sm">
                             Live Speech
@@ -224,25 +224,25 @@
                             <option value="Hindi (हिन्दी)">Hindi</option>
                         </select>
                         <button id="translate-caption-btn" title="Translate current classroom speech"
-                                class="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-accent hover:opacity-90 text-white font-semibold transition-opacity shadow-sm">
+                                class="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-accent hover:opacity-90 text-white font-semibold transition-opacity shadow-sm whitespace-nowrap">
                             <span>Translate</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- Original Caption Body -->
-                <div id="caption-body" class="flex-1 overflow-auto slim-scroll px-5 py-4 text-base md:text-lg leading-relaxed text-slate-100 min-h-[220px]">
-                    <p id="caption-empty" class="text-sm text-slate-500">Live lecture captions appear here continuously when the teacher speaks.</p>
+                <!-- Original Caption Body (flex-1, min-h-0, overflow-y-auto) -->
+                <div id="caption-body" class="flex-1 min-h-0 min-w-0 overflow-y-auto slim-scroll p-4 md:p-5 text-sm md:text-base leading-relaxed text-slate-100">
+                    <p id="caption-empty" class="text-xs md:text-sm text-slate-500 select-none">Live lecture captions appear here continuously when the teacher speaks.</p>
                     <span id="caption-final"></span><span id="caption-interim" class="text-slate-400"></span>
                 </div>
 
-                <!-- Translated Caption Body -->
-                <div id="caption-translated-body" class="hidden flex-1 overflow-auto slim-scroll px-5 py-4 text-base md:text-lg leading-relaxed text-slate-100 flex-col justify-between min-h-[220px]">
-                    <div id="translated-content-wrapper">
-                        <p id="translated-empty" class="text-sm text-slate-500">Click 'Translate' above to generate an instant AI translation of the lecture speech.</p>
+                <!-- Translated Caption Body (flex-1, min-h-0, overflow-hidden) -->
+                <div id="caption-translated-body" class="hidden flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col justify-between p-4 md:p-5 text-sm md:text-base leading-relaxed text-slate-100">
+                    <div id="translated-content-wrapper" class="flex-1 min-h-0 overflow-y-auto slim-scroll">
+                        <p id="translated-empty" class="text-xs md:text-sm text-slate-500 select-none">Click 'Translate' above to generate an instant AI translation of the lecture speech.</p>
                         <div id="translated-text-target" class="leading-relaxed"></div>
                     </div>
-                    <div id="translated-actions" class="hidden pt-3 mt-4 border-t border-edge flex items-center justify-between text-xs font-sans">
+                    <div id="translated-actions" class="hidden shrink-0 pt-2.5 mt-2 border-t border-edge flex items-center justify-between text-xs font-sans">
                         <span id="translated-lang-indicator" class="font-mono text-[11px] text-accent"></span>
                         <div class="flex items-center gap-2">
                             <button id="speak-translated-btn" title="Listen to translation"
@@ -258,19 +258,17 @@
                 </div>
             </div>
 
-            <!-- Right Column: Teacher Visual Stream -->
-            <div class="lg:col-span-7 flex flex-col bg-panel border border-edge rounded-2xl overflow-hidden min-h-[380px] lg:min-h-0 shadow-lg">
-                <!-- Stream Header & Controls Toolbar -->
-                <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-edge bg-raised/40">
-                    <div class="flex items-center gap-3 min-w-0">
-                        <h2 class="text-sm font-semibold text-white tracking-tight flex items-center gap-2">
-                            <span>Teacher Visual Stream</span>
-                        </h2>
-                        <span id="last-update" class="font-mono text-[11px] text-slate-400">click Generate to create visuals</span>
+            <!-- Right Column: Teacher Visual Stream (7 cols) -->
+            <div class="lg:col-span-7 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl overflow-hidden shadow-lg">
+                <!-- Stream Header & Controls Toolbar (shrink-0, rigid height) -->
+                <div class="h-12 shrink-0 flex items-center justify-between px-3 md:px-4 border-b border-edge bg-raised/40 gap-2 overflow-x-auto slim-scroll">
+                    <div class="flex items-center gap-2 min-w-0 shrink-0">
+                        <h2 class="text-xs md:text-sm font-semibold text-white tracking-tight whitespace-nowrap">Teacher Visual Stream</h2>
+                        <span id="last-update" class="font-mono text-[10px] md:text-[11px] text-slate-400 truncate hidden xl:inline">click Generate for visuals</span>
                     </div>
 
                     <!-- Diagram Timeline Slider Bar (Forward / Backward navigation) -->
-                    <div class="flex items-center gap-2 bg-ink/80 px-2.5 py-1 rounded-xl border border-edge">
+                    <div class="flex items-center gap-1.5 bg-ink/80 px-2 py-1 rounded-xl border border-edge shrink-0">
                         <button id="prev-diagram-btn" title="Previous diagram" disabled
                                 class="p-1 rounded bg-raised hover:bg-edge disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white transition-colors">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
@@ -279,7 +277,7 @@
                         </button>
                         
                         <input id="diagram-slider" type="range" min="1" max="1" value="1" disabled
-                                class="history-slider w-20 sm:w-28 md:w-36 cursor-pointer" title="Browse session diagram history" />
+                                class="history-slider w-16 sm:w-20 md:w-28 cursor-pointer" title="Browse session diagram history" />
 
                         <button id="next-diagram-btn" title="Next diagram" disabled
                                 class="p-1 rounded bg-raised hover:bg-edge disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white transition-colors">
@@ -288,21 +286,21 @@
                             </svg>
                         </button>
 
-                        <span id="diagram-counter" class="font-mono text-[11px] text-slate-300 font-medium px-1.5 py-0.5 rounded bg-raised border border-edge whitespace-nowrap">
+                        <span id="diagram-counter" class="font-mono text-[10px] md:text-[11px] text-slate-300 font-medium px-1.5 py-0.5 rounded bg-raised border border-edge whitespace-nowrap">
                             0 / 0
                         </span>
 
-                        <label class="flex items-center gap-1 text-[10px] font-mono text-slate-400 cursor-pointer select-none ml-1">
+                        <label class="hidden 2xl:flex items-center gap-1 text-[10px] font-mono text-slate-400 cursor-pointer select-none ml-1">
                             <input id="live-follow-toggle" type="checkbox" checked class="rounded border-edge text-accent focus:ring-0 accent-accent cursor-pointer" />
-                            <span class="hidden md:inline">Live Follow</span>
+                            <span>Follow</span>
                         </label>
                     </div>
 
                     <!-- Diagram Toolbar: Zoom, Copy, Download, Manual Generate -->
-                    <div class="flex items-center gap-1.5 flex-wrap">
+                    <div class="flex items-center gap-1 shrink-0">
                         <!-- Manual On-Demand Generate Button -->
                         <button id="manual-generate-btn" title="Generate diagram, notes, quiz & flashcards on command"
-                                class="cmd-pulse-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:opacity-90 text-white border border-accent/40 text-xs font-semibold shadow-md shadow-accent/20 transition-all">
+                                class="cmd-pulse-btn flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-accent hover:opacity-90 text-white border border-accent/40 text-xs font-semibold shadow-md shadow-accent/20 transition-all whitespace-nowrap">
                             <svg id="generate-btn-icon" viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
                                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
                             </svg>
@@ -310,42 +308,28 @@
                         </button>
 
                         <!-- Zoom Controls -->
-                        <div class="hidden sm:flex items-center bg-raised rounded-lg border border-edge p-0.5">
-                            <button id="zoom-out-btn" title="Zoom out" class="px-2 py-0.5 text-xs text-slate-400 hover:text-white rounded hover:bg-edge">-</button>
-                            <span id="zoom-label" class="text-[10px] font-mono text-slate-400 px-1.5 select-none">100%</span>
-                            <button id="zoom-in-btn" title="Zoom in" class="px-2 py-0.5 text-xs text-slate-400 hover:text-white rounded hover:bg-edge">+</button>
-                            <button id="zoom-reset-btn" title="Reset zoom" class="px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-white rounded hover:bg-edge font-mono">fit</button>
+                        <div class="hidden lg:flex items-center bg-raised rounded-lg border border-edge p-0.5">
+                            <button id="zoom-out-btn" title="Zoom out" class="px-1.5 py-0.5 text-xs text-slate-400 hover:text-white rounded hover:bg-edge">-</button>
+                            <span id="zoom-label" class="text-[10px] font-mono text-slate-400 px-1 select-none">100%</span>
+                            <button id="zoom-in-btn" title="Zoom in" class="px-1.5 py-0.5 text-xs text-slate-400 hover:text-white rounded hover:bg-edge">+</button>
+                            <button id="zoom-reset-btn" title="Reset zoom" class="px-1 py-0.5 text-[10px] text-slate-400 hover:text-white rounded hover:bg-edge font-mono">fit</button>
                         </div>
 
                         <!-- Copy Mermaid Code -->
                         <button id="copy-diagram-btn" title="Copy Mermaid diagram syntax"
-                                class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-colors">
-                            <svg viewBox="0 0 24 24" class="w-3 h-3 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                            </svg>
-                            <span class="hidden md:inline">Mermaid</span>
+                                class="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-colors">
+                            <span>Code</span>
                         </button>
 
                         <!-- Download SVG -->
                         <button id="download-svg-btn" title="Download diagram as SVG file"
-                                class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-colors">
-                            <svg viewBox="0 0 24 24" class="w-3 h-3 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="7 10 12 15 17 10"/>
-                                <line x1="12" y1="15" x2="12" y2="3"/>
-                            </svg>
+                                class="flex items-center gap-1 px-2 py-1 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-colors">
                             <span>SVG</span>
                         </button>
 
                         <!-- Download PNG -->
                         <button id="download-png-btn" title="Download diagram as PNG image"
-                                class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-colors">
-                            <svg viewBox="0 0 24 24" class="w-3 h-3 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                                <circle cx="8.5" cy="8.5" r="1.5"/>
-                                <polyline points="21 15 16 10 5 21"/>
-                            </svg>
+                                class="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-colors">
                             <span>PNG</span>
                         </button>
 
@@ -359,26 +343,26 @@
                     </div>
                 </div>
 
-                <!-- Resizable Diagram Canvas Container -->
-                <div id="diagram-container" class="flex-1 bg-ink flex items-center justify-center p-6 border-b border-edge min-h-[300px] overflow-auto">
-                    <div id="diagram-svg-wrapper" class="w-full h-full flex items-center justify-center">
+                <!-- Rigid Diagram Canvas Container -->
+                <div id="diagram-container" class="flex-1 min-h-0 min-w-0 bg-ink flex items-center justify-center p-4 md:p-6 border-b border-edge overflow-auto">
+                    <div id="diagram-svg-wrapper" class="w-full h-full min-h-0 min-w-0 flex items-center justify-center">
                         <div class="text-center max-w-sm">
-                            <svg viewBox="0 0 24 24" class="w-9 h-9 mx-auto mb-3 text-slate-700" fill="none"
+                            <svg viewBox="0 0 24 24" class="w-8 h-8 md:w-9 md:h-9 mx-auto mb-2 text-slate-700" fill="none"
                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="3" y="3" width="7" height="7" rx="1.5" />
                                 <rect x="14" y="14" width="7" height="7" rx="1.5" />
                                 <path d="M10 6.5h7a2 2 0 0 1 2 2V14M14 17.5H7a2 2 0 0 1-2-2V10" />
                             </svg>
-                            <p class="text-sm text-slate-400 font-medium">Click "Generate Diagram" to create visuals on command.</p>
-                            <p class="font-mono text-[11px] text-slate-600 mt-1">speech recorded → click Generate → diagrams &amp; study pack</p>
+                            <p class="text-xs md:text-sm text-slate-400 font-medium">Click "Generate Diagram" to create visuals on command.</p>
+                            <p class="font-mono text-[10px] md:text-[11px] text-slate-600 mt-1">speech recorded → click Generate → diagrams &amp; study pack</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Quick Study Bar link to Page 3 -->
-                <div class="px-4 py-2.5 bg-raised/50 border-t border-edge flex items-center justify-between gap-2 shrink-0">
-                    <span class="text-xs text-slate-400 font-mono">Study Pack generated with diagrams</span>
-                    <a href="#study" class="text-xs font-semibold text-accent hover:underline flex items-center gap-1">
+                <div class="h-10 shrink-0 px-4 bg-raised/50 border-t border-edge flex items-center justify-between gap-2">
+                    <span class="text-xs text-slate-400 font-mono truncate">Study Pack generated with diagrams</span>
+                    <a href="#study" class="text-xs font-semibold text-accent hover:underline flex items-center gap-1 shrink-0">
                         <span>Open Full Study Hub &amp; Quizzes ›</span>
                     </a>
                 </div>
@@ -388,9 +372,9 @@
         <!-- ===================================================================== -->
         <!-- PAGE 2: STUDENT EXPRESSION & VOICE BOARD                             -->
         <!-- ===================================================================== -->
-        <section id="view-expression" class="page-view flex-1 flex-col gap-4 min-h-0">
-            <!-- Header Banner -->
-            <div class="bg-panel border border-edge rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-md shrink-0">
+        <section id="view-expression" class="page-view flex-1 min-h-0 h-full w-full flex-col gap-3 md:gap-4">
+            <!-- Header Banner (shrink-0) -->
+            <div class="bg-panel border border-edge rounded-2xl p-3 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-md shrink-0">
                 <div>
                     <h2 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
                         <span>Student Expression &amp; Voice Board</span>
@@ -426,18 +410,18 @@
             </div>
 
             <!-- Two-Column Expression Layout -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0 h-full w-full">
                 <!-- Left: Shorthand Composer (col-span-6) -->
-                <div class="lg:col-span-6 flex flex-col bg-panel border border-edge rounded-2xl p-5 shadow-lg space-y-4">
-                    <div class="flex items-center justify-between">
+                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-3 md:space-y-4">
+                    <div class="flex items-center justify-between shrink-0">
                         <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">Speech Composer</h3>
                         <span class="text-[11px] font-mono text-slate-500">Auto-refined by Gemini</span>
                     </div>
 
-                    <div class="relative flex-1 min-h-[140px]">
-                        <textarea id="shorthand-input" rows="6"
+                    <div class="relative flex-1 min-h-0">
+                        <textarea id="shorthand-input"
                                   placeholder="Type fragments or Roman Urdu, e.g. 'sir q abt gravity?? fast smjhaen' (Press Enter to speak immediately)"
-                                  class="w-full h-full bg-ink border border-edge rounded-xl p-4 pr-16 text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-shadow"></textarea>
+                                  class="w-full h-full bg-ink border border-edge rounded-xl p-3.5 md:p-4 pr-14 text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-shadow"></textarea>
                         <span id="char-count" class="absolute bottom-3 right-3.5 font-mono text-[10px] text-slate-500">0</span>
                     </div>
 
@@ -457,40 +441,40 @@
                 </div>
 
                 <!-- Right: Pakistani Presets & Spoken Log (col-span-6) -->
-                <div class="lg:col-span-6 flex flex-col gap-4 min-h-0">
+                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-0 h-full gap-3 md:gap-4">
                     <!-- Quick Presets Soundboard -->
-                    <div class="bg-panel border border-edge rounded-2xl p-4 shadow-lg shrink-0">
-                        <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold mb-2.5">Quick Pakistani &amp; Class Soundboards</h3>
-                        <div class="flex flex-wrap gap-2 max-h-36 overflow-auto slim-scroll">
-                            <button class="preset-btn px-3 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
+                    <div class="bg-panel border border-edge rounded-2xl p-3 md:p-4 shadow-lg shrink-0 flex flex-col max-h-[45%]">
+                        <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold mb-2 shrink-0">Quick Pakistani &amp; Class Soundboards</h3>
+                        <div class="flex flex-wrap gap-1.5 sm:gap-2 overflow-y-auto slim-scroll p-0.5">
+                            <button class="preset-btn px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
                                     data-text="Sir please yeh point dubara repeat kar dein.">🇵🇰 Sir repeat kar dein</button>
-                            <button class="preset-btn px-3 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
+                            <button class="preset-btn px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
                                     data-text="Sir yeh concept theek se samajh nahi aya, please explain karein.">🇵🇰 Concept samajh nahi aya</button>
-                            <button class="preset-btn px-3 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
+                            <button class="preset-btn px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
                                     data-text="Sir could you please slow down a little?">🇵🇰 Sir thora slow parhaen</button>
-                            <button class="preset-btn px-3 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
+                            <button class="preset-btn px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
                                     data-text="I have a question about this specific topic.">✋ Question</button>
-                            <button class="preset-btn px-3 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
+                            <button class="preset-btn px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
                                     data-text="Could you please explain this with a real-world example?">💡 Example please</button>
-                            <button class="preset-btn px-3 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
+                            <button class="preset-btn px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge hover:text-white text-xs text-slate-200 border border-edge transition-colors"
                                     data-text="Thank you very much for explaining that so clearly.">🙏 Thank you Sir</button>
                         </div>
 
                         <!-- Custom Preset Creator -->
-                        <div class="flex items-center gap-2 mt-3 pt-3 border-t border-edge">
+                        <div class="flex items-center gap-2 mt-2 pt-2 border-t border-edge shrink-0">
                             <input id="custom-preset-input" type="text" placeholder="Save new custom phrase soundboard..."
                                    class="flex-1 bg-ink border border-edge rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-accent" />
-                            <button id="save-preset-btn" class="px-3 py-1.5 rounded-lg bg-accent/20 hover:bg-accent/30 text-accent border border-accent/40 text-xs font-mono font-semibold transition-colors">
+                            <button id="save-preset-btn" class="px-3 py-1.5 rounded-lg bg-accent/20 hover:bg-accent/30 text-accent border border-accent/40 text-xs font-mono font-semibold transition-colors whitespace-nowrap">
                                 + Save Preset
                             </button>
                         </div>
-                        <div id="custom-presets-container" class="flex flex-wrap gap-1.5 mt-2"></div>
+                        <div id="custom-presets-container" class="flex flex-wrap gap-1.5 mt-1.5 overflow-y-auto slim-scroll max-h-16"></div>
                     </div>
 
                     <!-- Spoken Log with replay -->
-                    <div class="flex-1 flex flex-col bg-panel border border-edge rounded-2xl p-4 shadow-lg min-h-[160px] overflow-hidden">
-                        <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold mb-2">Spoken Questions History</h3>
-                        <ul id="spoken-log" class="flex-1 overflow-auto slim-scroll space-y-2">
+                    <div class="flex-1 min-h-0 overflow-hidden flex flex-col bg-panel border border-edge rounded-2xl p-3 md:p-4 shadow-lg">
+                        <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold mb-2 shrink-0">Spoken Questions History</h3>
+                        <ul id="spoken-log" class="flex-1 min-h-0 overflow-y-auto slim-scroll space-y-2">
                             <li class="text-slate-500 italic text-xs">Nothing spoken yet.</li>
                         </ul>
                     </div>
@@ -501,9 +485,9 @@
         <!-- ===================================================================== -->
         <!-- PAGE 3: STUDY HUB & QUIZ ARENA                                       -->
         <!-- ===================================================================== -->
-        <section id="view-study" class="page-view flex-1 flex-col gap-4 min-h-0">
+        <section id="view-study" class="page-view flex-1 min-h-0 h-full w-full flex-col gap-3 md:gap-4">
             <!-- Study Hub Header -->
-            <div class="bg-panel border border-edge rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-md shrink-0">
+            <div class="bg-panel border border-edge rounded-2xl p-3 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-md shrink-0">
                 <div>
                     <h2 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
                         <span>Classroom Study Hub &amp; Quiz Arena</span>
@@ -535,9 +519,9 @@
             </div>
 
             <!-- Tab 1: Notes & Summary Full Page Pane -->
-            <div id="study-notes-pane" class="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 min-h-0">
+            <div id="study-notes-pane" class="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 h-full w-full">
                 <!-- Left: Key Summary & Notes (md:col-span-8) -->
-                <div class="md:col-span-8 flex flex-col bg-panel border border-edge rounded-2xl p-5 shadow-lg space-y-4 overflow-auto slim-scroll">
+                <div class="md:col-span-8 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-4 overflow-y-auto slim-scroll">
                     <div>
                         <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold mb-2">Lecture Key Summary</h3>
                         <ul id="summary-list" class="space-y-2 text-sm text-slate-300">
@@ -546,15 +530,27 @@
                     </div>
 
                     <div class="border-t border-edge/60 pt-4">
-                        <h3 class="text-xs font-mono uppercase tracking-wider text-accent-soft font-semibold mb-2">High-Yield Study Notes</h3>
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="text-xs font-mono uppercase tracking-wider text-accent-soft font-semibold">High-Yield Study Notes</h3>
+                            <button id="generate-notes-btn" title="Generate structured study notes from lecture transcript"
+                                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:opacity-90 text-white text-xs font-semibold shadow-sm transition-all whitespace-nowrap">
+                                <svg id="generate-notes-icon" viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                    <line x1="16" y1="13" x2="8" y2="13"/>
+                                    <line x1="16" y1="17" x2="8" y2="17"/>
+                                </svg>
+                                <span id="generate-notes-label">Generate Short Notes</span>
+                            </button>
+                        </div>
                         <ul id="notes-list" class="space-y-2 text-sm text-slate-300">
-                            <li class="text-slate-500 italic">Structured notes will appear automatically when you generate a diagram from classroom speech.</li>
+                            <li class="text-slate-500 italic">No study notes generated yet. Click "Generate Short Notes" above to create them on demand.</li>
                         </ul>
                     </div>
                 </div>
 
                 <!-- Right: Key Terms Tag Cloud (md:col-span-4) -->
-                <div class="md:col-span-4 flex flex-col bg-panel border border-edge rounded-2xl p-5 shadow-lg space-y-3 overflow-auto slim-scroll">
+                <div class="md:col-span-4 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-3 overflow-y-auto slim-scroll">
                     <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">Key Terminology Covered</h3>
                     <div id="terms-list" class="flex flex-wrap gap-2">
                         <span class="text-slate-500 italic text-xs">No key terms recorded yet.</span>
@@ -563,8 +559,8 @@
             </div>
 
             <!-- Tab 2: Interactive Quiz Arena Full Page Pane -->
-            <div id="study-quiz-pane" class="hidden flex-1 flex-col bg-panel border border-edge rounded-2xl p-6 shadow-lg overflow-auto slim-scroll space-y-4">
-                <div class="flex items-center justify-between border-b border-edge/60 pb-3">
+            <div id="study-quiz-pane" class="hidden flex-1 min-h-0 flex-col bg-panel border border-edge rounded-2xl p-4 md:p-6 shadow-lg overflow-y-auto slim-scroll h-full w-full space-y-4">
+                <div class="flex items-center justify-between border-b border-edge/60 pb-3 shrink-0 gap-2 flex-wrap">
                     <div>
                         <h3 class="text-sm font-semibold text-white flex items-center gap-2">
                             <span>Interactive Quiz Arena</span>
@@ -572,26 +568,48 @@
                         </h3>
                         <p class="text-xs text-slate-400 mt-0.5">Test your comprehension with questions automatically synthesized from the lecture.</p>
                     </div>
-                    <button id="reset-quiz-btn" class="px-3 py-1.5 rounded-lg bg-raised hover:bg-edge text-xs font-mono text-slate-300 border border-edge">
-                        Reset Answers
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button id="generate-quiz-btn" title="Generate interactive quiz questions from lecture transcript"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:opacity-90 text-white text-xs font-semibold shadow-sm transition-all whitespace-nowrap">
+                            <svg id="generate-quiz-icon" viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <span id="generate-quiz-label">Generate Quiz</span>
+                        </button>
+                        <button id="reset-quiz-btn" class="px-3 py-1.5 rounded-lg bg-raised hover:bg-edge text-xs font-mono text-slate-300 border border-edge">
+                            Reset Answers
+                        </button>
+                    </div>
                 </div>
-                <div id="quiz-questions-container" class="space-y-4 max-w-4xl">
-                    <p class="text-xs text-slate-500 italic">Quizzes are automatically generated when a diagram is created from classroom speech.</p>
+                <div id="quiz-questions-container" class="space-y-4 max-w-4xl flex-1">
+                    <p class="text-xs text-slate-500 italic">No quiz generated yet. Click "Generate Quiz" above to create comprehension questions on demand.</p>
                 </div>
             </div>
 
             <!-- Tab 3: Interactive 3D Flashcards Deck Pane -->
-            <div id="study-flashcards-pane" class="hidden flex-1 flex-col bg-panel border border-edge rounded-2xl p-6 shadow-lg overflow-auto slim-scroll space-y-4">
-                <div class="flex items-center justify-between border-b border-edge/60 pb-2">
+            <div id="study-flashcards-pane" class="hidden flex-1 min-h-0 flex-col bg-panel border border-edge rounded-2xl p-4 md:p-6 shadow-lg overflow-y-auto slim-scroll h-full w-full space-y-4">
+                <div class="flex items-center justify-between border-b border-edge/60 pb-2 shrink-0 gap-2 flex-wrap">
                     <div>
                         <h3 class="text-sm font-semibold text-white">Concept Flashcard Revision Deck</h3>
                         <p class="text-xs text-slate-400 mt-0.5">Click any flashcard to flip and reveal the in-depth explanation.</p>
                     </div>
-                    <span class="text-xs text-accent font-mono">↻ Click to Flip</span>
+                    <div class="flex items-center gap-2 sm:gap-3">
+                        <span class="text-xs text-slate-400 font-mono hidden sm:inline">↻ Click to Flip</span>
+                        <button id="generate-flashcards-btn" title="Generate concept flashcards deck from lecture transcript"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:opacity-90 text-white text-xs font-semibold shadow-sm transition-all whitespace-nowrap">
+                            <svg id="generate-flashcards-icon" viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <line x1="3" y1="9" x2="21" y2="9"/>
+                                <line x1="9" y1="21" x2="9" y2="9"/>
+                            </svg>
+                            <span id="generate-flashcards-label">Generate Flashcards</span>
+                        </button>
+                    </div>
                 </div>
-                <div id="flashcards-grid" class="flashcards-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <p class="text-xs text-slate-500 italic col-span-full">Flashcards will appear when lecture diagrams are generated.</p>
+                <div id="flashcards-grid" class="flashcards-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 flex-1">
+                    <p class="text-xs text-slate-500 italic col-span-full">No flashcards generated yet. Click "Generate Flashcards" above to create concept revision cards on demand.</p>
                 </div>
             </div>
         </section>
@@ -599,9 +617,9 @@
         <!-- ===================================================================== -->
         <!-- PAGE 4: AI CLASSROOM TUTOR                                            -->
         <!-- ===================================================================== -->
-        <section id="view-tutor" class="page-view flex-1 flex-col bg-panel border border-edge rounded-2xl overflow-hidden shadow-lg min-h-0">
+        <section id="view-tutor" class="page-view flex-1 min-h-0 h-full w-full flex-col bg-panel border border-edge rounded-2xl overflow-hidden shadow-lg">
             <!-- Tutor Header -->
-            <div class="px-6 py-4 border-b border-edge bg-raised/60 flex items-center justify-between shrink-0">
+            <div class="px-4 md:px-6 py-3 md:py-4 border-b border-edge bg-raised/60 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent">
                         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -625,7 +643,7 @@
             </div>
 
             <!-- Messages Scroll Stream -->
-            <div id="chat-messages" class="flex-1 overflow-auto slim-scroll p-6 space-y-4 min-h-[260px]">
+            <div id="chat-messages" class="flex-1 min-h-0 overflow-y-auto slim-scroll p-4 md:p-6 space-y-4">
                 <div class="chat-msg chat-msg-bot flex gap-3 items-start">
                     <div class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center shrink-0 text-sm mt-0.5">🤖</div>
                     <div class="bg-raised border border-edge rounded-2xl p-4 text-xs md:text-sm text-slate-200 max-w-[80%] leading-relaxed shadow-sm">
@@ -635,7 +653,7 @@
             </div>
 
             <!-- Quick Prompt Starter Chips -->
-            <div id="chat-chips" class="px-4 py-2.5 border-t border-edge bg-raised/30 flex gap-2 overflow-x-auto slim-scroll shrink-0">
+            <div id="chat-chips" class="px-4 py-2 border-t border-edge bg-raised/30 flex gap-2 overflow-x-auto slim-scroll shrink-0">
                 <button class="chat-chip shrink-0 px-3 py-1.5 rounded-full bg-raised hover:bg-edge border border-edge text-xs text-slate-300 transition-colors"
                         data-prompt="Can you explain the current diagram in simple terms?">
                     💡 Explain diagram
@@ -655,7 +673,7 @@
             </div>
 
             <!-- Chat Composer Form -->
-            <form id="chat-form" class="p-4 border-t border-edge bg-raised/60 flex items-center gap-2 shrink-0">
+            <form id="chat-form" class="p-3 md:p-4 border-t border-edge bg-raised/60 flex items-center gap-2 shrink-0">
                 <input id="chat-input" type="text" placeholder="Ask anything about the lecture concepts, diagrams, or questions..."
                        class="flex-1 bg-ink border border-edge rounded-xl px-4 py-2.5 text-xs md:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent" />
                 <button id="send-chat-btn" type="submit"
@@ -672,9 +690,9 @@
         <!-- ===================================================================== -->
         <!-- PAGE 5: SESSION STORAGE & DOWNLOAD CENTER                             -->
         <!-- ===================================================================== -->
-        <section id="view-storage" class="page-view flex-1 flex-col gap-5 min-h-0 overflow-auto slim-scroll">
+        <section id="view-storage" class="page-view flex-1 min-h-0 h-full w-full flex-col gap-4 overflow-y-auto slim-scroll">
             <!-- Header Banner -->
-            <div class="bg-panel border border-edge rounded-2xl p-5 flex flex-wrap items-center justify-between gap-3 shadow-md shrink-0">
+            <div class="bg-panel border border-edge rounded-2xl p-4 md:p-5 flex flex-wrap items-center justify-between gap-3 shadow-md shrink-0">
                 <div>
                     <h2 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
                         <span>Session Storage &amp; Study Notes Export</span>
@@ -693,7 +711,7 @@
             </div>
 
             <!-- Current Session Overview Stats -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 shrink-0">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 shrink-0">
                 <div class="bg-panel border border-edge rounded-2xl p-4 text-center shadow-sm">
                     <div class="text-xs text-slate-400">Total Diagrams</div>
                     <div id="stat-diagrams" class="text-2xl font-bold text-accent font-mono mt-1">0</div>
@@ -713,7 +731,7 @@
             </div>
 
             <!-- Export & Download Formats Grid -->
-            <div class="bg-panel border border-edge rounded-2xl p-5 shadow-lg space-y-3 shrink-0">
+            <div class="bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-3 shrink-0">
                 <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">Download &amp; Export Center</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <button id="download-study-guide-btn"
@@ -771,7 +789,7 @@
             </div>
 
             <!-- Saved Sessions Storage Archive -->
-            <div class="bg-panel border border-edge rounded-2xl p-5 shadow-lg space-y-3 flex-1 min-h-[200px]">
+            <div class="bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-3 flex-1 min-h-[200px]">
                 <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">Saved Sessions Storage Archive</h3>
                 <div id="saved-sessions-list" class="space-y-2.5 overflow-auto slim-scroll">
                     <div class="text-xs text-slate-500 italic p-4 bg-raised rounded-xl border border-edge text-center">

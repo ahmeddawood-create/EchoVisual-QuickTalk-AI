@@ -24,7 +24,13 @@ VALID_DIAGRAM_JSON = json.dumps({
     "diagram_code": "flowchart TD\nA[Photosynthesis] --> B[Sunlight]",
     "summary_bullets": ["Plants use sunlight", "CO2 becomes sugar"],
     "key_terms": ["Photosynthesis", "Chlorophyll"],
-    "short_notes": ["Chloroplasts absorb photons", "Calvin cycle converts CO2"],
+})
+
+VALID_NOTES_JSON = json.dumps({
+    "short_notes": ["Chloroplasts absorb photons", "Calvin cycle converts CO2"]
+})
+
+VALID_QUIZ_JSON = json.dumps({
     "quiz": [
         {
             "question": "What gas do plants absorb during photosynthesis?",
@@ -32,7 +38,10 @@ VALID_DIAGRAM_JSON = json.dumps({
             "answer": "B. Carbon Dioxide",
             "explanation": "Plants take in carbon dioxide and release oxygen."
         }
-    ],
+    ]
+})
+
+VALID_FLASHCARDS_JSON = json.dumps({
     "flashcards": [
         {
             "front": "Chlorophyll",
@@ -44,6 +53,12 @@ VALID_DIAGRAM_JSON = json.dumps({
 
 async def fake_call_gemini(prompt, system, response_mime):
     if response_mime == "application/json":
+        if "flashcard" in prompt.lower() or "flashcard" in system.lower():
+            return VALID_FLASHCARDS_JSON
+        if "quiz" in prompt.lower() or "quiz" in system.lower():
+            return VALID_QUIZ_JSON
+        if "notes" in prompt.lower() or "notes" in system.lower():
+            return VALID_NOTES_JSON
         return VALID_DIAGRAM_JSON
     if "EchoVisual AI" in system:
         return "Photosynthesis is the process by which plants turn sunlight into energy."
@@ -81,11 +96,8 @@ class TestTranscribeToDiagram(unittest.TestCase):
         self.assertIn("diagram_code", body)
         self.assertIsInstance(body["summary_bullets"], list)
         self.assertIsInstance(body["key_terms"], list)
-        self.assertIsInstance(body["short_notes"], list)
-        self.assertIsInstance(body["quiz"], list)
-        self.assertIsInstance(body["flashcards"], list)
-        self.assertEqual(len(body["quiz"]), 1)
-        self.assertEqual(len(body["flashcards"]), 1)
+        self.assertEqual(len(body["summary_bullets"]), 2)
+        self.assertEqual(len(body["key_terms"]), 2)
 
     def test_gemini_json_wrapped_in_prose_is_recovered(self):
         async def messy_gemini(prompt, system, mime):
@@ -119,6 +131,71 @@ class TestTranscribeToDiagram(unittest.TestCase):
                 json={"transcript": "some transcript"},
             )
         self.assertEqual(res.status_code, 502)
+
+
+class TestGenerateNotes(unittest.TestCase):
+    def setUp(self):
+        reset_rate_limiter()
+
+    def test_valid_transcript_returns_notes(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            res = client.post(
+                "/api/generate-notes",
+                json={"transcript": "Today we study chloroplasts and the Calvin cycle."},
+            )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIn("short_notes", body)
+        self.assertIsInstance(body["short_notes"], list)
+        self.assertEqual(len(body["short_notes"]), 2)
+
+    def test_empty_transcript_rejected(self):
+        res = client.post("/api/generate-notes", json={"transcript": ""})
+        self.assertEqual(res.status_code, 422)
+
+
+class TestGenerateQuiz(unittest.TestCase):
+    def setUp(self):
+        reset_rate_limiter()
+
+    def test_valid_transcript_returns_quiz(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            res = client.post(
+                "/api/generate-quiz",
+                json={"transcript": "Today we study photosynthesis in plants."},
+            )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIn("quiz", body)
+        self.assertIsInstance(body["quiz"], list)
+        self.assertEqual(len(body["quiz"]), 1)
+        self.assertEqual(body["quiz"][0]["answer"], "B. Carbon Dioxide")
+
+    def test_empty_transcript_rejected(self):
+        res = client.post("/api/generate-quiz", json={"transcript": ""})
+        self.assertEqual(res.status_code, 422)
+
+
+class TestGenerateFlashcards(unittest.TestCase):
+    def setUp(self):
+        reset_rate_limiter()
+
+    def test_valid_transcript_returns_flashcards(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            res = client.post(
+                "/api/generate-flashcards",
+                json={"transcript": "Chlorophyll is the green pigment in plants."},
+            )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIn("flashcards", body)
+        self.assertIsInstance(body["flashcards"], list)
+        self.assertEqual(len(body["flashcards"]), 1)
+        self.assertEqual(body["flashcards"][0]["front"], "Chlorophyll")
+
+    def test_empty_transcript_rejected(self):
+        res = client.post("/api/generate-flashcards", json={"transcript": ""})
+        self.assertEqual(res.status_code, 422)
 
 
 class TestShorthandToSpeech(unittest.TestCase):

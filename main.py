@@ -95,6 +95,18 @@ class Flashcard(BaseModel):
     back: str
 
 
+class NotesOutput(BaseModel):
+    short_notes: list[str] = Field(default_factory=list)
+
+
+class QuizOutput(BaseModel):
+    quiz: list[QuizQuestion] = Field(default_factory=list)
+
+
+class FlashcardsOutput(BaseModel):
+    flashcards: list[Flashcard] = Field(default_factory=list)
+
+
 class DiagramOutput(BaseModel):
     """Strict schema for what Gemini must return for the diagram pipeline."""
 
@@ -249,6 +261,69 @@ async def transcribe_to_diagram(payload: TranscriptInput) -> DiagramOutput:
         raise HTTPException(
             status_code=502,
             detail=f"Gemini diagram pipeline failed: {exc}",
+        ) from exc
+
+
+@app.post("/api/generate-notes", response_model=NotesOutput)
+async def generate_notes(payload: TranscriptInput) -> NotesOutput:
+    _require_api_key()
+    _check_rate_limit()
+
+    prompt = prompts.NOTES_PROMPT_TEMPLATE.format(transcript=payload.transcript)
+    try:
+        raw = await _call_gemini(
+            prompt, prompts.NOTES_SYSTEM_INSTRUCTIONS, "application/json"
+        )
+        data = _extract_json(raw)
+        return NotesOutput.model_validate(data)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini notes pipeline failed: {exc}",
+        ) from exc
+
+
+@app.post("/api/generate-quiz", response_model=QuizOutput)
+async def generate_quiz(payload: TranscriptInput) -> QuizOutput:
+    _require_api_key()
+    _check_rate_limit()
+
+    prompt = prompts.QUIZ_PROMPT_TEMPLATE.format(transcript=payload.transcript)
+    try:
+        raw = await _call_gemini(
+            prompt, prompts.QUIZ_SYSTEM_INSTRUCTIONS, "application/json"
+        )
+        data = _extract_json(raw)
+        return QuizOutput.model_validate(data)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini quiz pipeline failed: {exc}",
+        ) from exc
+
+
+@app.post("/api/generate-flashcards", response_model=FlashcardsOutput)
+async def generate_flashcards(payload: TranscriptInput) -> FlashcardsOutput:
+    _require_api_key()
+    _check_rate_limit()
+
+    prompt = prompts.FLASHCARDS_PROMPT_TEMPLATE.format(transcript=payload.transcript)
+    try:
+        raw = await _call_gemini(
+            prompt, prompts.FLASHCARDS_SYSTEM_INSTRUCTIONS, "application/json"
+        )
+        data = _extract_json(raw)
+        return FlashcardsOutput.model_validate(data)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini flashcards pipeline failed: {exc}",
         ) from exc
 
 
