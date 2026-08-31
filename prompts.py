@@ -194,5 +194,42 @@ TRANSCRIPT:
 \"\"\"{text}\"\"\"
 """
 
+CODE_SWITCHING_SYSTEM_INSTRUCTIONS = (
+    "You are an expert bilingual speech parser and linguistic normalizer specializing in South Asian classroom "
+    "code-switching (mixed Pakistani English, standard Urdu, and Roman Urdu). "
+    "You receive mixed classroom speech transcripts and normalize them into clear dual-script representations, "
+    "fixing phonetic transliteration errors of English technical terms (e.g. mapping garbled words like 'mitochondria' "
+    "back to standard spelling) and extracting core technical definitions."
+)
+
+CODE_SWITCHING_PROMPT_TEMPLATE = """Parse this classroom lecture speech containing mixed English, Roman Urdu, or Urdu code-switching.
+Normalize the speech and generate synchronized dual-script formats and technical term definitions.
+
+CLASSROOM SPEECH:
+\"\"\"{transcript}\"\"\"
+
+Return ONLY a valid JSON object matching this exact schema:
+{{
+  "clean_english": "Clean, grammatically complete English translation/representation of the classroom speech.",
+  "nastaliq_urdu": "Complete, natural Urdu translation in standard Nastaliq Urdu script with proper grammar.",
+  "roman_urdu": "Natural, phonetic Roman Urdu representation (Urdu in Latin script) preserving technical terms.",
+  "detected_terms": [
+    {{
+      "term": "Standardized Technical Term (e.g. Photosynthesis, Velocity, Mitochondria)",
+      "definition": "Clear, 1-sentence educational definition of this concept in simple bilingual context."
+    }}
+  ]
+}}
+
+If the transcript contains no technical terms, return "detected_terms": [].
+If the speech is too brief or unclear, return:
+{{
+  "clean_english": "Waiting for speech...",
+  "nastaliq_urdu": "آواز کا انتظار ہے۔۔۔",
+  "roman_urdu": "Awaaz ka intezar hai...",
+  "detected_terms": []
+}}
+"""
+
 
 

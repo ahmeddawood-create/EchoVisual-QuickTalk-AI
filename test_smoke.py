@@ -50,9 +50,23 @@ VALID_FLASHCARDS_JSON = json.dumps({
     ]
 })
 
+VALID_CODE_SWITCHING_JSON = json.dumps({
+    "clean_english": "Define velocity and check the formula.",
+    "nastaliq_urdu": "ویسٹی کی تعریف کریں اور فارمولا چیک کریں۔",
+    "roman_urdu": "Velocity define karein aur formula check karein.",
+    "detected_terms": [
+        {
+            "term": "Velocity",
+            "definition": "Rate of change of displacement with respect to time."
+        }
+    ]
+})
+
 
 async def fake_call_gemini(prompt, system, response_mime):
     if response_mime == "application/json":
+        if "code-switching" in prompt.lower() or "code-switching" in system.lower() or "nastaliq" in prompt.lower() or "dual-script" in prompt.lower():
+            return VALID_CODE_SWITCHING_JSON
         if "flashcard" in prompt.lower() or "flashcard" in system.lower():
             return VALID_FLASHCARDS_JSON
         if "quiz" in prompt.lower() or "quiz" in system.lower():
@@ -413,6 +427,52 @@ class TestWebSocketLiveSession(unittest.TestCase):
                         continue
                 self.assertIsNotNone(last_msg)
                 self.assertEqual(last_msg["type"], "tts_end")
+
+    def test_websocket_code_switching_parse(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            with client.websocket_connect("/ws/live-session") as ws:
+                ws.receive_json()  # Handshake
+                ws.send_json({
+                    "type": "code_switching_parse",
+                    "transcript": "Velocity define karein aur formula check karein",
+                })
+                resp = ws.receive_json()
+                self.assertEqual(resp["type"], "code_switching_result")
+                self.assertIn("clean_english", resp["data"])
+                self.assertIn("nastaliq_urdu", resp["data"])
+                self.assertIn("roman_urdu", resp["data"])
+                self.assertIsInstance(resp["data"]["detected_terms"], list)
+
+
+class TestCodeSwitching(unittest.TestCase):
+    def setUp(self):
+        reset_rate_limiter()
+
+    def test_valid_code_switching_returns_normalized_scripts(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            res = client.post(
+                "/api/parse-code-switching",
+                json={"transcript": "Velocity define karein aur formula check karein"},
+            )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIn("clean_english", body)
+        self.assertIn("nastaliq_urdu", body)
+        self.assertIn("roman_urdu", body)
+        self.assertIsInstance(body["detected_terms"], list)
+        self.assertEqual(len(body["detected_terms"]), 1)
+        self.assertEqual(body["detected_terms"][0]["term"], "Velocity")
+
+    def test_empty_transcript_rejected(self):
+        res = client.post("/api/parse-code-switching", json={"transcript": ""})
+        self.assertEqual(res.status_code, 422)
+
+    def test_oversized_transcript_rejected(self):
+        res = client.post(
+            "/api/parse-code-switching",
+            json={"transcript": "x" * (main.MAX_TRANSCRIPT_CHARS + 1)},
+        )
+        self.assertEqual(res.status_code, 422)
 
 
 if __name__ == "__main__":

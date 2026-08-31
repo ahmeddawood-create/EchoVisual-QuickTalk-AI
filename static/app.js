@@ -254,10 +254,7 @@ function handleWsEvent(msg) {
             break;
 
         case 'caption':
-            if (msg.rolling_transcript && msg.rolling_transcript.length > interimBuffer.length) {
-                interimBuffer = msg.rolling_transcript;
-                renderCaption('');
-            }
+            // Fast server acknowledgment; keep client-side live caption stream continuous and non-dropping
             break;
 
         case 'diagram_delta':
@@ -970,10 +967,18 @@ function initLiveSpeechRecognition() {
         let interim = '';
         let finalChunk = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
-            const text = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                interimBuffer += text + ' ';
-                finalChunk += text + ' ';
+            const res = event.results[i];
+            if (!res || !res[0]) continue;
+            const text = res[0].transcript || '';
+            if (res.isFinal) {
+                const trimmed = text.trim();
+                if (trimmed.length > 0) {
+                    if (interimBuffer.length > 0 && !interimBuffer.endsWith(' ') && !interimBuffer.endsWith('\n')) {
+                        interimBuffer += ' ';
+                    }
+                    interimBuffer += trimmed + ' ';
+                    finalChunk += (finalChunk ? ' ' : '') + trimmed;
+                }
             } else {
                 interim += text;
             }
@@ -994,6 +999,10 @@ function initLiveSpeechRecognition() {
     };
 
     recognition.onerror = (event) => {
+        // Ignore transient browser events like no-speech or aborted during normal continuous listening
+        if (event.error === 'no-speech' || event.error === 'aborted') {
+            return;
+        }
         console.error('Speech recognition error:', event.error);
         if (event.error === 'not-allowed') {
             setStatus('mic blocked', 'bg-red-950 text-red-300 border-red-900');
@@ -1003,7 +1012,16 @@ function initLiveSpeechRecognition() {
 
     recognition.onend = () => {
         if (isListening) {
-            try { recognition.start(); } catch (e) {}
+            // Immediate seamless restart with fallback retry to keep captions continuous
+            try {
+                recognition.start();
+            } catch (e) {
+                setTimeout(() => {
+                    if (isListening) {
+                        try { recognition.start(); } catch (err) {}
+                    }
+                }, 100);
+            }
         }
     };
 
@@ -1035,9 +1053,15 @@ function renderCaption(interimText) {
     const emptyP = $('caption-empty');
     const body = $('caption-body');
 
-    if (finalSpan) finalSpan.textContent = interimBuffer;
-    if (interimSpan) interimSpan.textContent = interimText || '';
-    if (emptyP) emptyP.classList.toggle('hidden', (interimBuffer + (interimText || '')).trim().length > 0);
+    const cleanFinal = interimBuffer;
+    const cleanInterim = interimText || '';
+
+    if (finalSpan) finalSpan.textContent = cleanFinal;
+    if (interimSpan) {
+        const needsSpace = cleanFinal.length > 0 && !cleanFinal.endsWith(' ') && cleanInterim.length > 0 && !cleanInterim.startsWith(' ');
+        interimSpan.textContent = (needsSpace ? ' ' : '') + cleanInterim;
+    }
+    if (emptyP) emptyP.classList.toggle('hidden', (cleanFinal + cleanInterim).trim().length > 0);
     if (body) body.scrollTop = body.scrollHeight;
 
     saveCurrentSessionToStorage();
