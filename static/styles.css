@@ -156,6 +156,25 @@ html.light .text-slate-400 { color: #64748b !important; }
 html.light .text-slate-500 { color: #64748b !important; }
 html.light textarea, html.light input { color: #0f172a !important; }
 
+/* ==========================================================================
+   Safe translucent accent surfaces
+   The Tailwind CDN build silently DROPS /opacity modifiers on CSS-variable
+   colors (e.g. bg-accent/20 or bg-ink/90 render fully transparent), so these
+   utilities use color-mix directly. Supported in Chrome/Edge — the browsers
+   this app requires for the Web Speech API.
+   ========================================================================== */
+.bg-accent-tint { background-color: color-mix(in srgb, var(--accent-primary) 15%, transparent); }
+.bg-accent-tint-strong { background-color: color-mix(in srgb, var(--accent-primary) 25%, transparent); }
+.border-accent-soft { border-color: color-mix(in srgb, var(--accent-primary) 45%, transparent); }
+
+/* Voice Composer message box safety net: guarantees readable text and a
+   visible caret in every theme/mode even if utility classes fail to apply. */
+#shorthand-input {
+    background-color: var(--bg-ink);
+    color: var(--text-main);
+    caret-color: var(--accent-soft);
+}
+
 /* Global layout box & overflow containment */
 *, *::before, *::after {
     box-sizing: border-box;
@@ -534,4 +553,61 @@ html.light #diagram-container svg text {
 .video-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.6);
+}
+
+/* ==========================================================================
+   Keyboard Shortcut Hover Tooltips (data-kbd hints)
+   ========================================================================== */
+.kbd-tooltip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-edge);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 14px var(--accent-glow);
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 80;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s ease, visibility 0.12s ease;
+}
+
+.kbd-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.kbd-tooltip .kbd-tip-label {
+    margin-right: 4px;
+    letter-spacing: 0.01em;
+}
+
+.kbd-tooltip kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 5px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-edge);
+    border-bottom-width: 2px;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 10px;
+    line-height: 1;
+}
+
+.kbd-tooltip .kbd-plus {
+    color: var(--text-dim);
 }

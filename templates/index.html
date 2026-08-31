@@ -61,24 +61,24 @@
         <!-- Center: Desktop Navigation Tabs (lg+; tablets and phones use the bottom nav bar) -->
         <div class="hidden lg:flex flex-1 items-center justify-center min-w-0">
             <nav class="flex items-center gap-1 bg-ink/70 p-1 rounded-xl border border-edge">
-                <a href="#classroom" id="nav-classroom" class="nav-link active px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5">
+                <a href="#classroom" id="nav-classroom" data-kbd="Alt+1" data-kbd-label="Classroom" class="nav-link active px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5">
                     <span>🎙️ Classroom</span>
                 </a>
-                <a href="#rooms" id="nav-rooms" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
+                <a href="#rooms" id="nav-rooms" data-kbd="Alt+2" data-kbd-label="Online Class" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>👥 Online Class</span>
                     <span id="nav-room-badge" class="px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px] font-mono hidden">LIVE</span>
                 </a>
-                <a href="#expression" id="nav-expression" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
+                <a href="#expression" id="nav-expression" data-kbd="Alt+3" data-kbd-label="Expression Board" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>🗣️ Expression Board</span>
                 </a>
-                <a href="#study" id="nav-study" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
+                <a href="#study" id="nav-study" data-kbd="Alt+4" data-kbd-label="Study Hub" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>📚 Study Hub</span>
                     <span id="nav-study-badge" class="px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px] font-mono">0</span>
                 </a>
-                <a href="#tutor" id="nav-tutor" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
+                <a href="#tutor" id="nav-tutor" data-kbd="Alt+5" data-kbd-label="AI Tutor" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>🤖 AI Tutor</span>
                 </a>
-                <a href="#storage" id="nav-storage" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
+                <a href="#storage" id="nav-storage" data-kbd="Alt+6" data-kbd-label="Storage" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>💾 Storage</span>
                 </a>
             </nav>
@@ -87,7 +87,7 @@
         <!-- Right: Appearance Controls (Light/Dark mode + Color Theme) -->
         <div class="flex items-center gap-2 shrink-0 ml-auto lg:ml-0">
             <!-- Light / Dark Mode Toggle -->
-            <button id="color-mode-toggle-btn" title="Toggle Light / Dark mode"
+            <button id="color-mode-toggle-btn" aria-label="Toggle Light / Dark mode" data-kbd="Alt+M" data-kbd-label="Toggle Light / Dark mode"
                     class="p-2 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors flex items-center gap-1 text-xs font-mono">
                 <span id="mode-icon">🌙</span>
                 <span class="hidden xl:inline text-[11px]" id="mode-text">Dark</span>
@@ -95,7 +95,7 @@
 
             <!-- Theme Switcher -->
             <div class="relative group hidden sm:flex items-center">
-                <button id="theme-btn" title="Change color theme"
+                <button id="theme-btn" aria-label="Cycle color theme" data-kbd="Alt+T" data-kbd-label="Cycle color theme" data-kbd-pos="left"
                         class="p-2 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors flex items-center gap-1.5 text-xs font-mono">
                     <span class="w-2.5 h-2.5 rounded-full bg-accent inline-block"></span>
                     <span class="hidden xl:inline text-[11px]">Theme</span>
@@ -167,7 +167,7 @@
 
         <!-- Right: Primary session action -->
         <div class="flex items-center gap-2 shrink-0">
-            <button id="start-class-btn"
+            <button id="start-class-btn" data-kbd="Alt+S" data-kbd-label="Start / Stop Class"
                     class="px-3.5 sm:px-4 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-xs md:text-sm font-semibold transition-all shadow-md shadow-accent/25 whitespace-nowrap flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
                 <span id="start-btn-text">Start Class</span>
@@ -206,7 +206,7 @@
                         </select>
                     </div>
                     <div class="flex items-center gap-1 sm:gap-1.5">
-                        <button id="speak-caption-btn" title="Speak loud live transcription text"
+                        <button id="speak-caption-btn" aria-label="Read live captions aloud" data-kbd="Alt+R" data-kbd-label="Read captions aloud"
                                 class="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-raised hover:bg-edge border border-edge text-slate-300 hover:text-white transition-all">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
                                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -214,7 +214,7 @@
                             </svg>
                             <span id="speak-caption-label" class="hidden sm:inline">Read Aloud</span>
                         </button>
-                        <button id="copy-caption-btn" title="Copy live caption text"
+                        <button id="copy-caption-btn" aria-label="Copy live caption text" data-kbd="Alt+C" data-kbd-label="Copy live captions"
                                 class="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-raised hover:bg-edge border border-edge text-slate-300 hover:text-white transition-colors">
                             <svg viewBox="0 0 24 24" class="w-3 h-3 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -472,22 +472,14 @@
                 <div>
                     <h2 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
                         <span>Student Expression &amp; Voice Studio</span>
-                        <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-accent/20 text-accent border border-accent/30 font-semibold">QuickTalk AI</span>
+                        <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-accent-tint text-accent border border-accent-soft font-semibold">QuickTalk AI</span>
                     </h2>
                     <p class="text-xs text-slate-400 mt-0.5">Type fragments, Pakistani classroom phrases, or Roman Urdu to speak aloud with instant AI neural voice.</p>
                 </div>
-                <!-- Global Tone Selector & Speed Controls -->
-                <div class="flex items-center gap-2.5 flex-wrap">
-                    <label class="flex items-center gap-1.5 text-xs text-slate-300 font-mono cursor-pointer select-none bg-ink/80 px-3 py-1.5 rounded-xl border border-edge shadow-sm">
-                        <input id="auto-speak-toggle" type="checkbox" checked class="rounded accent-accent cursor-pointer" />
-                        <span>⚡ Auto-speak on Enter</span>
-                    </label>
-
-                    <div class="flex items-center gap-1.5 bg-ink/80 px-3 py-1.5 rounded-xl border border-edge text-xs font-mono text-slate-300 shadow-sm">
-                        <span>Speed:</span>
-                        <input id="tts-speed-slider" type="range" min="0.75" max="1.5" step="0.25" value="1.0" class="w-16 cursor-pointer accent-accent" title="Voice playback speed" />
-                        <span id="tts-speed-label" class="font-semibold text-accent">1.0x</span>
-                    </div>
+                <!-- Keyboard Hints -->
+                <div class="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                    <span class="px-2.5 py-1 rounded-lg bg-raised border border-edge">⏎ Enter — Speak</span>
+                    <span class="px-2.5 py-1 rounded-lg bg-raised border border-edge">⇧ Shift+Enter — New line</span>
                 </div>
             </div>
 
@@ -495,7 +487,7 @@
             <div class="bg-panel border border-edge rounded-2xl p-2 md:p-2.5 shadow-md shrink-0 flex items-center gap-1.5 md:gap-2 overflow-x-auto slim-scroll">
                 <span class="text-[11px] font-mono text-slate-400 px-2 uppercase tracking-wider shrink-0 font-semibold">Persona Tone:</span>
                 <div id="tone-badges-container" class="flex items-center gap-1.5 md:gap-2 overflow-x-auto slim-scroll">
-                    <button class="tone-badge active px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent text-white border border-accent/50 shadow-md shadow-accent/20 transition-all shrink-0 flex items-center gap-1.5"
+                    <button class="tone-badge active px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent text-white border border-accent transition-all shrink-0 flex items-center gap-1.5"
                             data-tone="polite and respectful academic question">
                         <span>🎓 Polite Question</span>
                     </button>
@@ -522,12 +514,12 @@
             <!-- Two-Column Expression Layout -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0 h-full w-full">
                 <!-- Left: Shorthand Composer Studio (col-span-6) -->
-                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-xl space-y-3 md:space-y-3.5">
+                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-xl gap-3">
                     <div class="flex items-center justify-between shrink-0">
                         <div class="flex items-center gap-2">
                             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-300 font-bold">Voice Composer</h3>
                             <!-- Animated Waveform Visualizer -->
-                            <div id="tts-audio-visualizer" class="hidden items-center gap-0.5 h-3.5 px-1.5 py-0.5 rounded-md bg-accent/20 border border-accent/40">
+                            <div id="tts-audio-visualizer" class="hidden items-center gap-0.5 h-3.5 px-1.5 py-0.5 rounded-md bg-accent-tint border border-accent-soft">
                                 <span class="meter-bar w-[2.5px] h-full rounded-sm bg-accent"></span>
                                 <span class="meter-bar w-[2.5px] h-full rounded-sm bg-accent"></span>
                                 <span class="meter-bar w-[2.5px] h-full rounded-sm bg-accent"></span>
@@ -537,30 +529,44 @@
                         <span id="voice-engine-badge" class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-raised text-slate-400 border border-edge">Neural TTS Ready</span>
                     </div>
 
-                    <div class="relative flex-1 min-h-0">
-                        <textarea id="shorthand-input"
-                                  placeholder="Type fragments or Roman Urdu, e.g. 'sir q abt gravity?? fast smjhaen'&#10;&#10;✨ Tip: Press Enter to refine into full polite sentences and speak aloud immediately."
-                                  class="w-full h-full bg-ink/90 border border-edge rounded-xl p-4 pr-14 text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-all shadow-inner leading-relaxed"></textarea>
-                        <span id="char-count" class="absolute bottom-3.5 right-4 font-mono text-[11px] text-slate-500 bg-panel/80 px-2 py-0.5 rounded-md border border-edge">0</span>
+                    <div class="relative flex-1 min-h-[120px]">
+                        <textarea id="shorthand-input" maxlength="1000"
+                                  placeholder="Type fragments or Roman Urdu, e.g. 'sir q abt gravity?? fast smjhaen'&#10;&#10;✨ Enter refines &amp; speaks · Shift+Enter for a new line."
+                                  class="w-full h-full bg-ink border border-edge rounded-xl p-4 pr-20 text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-all leading-relaxed"></textarea>
+                        <span id="char-count" class="absolute bottom-3 right-3 font-mono text-[11px] text-slate-500 bg-panel px-2 py-0.5 rounded-md border border-edge">0/1000</span>
                     </div>
 
-                    <!-- Live Refinement Preview Banner -->
-                    <div id="refine-preview-card" class="shrink-0 p-3 rounded-xl bg-ink/60 border border-edge flex items-start gap-2 text-xs shadow-inner">
+                    <!-- Live Refinement Preview -->
+                    <div id="refine-preview-card" class="shrink-0 p-3 rounded-xl bg-ink border border-edge flex items-start gap-2 text-xs">
                         <span class="text-accent text-sm leading-none mt-0.5">✨</span>
                         <div class="flex-1 min-w-0">
-                            <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-0.5 font-semibold">Gemini Refinement Target</div>
+                            <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-0.5 font-semibold">Gemini Refinement</div>
                             <div id="refine-preview-text" class="text-slate-300 italic truncate">Refines shorthand into natural spoken classroom dialogue...</div>
+                        </div>
+                    </div>
+
+                    <!-- Delivery Controls (auto-speak & speed live next to the input they affect) -->
+                    <div class="flex flex-wrap items-center gap-2 shrink-0">
+                        <label class="flex items-center gap-1.5 text-xs text-slate-300 font-mono cursor-pointer select-none bg-ink px-3 py-1.5 rounded-xl border border-edge shadow-sm">
+                            <input id="auto-speak-toggle" type="checkbox" checked class="rounded accent-accent cursor-pointer" />
+                            <span>⚡ Auto-speak on Enter</span>
+                        </label>
+
+                        <div class="flex items-center gap-1.5 bg-ink px-3 py-1.5 rounded-xl border border-edge text-xs font-mono text-slate-300 shadow-sm">
+                            <span>Speed:</span>
+                            <input id="tts-speed-slider" type="range" min="0.75" max="1.5" step="0.25" value="1.0" class="w-16 sm:w-20 cursor-pointer accent-accent" title="Voice playback speed" />
+                            <span id="tts-speed-label" class="font-semibold text-accent">1.0x</span>
                         </div>
                     </div>
 
                     <div class="flex gap-2 shrink-0">
                         <button id="speak-btn"
-                                class="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-accent to-accent-dim hover:opacity-95 text-white text-sm font-semibold transition-all shadow-lg shadow-accent/25 flex items-center justify-center gap-2">
+                                class="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-accent to-accent-dim hover:opacity-95 text-white text-sm font-semibold transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
                             <svg viewBox="0 0 24 24" class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2">
                                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
                             </svg>
-                            <span>Speak Now (Refine &amp; Voice)</span>
+                            <span>Speak Now</span>
                         </button>
                         <button id="clear-btn" class="px-4 py-3 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white text-sm transition-colors border border-edge font-medium">
                             Clear
@@ -571,7 +577,7 @@
                 <!-- Right: Pakistani Presets & Spoken Log (col-span-6) -->
                 <div class="lg:col-span-6 flex flex-col min-w-0 min-h-0 h-full gap-3 md:gap-4">
                     <!-- Quick Presets Soundboard -->
-                    <div class="bg-panel border border-edge rounded-2xl p-4 shadow-xl shrink-0 flex flex-col max-h-[50%]">
+                    <div class="bg-panel border border-edge rounded-2xl p-4 shadow-xl shrink-0 flex flex-col">
                         <div class="flex items-center justify-between mb-2.5 shrink-0">
                             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-300 font-bold">Soundboard &amp; Presets</h3>
                             <span class="text-[10px] font-mono text-slate-500">1-click speak</span>
@@ -579,44 +585,44 @@
 
                         <!-- Soundboard Category Filter Chips -->
                         <div class="flex items-center gap-1.5 mb-2.5 overflow-x-auto slim-scroll pb-1 shrink-0">
-                            <button class="soundboard-tab active px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-raised text-white border border-accent/40 shadow-sm shrink-0" data-cat="all">🌟 All</button>
+                            <button class="soundboard-tab active px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-raised text-white border border-accent shadow-sm shrink-0" data-cat="all">🌟 All</button>
                             <button class="soundboard-tab px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="urdu">🇵🇰 Urdu Class</button>
                             <button class="soundboard-tab px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="question">🙋 Questions</button>
                             <button class="soundboard-tab px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="feedback">🙏 Feedback</button>
                         </div>
 
-                        <div id="soundboard-grid" class="flex flex-wrap gap-2 overflow-y-auto slim-scroll p-0.5 flex-1 min-h-0">
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent/50 text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                        <div id="soundboard-grid" class="flex flex-wrap gap-2 overflow-y-auto slim-scroll p-0.5 max-h-44 min-h-[64px]">
+                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
                                     data-cat="urdu" data-text="Sir please yeh point dubara repeat kar dein.">
                                 <span>🇵🇰 Sir repeat kar dein</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent/50 text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
                                     data-cat="urdu" data-text="Sir yeh concept theek se samajh nahi aya, please explain karein.">
                                 <span>🇵🇰 Concept samajh nahi aya</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent/50 text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
                                     data-cat="urdu" data-text="Sir could you please slow down a little?">
                                 <span>🇵🇰 Sir thora slow parhaen</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent/50 text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
                                     data-cat="question" data-text="I have a question about this specific topic.">
                                 <span>✋ I have a question</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent/50 text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
                                     data-cat="question" data-text="Could you please explain this with a real-world example?">
                                 <span>💡 Real-world example please</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent/50 text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
                                     data-cat="feedback" data-text="Thank you very much for explaining that so clearly.">
                                 <span>🙏 Thank you Sir, crystal clear</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent/50 text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
                                     data-cat="urdu" data-text="Sir please white board par diagram bana kar samjha dein.">
                                 <span>🇵🇰 Board par diagram banaen</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
@@ -625,9 +631,9 @@
 
                         <!-- Custom Preset Creator -->
                         <div class="flex items-center gap-2 mt-3 pt-2.5 border-t border-edge shrink-0">
-                            <input id="custom-preset-input" type="text" placeholder="Save your custom voice phrase..."
+                            <input id="custom-preset-input" type="text" maxlength="150" placeholder="Save your custom voice phrase..."
                                    class="flex-1 bg-ink border border-edge rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-accent" />
-                            <button id="save-preset-btn" class="px-3.5 py-2 rounded-xl bg-accent/20 hover:bg-accent/30 text-accent border border-accent/40 text-xs font-mono font-semibold transition-all whitespace-nowrap shadow-sm">
+                            <button id="save-preset-btn" class="px-3.5 py-2 rounded-xl bg-accent-tint hover:bg-accent-tint-strong text-accent border border-accent-soft text-xs font-mono font-semibold transition-all whitespace-nowrap shadow-sm">
                                 + Save
                             </button>
                         </div>
@@ -1132,14 +1138,14 @@
 
     <!-- ======================= Mobile Bottom Navigation Bar ======================= -->
     <nav class="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-panel border-t border-edge flex items-center justify-around z-30 shadow-2xl">
-        <a href="#classroom" class="mobile-nav-link active flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="classroom">
+        <a href="#classroom" class="mobile-nav-link active flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="classroom" data-kbd="Alt+1" data-kbd-label="Classroom">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
             </svg>
             <span>Classroom</span>
         </a>
-        <a href="#rooms" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="rooms">
+        <a href="#rooms" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="rooms" data-kbd="Alt+2" data-kbd-label="Online Class">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                 <circle cx="9" cy="7" r="4"></circle>
@@ -1148,27 +1154,27 @@
             </svg>
             <span>Online</span>
         </a>
-        <a href="#expression" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="expression">
+        <a href="#expression" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="expression" data-kbd="Alt+3" data-kbd-label="Expression Board">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
             </svg>
             <span>Speak</span>
         </a>
-        <a href="#study" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="study">
+        <a href="#study" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="study" data-kbd="Alt+4" data-kbd-label="Study Hub">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
             <span>Study</span>
         </a>
-        <a href="#tutor" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="tutor">
+        <a href="#tutor" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="tutor" data-kbd="Alt+5" data-kbd-label="AI Tutor">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
             <span>AI Tutor</span>
         </a>
-        <a href="#storage" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="storage">
+        <a href="#storage" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="storage" data-kbd="Alt+6" data-kbd-label="Storage">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
             </svg>

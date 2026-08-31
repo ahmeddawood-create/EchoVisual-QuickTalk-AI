@@ -276,6 +276,7 @@ function handleWsEvent(msg) {
 
         case 'tts_end':
             if (msg.refined_text) {
+                setRefinePreview(msg.refined_text);
                 logSpoken(msg.refined_text);
                 if (!streamAudioPlayer.audioCtx && 'speechSynthesis' in window) {
                     speak(msg.refined_text);
@@ -2140,7 +2141,15 @@ function toggleAudioVisualizer(active) {
     if (badge) {
         badge.textContent = active ? '🔊 Speaking...' : 'Neural TTS Ready';
         badge.classList.toggle('text-accent', active);
-        badge.classList.toggle('border-accent/40', active);
+        badge.classList.toggle('border-accent', active);
+    }
+}
+
+function setRefinePreview(text) {
+    const el = $('refine-preview-text');
+    if (el && typeof text === 'string' && text.trim()) {
+        el.textContent = text;
+        el.title = text; // hover shows the full untruncated refinement
     }
 }
 
@@ -2150,14 +2159,15 @@ function initToneBadges() {
     badges.forEach((badge) => {
         badge.addEventListener('click', () => {
             badges.forEach((b) => {
-                b.classList.remove('active', 'bg-accent', 'text-white', 'border-accent/50', 'shadow-md', 'shadow-accent/20');
+                b.classList.remove('active', 'bg-accent', 'text-white', 'border-accent');
                 b.classList.add('bg-raised', 'text-slate-300', 'border-edge');
             });
-            badge.classList.add('active', 'bg-accent', 'text-white', 'border-accent/50', 'shadow-md', 'shadow-accent/20');
+            badge.classList.add('active', 'bg-accent', 'text-white', 'border-accent');
             badge.classList.remove('bg-raised', 'text-slate-300', 'border-edge');
             if (hiddenInput) {
                 hiddenInput.value = badge.dataset.tone;
             }
+            setRefinePreview(`${badge.innerText.trim()} · refines shorthand into natural spoken dialogue`);
             showToast(`Persona: ${badge.innerText.trim()}`);
         });
     });
@@ -2169,10 +2179,10 @@ function initSoundboardTabs() {
     tabs.forEach((tab) => {
         tab.addEventListener('click', () => {
             tabs.forEach((t) => {
-                t.classList.remove('active', 'bg-raised', 'text-white', 'border-accent/40', 'shadow-sm');
+                t.classList.remove('active', 'bg-raised', 'text-white', 'border-accent', 'shadow-sm');
                 t.classList.add('bg-ink', 'text-slate-400', 'border-edge');
             });
-            tab.classList.add('active', 'bg-raised', 'text-white', 'border-accent/40', 'shadow-sm');
+            tab.classList.add('active', 'bg-raised', 'text-white', 'border-accent', 'shadow-sm');
             tab.classList.remove('bg-ink', 'text-slate-400', 'border-edge');
 
             const cat = tab.dataset.cat;
@@ -2198,6 +2208,10 @@ function initStudentExpressionBoard() {
     const toneSelect = $('shorthand-tone-select');
     const speedSlider = $('tts-speed-slider');
     const speedLabel = $('tts-speed-label');
+    // Live "n/1000" counter — the backend rejects shorthand over 1000 chars
+    const syncCount = () => {
+        if (input && count) count.textContent = `${input.value.length}/1000`;
+    };
 
     if (speedSlider && speedLabel) {
         speedSlider.addEventListener('input', () => {
@@ -2206,9 +2220,7 @@ function initStudentExpressionBoard() {
     }
 
     if (input && count) {
-        input.addEventListener('input', () => {
-            count.textContent = String(input.value.length);
-        });
+        input.addEventListener('input', syncCount);
 
         input.addEventListener('keydown', (e) => {
             if (autoToggle && autoToggle.checked && e.key === 'Enter' && !e.shiftKey) {
@@ -2230,14 +2242,14 @@ function initStudentExpressionBoard() {
             const tone = toneSelect ? toneSelect.value : 'polite and respectful academic question';
             enqueueApiTask('speech', { shorthand: text, tone });
             input.value = '';
-            if (count) count.textContent = '0';
+            syncCount();
         });
     }
 
     if (clearBtn && input) {
         clearBtn.addEventListener('click', () => {
             input.value = '';
-            if (count) count.textContent = '0';
+            syncCount();
             input.focus();
         });
     }
@@ -2297,6 +2309,7 @@ async function refineAndSpeak(payload) {
             shorthand: rawShorthand,
             tone: tone,
         });
+        setRefinePreview('⚡ Refining with Gemini · streaming neural voice...');
         showToast('⚡ QuickTalk Neural TTS streaming...');
         return;
     }
@@ -2305,6 +2318,7 @@ async function refineAndSpeak(payload) {
     const speakBtn = $('speak-btn');
     if (speakBtn) speakBtn.disabled = true;
     setStatus('refining', 'bg-accent/15 text-accent border-accent/30');
+    setRefinePreview('✨ Refining with Gemini...');
 
     let refinedText = rawShorthand;
     try {
@@ -2317,10 +2331,12 @@ async function refineAndSpeak(payload) {
             const data = await res.json();
             if (typeof data.refined_text === 'string' && data.refined_text.length > 0) {
                 refinedText = data.refined_text;
+                setRefinePreview(refinedText);
             }
         }
     } catch (err) {
         console.warn('Speech refinement failed, speaking raw input:', err.message);
+        setRefinePreview('⚠️ Refinement unavailable — speaking your raw text instead.');
     } finally {
         if (speakBtn) speakBtn.disabled = false;
         if (isListening) {
@@ -2453,9 +2469,9 @@ function renderCustomPresets() {
         return;
     }
     container.innerHTML = list.map((phrase) => `
-        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/15 border border-accent/30 text-accent text-xs font-mono">
-            <button class="custom-preset-btn hover:underline" data-text="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>
-            <button class="del-preset-btn text-slate-400 hover:text-red-400 font-bold ml-1" data-phrase="${escapeHtml(phrase)}">×</button>
+        <span class="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-lg bg-ink border border-edge text-slate-200 text-xs">
+            <button class="custom-preset-btn hover:text-accent transition-colors text-left max-w-[220px] truncate" data-text="${escapeHtml(phrase)}" title="${escapeHtml(phrase)}">${escapeHtml(phrase)}</button>
+            <button class="del-preset-btn text-slate-500 hover:text-red-400 font-bold leading-none px-1" data-phrase="${escapeHtml(phrase)}" title="Delete preset">×</button>
         </span>
     `).join('');
 
@@ -3097,6 +3113,176 @@ function initStorageActions() {
 }
 
 // ------------------------------------------------------------------
+// Keyboard Shortcuts & Hover Hints
+// Alt+1..6 jump between tabs; Alt+S/M/T/C/R trigger common actions.
+// Hover (or keyboard-focus) any tagged control to see its shortcut.
+// Note: Alt+ArrowLeft/Right and [ ] are reserved for the diagram timeline.
+// ------------------------------------------------------------------
+const SHORTCUT_ROUTES = ['classroom', 'rooms', 'expression', 'study', 'tutor', 'storage'];
+const THEME_CYCLE_ORDER = ['theme-indigo', 'theme-cobalt', 'theme-emerald', 'theme-violet', 'theme-cyan'];
+
+function isTypingContext(target) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'));
+}
+
+function triggerShortcutTarget(id, label) {
+    const el = $(id);
+    if (el) {
+        el.click();
+        console.log(`[Shortcut] ${label}`);
+    }
+}
+
+function cycleColorTheme() {
+    const idx = THEME_CYCLE_ORDER.indexOf(currentThemeClass);
+    const next = THEME_CYCLE_ORDER[(idx + 1 + THEME_CYCLE_ORDER.length) % THEME_CYCLE_ORDER.length] || THEME_CYCLE_ORDER[0];
+    const btn = document.querySelector(`.theme-select-btn[data-theme="${next}"]`);
+    if (btn) {
+        // Reuse the theme button so apply + persist + toast stay in one place
+        btn.click();
+    } else {
+        currentThemeClass = next;
+        applyThemeAndMode();
+    }
+    console.log(`[Shortcut] Cycle color theme -> ${next.replace('theme-', '')} (Alt+T)`);
+}
+
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        // Escape closes the fullscreen diagram modal
+        if (e.key === 'Escape') {
+            const modal = $('fullscreen-modal');
+            if (modal && !modal.classList.contains('hidden')) {
+                const closeBtn = $('close-fullscreen-btn');
+                if (closeBtn) closeBtn.click();
+            }
+            return;
+        }
+
+        // All app shortcuts use Alt (Ctrl/Cmd combos stay free for the browser)
+        if (!e.altKey || e.ctrlKey || e.metaKey) return;
+        if (isTypingContext(e.target)) return;
+
+        // Alt+1..6 -> jump straight to that tab
+        const digitMatch = /^(?:Digit|Numpad)([1-6])$/.exec(e.code || '');
+        if (digitMatch) {
+            e.preventDefault();
+            const route = SHORTCUT_ROUTES[Number(digitMatch[1]) - 1];
+            if (window.location.hash === `#${route}`) {
+                navigateToPage(route); // already there: just re-run the page hooks
+            } else {
+                window.location.hash = `#${route}`; // triggers the hash router
+            }
+            console.log(`[Shortcut] Navigate to "${route}" (Alt+${digitMatch[1]})`);
+            return;
+        }
+
+        switch (e.code) {
+            case 'KeyS':
+                e.preventDefault();
+                triggerShortcutTarget('start-class-btn', 'Start / Stop Class (Alt+S)');
+                break;
+            case 'KeyM':
+                e.preventDefault();
+                triggerShortcutTarget('color-mode-toggle-btn', 'Toggle Light / Dark mode (Alt+M)');
+                break;
+            case 'KeyT':
+                e.preventDefault();
+                cycleColorTheme();
+                break;
+            case 'KeyC':
+                e.preventDefault();
+                triggerShortcutTarget('copy-caption-btn', 'Copy live captions (Alt+C)');
+                break;
+            case 'KeyR':
+                e.preventDefault();
+                triggerShortcutTarget('speak-caption-btn', 'Read captions aloud (Alt+R)');
+                break;
+        }
+    });
+}
+
+function initKbdTooltips() {
+    // Hover hints only make sense with a fine pointer; skip pure touch devices
+    if (!window.matchMedia || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+    const tip = document.createElement('div');
+    tip.id = 'kbd-tooltip';
+    tip.className = 'kbd-tooltip';
+    tip.setAttribute('role', 'tooltip');
+    tip.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(tip);
+
+    let currentEl = null;
+
+    const hideTip = () => {
+        if (!currentEl) return;
+        currentEl = null;
+        tip.classList.remove('visible');
+    };
+
+    const showTip = (el) => {
+        const combo = el.getAttribute('data-kbd');
+        if (!combo) return;
+        const label = el.getAttribute('data-kbd-label') || '';
+        const keysHtml = combo.split('+')
+            .map((key) => `<kbd>${escapeHtml(key.trim())}</kbd>`)
+            .join('<span class="kbd-plus">+</span>');
+        tip.innerHTML = label ? `<span class="kbd-tip-label">${escapeHtml(label)}</span>${keysHtml}` : keysHtml;
+
+        // Measure while still hidden (visibility:hidden keeps box metrics)
+        tip.style.left = '0px';
+        tip.style.top = '0px';
+        const tw = tip.offsetWidth;
+        const th = tip.offsetHeight;
+        const rect = el.getBoundingClientRect();
+        const gap = 8;
+
+        let top;
+        let left;
+        if (el.getAttribute('data-kbd-pos') === 'left') {
+            // Side placement: the theme picker's hover dropdown opens below the button
+            top = rect.top + rect.height / 2 - th / 2;
+            left = rect.left - tw - gap;
+        } else {
+            top = rect.bottom + gap;
+            left = rect.left + rect.width / 2 - tw / 2;
+            if (top + th > window.innerHeight - gap) {
+                top = rect.top - th - gap; // flip above (e.g. bottom nav bar)
+            }
+        }
+        left = Math.min(Math.max(gap, left), window.innerWidth - tw - gap);
+        top = Math.min(Math.max(gap, top), window.innerHeight - th - gap);
+
+        tip.style.left = `${Math.round(left)}px`;
+        tip.style.top = `${Math.round(top)}px`;
+        tip.classList.add('visible');
+        currentEl = el;
+    };
+
+    document.addEventListener('mouseover', (e) => {
+        const el = e.target instanceof Element ? e.target.closest('[data-kbd]') : null;
+        if (el) {
+            if (el !== currentEl) showTip(el);
+        } else {
+            hideTip();
+        }
+    });
+
+    document.addEventListener('focusin', (e) => {
+        const el = e.target instanceof Element ? e.target.closest('[data-kbd]') : null;
+        if (el) showTip(el);
+    });
+    document.addEventListener('focusout', hideTip);
+
+    // Hide when the anchored control moves (inner scrolls included) or the window loses focus
+    window.addEventListener('scroll', hideTip, true);
+    window.addEventListener('resize', hideTip);
+    window.addEventListener('blur', hideTip);
+}
+
+// ------------------------------------------------------------------
 // Application Initialization
 // ------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -3110,6 +3296,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     safeInit('Themes', initThemesAndModes);
     safeInit('Router', initPageRouter);
+    safeInit('KeyboardShortcuts', initKeyboardShortcuts);
+    safeInit('KbdTooltips', initKbdTooltips);
     safeInit('WebSocket', initLiveWebSocket);
     safeInit('SpeechRecognition', initLiveSpeechRecognition);
     safeInit('OnCommandGenerator', initOnCommandGenerator);
