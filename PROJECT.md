@@ -47,7 +47,7 @@ All three sprint days are complete. Each section below describes how the work wa
 *   **Double-layer rate limiting:** frontend request queue waits a minimum of 4.1 seconds between calls (max 14/min) and merges stale transcript chunks so only the freshest one consumes quota; the backend independently enforces 15 requests/min with HTTP 429.
 *   **Quick Actions:** 4 preset buttons (original plan said 3).
 *   **Mermaid fallback:** broken `diagram_code` is caught, logged, announced via a visible notice, and the previous diagram stays on screen.
-*   **Extra polish:** error banner for API failures, "generating…" instant feedback, per-response timestamps, `prefers-reduced-motion` support, and a 11-test offline smoke suite (`test_smoke.py`) with mocked Gemini.
+*   **Extra polish:** error banner for API failures, "generating…" instant feedback, per-response timestamps, `prefers-reduced-motion` support, and a 36-test offline smoke suite (`test_smoke.py`) with mocked Gemini.
 
 ---
 
@@ -63,7 +63,7 @@ Flat and legible. The frontend grew past the 500-line single-file threshold, so 
 ├── .env                 # GEMINI_API_KEY and optional GEMINI_MODEL (git-ignored)
 ├── .env.example         # Template for the env file
 ├── .gitignore           # Keeps .env and caches out of version control
-├── test_smoke.py        # 11 offline tests with mocked Gemini (python test_smoke.py)
+├── test_smoke.py        # 36 offline tests with mocked Gemini (python test_smoke.py)
 ├── templates/
 │   └── index.html       # Page markup + Tailwind config (under the 500-line cap)
 └── static/

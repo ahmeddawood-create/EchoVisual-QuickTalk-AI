@@ -1,0 +1,20 @@
+
+<!DOCTYPE html>
+<html>
+<head><title>Syntax Test</title></head>
+<body>
+<div id="output">Testing...</div>
+<script>
+window.onerror = function(msg, url, line, col, error) {
+    document.getElementById('output').innerText = 'ERROR: ' + msg + ' at line ' + line + ':' + col;
+    console.error('JS ERROR:', msg, 'at line', line, col);
+};
+</script>
+<script src="C:/qoder proj/EchoVisual & QuickTalk AI/static/app.js"></script>
+<script>
+if (document.getElementById('output').innerText === 'Testing...') {
+    document.getElementById('output').innerText = 'SUCCESS: No syntax error!';
+}
+</script>
+</body>
+</html>

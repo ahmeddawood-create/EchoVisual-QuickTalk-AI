@@ -11,10 +11,20 @@
 'use strict';
 
 // ------------------------------------------------------------------
+// Global DOM Reference Utilities
+// ------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const $$ = (sel) => document.querySelectorAll(sel);
+window.$ = $;
+window.$$ = $$;
+
+// ------------------------------------------------------------------
 // Configuration & Constants
 // ------------------------------------------------------------------
 const API_BASE = window.location.origin;
-const MIN_API_GAP_MS = 3500;
+// Keep the queue safely under the backend's 15 req/min sliding window (~14/min).
+// A 3.5s gap allowed ~17 req/min and triggered avoidable 429s.
+const MIN_API_GAP_MS = 4100;
 const MAX_TRANSCRIPT_CHARS = 4000;
 const LAST_SESSION_KEY = 'echovisual_last_session';
 const SAVED_SESSIONS_KEY = 'echovisual_saved_sessions';
@@ -43,6 +53,8 @@ let isGeneratingQuiz = false;
 let isGeneratingFlashcards = false;
 let captionSpeechUtterance = null;
 let mermaidSeq = 0;
+// True when the current session has content that is not yet archived.
+let hasUnsavedSessionChanges = false;
 
 // Speech Recognition State (Continuous Live Capture)
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -142,40 +154,25 @@ const streamAudioPlayer = new StreamAudioPlayer();
 // ------------------------------------------------------------------
 let wsSocket = null;
 let wsConnected = false;
-let wsReconnectTimer = null;
 let wsReconnectIndex = 0;
-const WS_RECONNECT_BACKOFF = [1000, 2000, 5000];
+const WS_RECONNECT_BACKOFF = [1000, 2000, 5000, 10000];
+let wsReconnectTimer = null;
+let currentRoomId = null;
+let currentClientId = Math.random().toString(36).substring(2, 10);
 
-function updateWsBadge(status, text) {
-    const badge = $('ws-status-badge');
-    const dot = $('ws-status-dot');
-    const label = $('ws-status-text');
-    if (!badge || !dot || !label) return;
-
-    if (status === 'connected') {
-        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
-        label.textContent = 'WS Live (Streaming)';
-        badge.className = 'font-mono text-[10px] md:text-[11px] px-2.5 py-1 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-800/80 flex items-center gap-1.5 transition-colors';
-    } else if (status === 'reconnecting') {
-        dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
-        label.textContent = text || 'WS Reconnecting...';
-        badge.className = 'font-mono text-[10px] md:text-[11px] px-2.5 py-1 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/80 flex items-center gap-1.5 transition-colors';
-    } else {
-        dot.className = 'w-2 h-2 rounded-full bg-slate-500';
-        label.textContent = 'REST Fallback';
-        badge.className = 'font-mono text-[10px] md:text-[11px] px-2.5 py-1 rounded-full bg-raised text-slate-400 border border-edge flex items-center gap-1.5 transition-colors';
-    }
-}
-
-function initLiveWebSocket() {
+function initLiveWebSocket(roomId) {
     if (wsSocket) {
         try { wsSocket.close(); } catch (e) {}
         wsSocket = null;
     }
 
+    if (!roomId) roomId = currentRoomId;
+    if (!roomId) return;
+    currentRoomId = roomId;
+
     const loc = window.location;
     const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProto}//${loc.host}/ws/live-session`;
+    const wsUrl = `${wsProto}//${loc.host}/ws/live-session/${roomId}/${currentClientId}`;
 
     try {
         wsSocket = new WebSocket(wsUrl);
@@ -184,8 +181,7 @@ function initLiveWebSocket() {
         wsSocket.onopen = () => {
             wsConnected = true;
             wsReconnectIndex = 0;
-            updateWsBadge('connected');
-            console.log('⚡ Connected to full-duplex WebSocket live session streaming pipeline.');
+            console.log(`⚡ Connected to room ${roomId} as ${currentClientId}`);
         };
 
         wsSocket.onmessage = async (event) => {
@@ -208,21 +204,20 @@ function initLiveWebSocket() {
 
         wsSocket.onclose = () => {
             wsConnected = false;
-            updateWsBadge('fallback');
             scheduleWsReconnect();
         };
     } catch (e) {
         wsConnected = false;
-        updateWsBadge('fallback');
         scheduleWsReconnect();
     }
 }
 
 function scheduleWsReconnect() {
     if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+    // Keep retrying forever with a capped interval: the live-session backend
+    // is real, and students must rejoin automatically after e.g. a server restart.
     const delay = WS_RECONNECT_BACKOFF[wsReconnectIndex] || 5000;
     wsReconnectIndex = Math.min(wsReconnectIndex + 1, WS_RECONNECT_BACKOFF.length - 1);
-    updateWsBadge('reconnecting', `WS Reconnecting (${delay / 1000}s)...`);
     wsReconnectTimer = setTimeout(() => {
         initLiveWebSocket();
     }, delay);
@@ -250,11 +245,22 @@ function handleWsEvent(msg) {
 
     switch (msg.type) {
         case 'ready':
-            console.log('WS Handshake ready:', msg.message);
+            console.log('[WS] Ready handshake received:', msg.message);
+            if (msg.mermaid_code) {
+                renderDiagramDirect(msg.mermaid_code, msg.summary_bullets, msg.key_terms);
+            }
+            if (msg.peers) {
+                msg.peers.forEach((peerId) => {
+                    createPeerConnection(peerId, false);
+                });
+            }
             break;
 
         case 'caption':
-            // Fast server acknowledgment; keep client-side live caption stream continuous and non-dropping
+            if (msg.rolling_transcript !== undefined) {
+                interimBuffer = msg.rolling_transcript;
+                renderCaption(msg.is_final ? '' : (msg.text || ''));
+            }
             break;
 
         case 'diagram_delta':
@@ -264,6 +270,7 @@ function handleWsEvent(msg) {
         case 'tts_start':
             streamAudioPlayer.ensureContext();
             streamAudioPlayer.reset();
+            toggleAudioVisualizer(true);
             showToast(`🔊 Streaming ${msg.voice || 'Neural'} voice...`);
             break;
 
@@ -274,70 +281,94 @@ function handleWsEvent(msg) {
                     speak(msg.refined_text);
                 }
             }
+            toggleAudioVisualizer(false);
             break;
 
         case 'session_reset':
-            console.log('Server graph state reset.');
+            console.log('[WS] Session reset');
+            interimBuffer = '';
+            renderCaption('');
+            renderDiagramDirect('', [], []);
+            break;
+
+        case 'peer_joined':
+            if (msg.peer_id) {
+                console.log(`[WS] Peer joined: ${msg.peer_id}`);
+                createPeerConnection(msg.peer_id, true);
+                showToast(`👤 Peer joined class`);
+            }
+            break;
+
+        case 'peer_left':
+            if (msg.peer_id) {
+                console.log(`[WS] Peer left: ${msg.peer_id}`);
+                removeVideoElement(msg.peer_id);
+                if (peerConnections[msg.peer_id]) {
+                    peerConnections[msg.peer_id].close();
+                    delete peerConnections[msg.peer_id];
+                }
+                delete iceCandidateQueues[msg.peer_id];
+                showToast(`👤 Peer left class`);
+            }
+            break;
+
+        case 'webrtc_offer':
+            if (msg.source_peer && msg.offer) {
+                console.log(`[WS] Received offer from ${msg.source_peer}`);
+                const pc = createPeerConnection(msg.source_peer, false);
+                pc.setRemoteDescription(new RTCSessionDescription(msg.offer))
+                    .then(() => {
+                        handleQueuedIceCandidates(msg.source_peer, pc);
+                        return pc.createAnswer();
+                    })
+                    .then((answer) => pc.setLocalDescription(answer))
+                    .then(() => {
+                        console.log(`[WS] Sending answer to ${msg.source_peer}`);
+                        sendWsMessage({
+                            type: 'webrtc_answer',
+                            target_peer: msg.source_peer,
+                            answer: pc.localDescription,
+                        });
+                    })
+                    .catch((e) => console.warn('[WS] Offer handling error:', e));
+            }
+            break;
+
+        case 'webrtc_answer':
+            if (msg.source_peer && msg.answer && peerConnections[msg.source_peer]) {
+                console.log(`[WS] Received answer from ${msg.source_peer}`);
+                const pc = peerConnections[msg.source_peer];
+                pc.setRemoteDescription(new RTCSessionDescription(msg.answer))
+                    .then(() => {
+                        handleQueuedIceCandidates(msg.source_peer, pc);
+                    })
+                    .catch((e) => console.warn('[WS] Answer handling error:', e));
+            }
+            break;
+
+        case 'webrtc_ice_candidate':
+            if (msg.source_peer && msg.candidate) {
+                const pc = peerConnections[msg.source_peer];
+                if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+                    try {
+                        pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch((e) => console.warn('[WS] ICE add error:', e));
+                    } catch (e) {
+                        console.warn('[WS] Invalid ICE candidate:', e);
+                    }
+                } else {
+                    if (!iceCandidateQueues[msg.source_peer]) {
+                        iceCandidateQueues[msg.source_peer] = [];
+                    }
+                    iceCandidateQueues[msg.source_peer].push(msg.candidate);
+                }
+            }
             break;
     }
 }
 
-function applyLiveDiagramDelta(deltas, mermaidCode, summaryBullets, keyTerms) {
-    if (!mermaidCode) return;
-
-    const snap = {
-        diagram_code: mermaidCode,
-        summary_bullets: summaryBullets || [],
-        key_terms: keyTerms || [],
-        short_notes: [],
-        quiz: [],
-        flashcards: [],
-        timeString: new Date().toLocaleTimeString(),
-    };
-
-    if (keyTerms && keyTerms.length) {
-        keyTerms.forEach((t) => allSessionKeyTerms.add(t));
-    }
-
-    sessionDiagrams.push(snap);
-    currentDiagramIndex = sessionDiagrams.length - 1;
-
-    renderDiagramDirect(mermaidCode, summaryBullets, keyTerms);
-    updateTimelineControls();
-    refreshStorageDashboard();
-    saveCurrentSessionToStorage();
-}
-
-async function renderDiagramDirect(mermaidCode, summaryBullets, keyTerms) {
-    const wrapper = $('diagram-svg-wrapper');
-    if (!wrapper || !window.mermaid) return;
-
-    mermaidSeq++;
-    const renderId = `mermaid-live-svg-${mermaidSeq}`;
-    try {
-        const { svg } = await window.mermaid.render(renderId, mermaidCode);
-        wrapper.innerHTML = svg;
-        const svgEl = wrapper.querySelector('svg');
-        if (svgEl) {
-            svgEl.style.maxWidth = '100%';
-            svgEl.style.maxHeight = '100%';
-            svgEl.style.height = 'auto';
-            svgEl.style.width = 'auto';
-            svgEl.classList.add('transition-all', 'duration-300', 'ease-out');
-        }
-        renderSummaryAndNotes(summaryBullets || [], [], keyTerms || []);
-        const lastUp = $('last-update');
-        if (lastUp) lastUp.textContent = `live delta @ ${new Date().toLocaleTimeString()}`;
-    } catch (e) {
-        console.warn('Mermaid delta render error:', e);
-    }
-}
-
-// ------------------------------------------------------------------
-// DOM Reference Utilities
-// ------------------------------------------------------------------
-const $ = (id) => document.getElementById(id);
-const $$ = (sel) => document.querySelectorAll(sel);
+// NOTE: renderDiagramDirect and applyLiveDiagramDelta are defined further
+// down (next to renderDiagram) — these pipelines were previously declared
+// twice, with the earlier (stale) copies silently overridden by the later ones.
 
 // ------------------------------------------------------------------
 // Toast & Banner Notifications
@@ -394,7 +425,9 @@ function fileStamp() {
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = String(text ?? '');
-    return div.innerHTML;
+    // innerHTML alone does not escape quotes, which would corrupt HTML
+    // attributes (data-option, data-text, ...) built from Gemini output.
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function copyToClipboard(text, successMsg = 'Copied to clipboard!') {
@@ -425,14 +458,13 @@ function fallbackCopy(text, successMsg) {
 // ------------------------------------------------------------------
 // Multi-Page SPA Router
 // ------------------------------------------------------------------
-const VALID_PAGES = ['classroom', 'expression', 'study', 'tutor', 'storage'];
+const VALID_PAGES = ['classroom', 'rooms', 'expression', 'study', 'tutor', 'storage'];
 
 function navigateToPage(pageName) {
     if (!VALID_PAGES.includes(pageName)) {
         pageName = 'classroom';
     }
 
-    // Update URL hash without triggering double events
     if (window.location.hash !== `#${pageName}`) {
         window.location.hash = `#${pageName}`;
     }
@@ -440,26 +472,42 @@ function navigateToPage(pageName) {
     // Hide all views & remove active nav classes
     VALID_PAGES.forEach((p) => {
         const viewEl = $(`view-${p}`);
-        if (viewEl) viewEl.classList.remove('active');
+        if (viewEl) {
+            viewEl.classList.remove('active');
+            viewEl.classList.add('hidden');
+        }
 
         const navLink = $(`nav-${p}`);
-        if (navLink) navLink.classList.remove('active');
+        if (navLink) {
+            navLink.classList.remove('active');
+            navLink.classList.remove('text-white', 'font-semibold');
+            navLink.classList.add('text-slate-400');
+        }
     });
 
     $$('.mobile-nav-link').forEach((link) => link.classList.remove('active'));
 
-    // Show active page view & highlight links
+    // Show active page view
     const activeView = $(`view-${pageName}`);
-    if (activeView) activeView.classList.add('active');
+    if (activeView) {
+        activeView.classList.remove('hidden');
+        activeView.classList.add('active');
+    }
 
     const activeNav = $(`nav-${pageName}`);
-    if (activeNav) activeNav.classList.add('active');
+    if (activeNav) {
+        activeNav.classList.add('active');
+        activeNav.classList.remove('text-slate-400');
+        activeNav.classList.add('text-white', 'font-semibold');
+    }
 
     const activeMobileNav = document.querySelector(`.mobile-nav-link[data-page="${pageName}"]`);
     if (activeMobileNav) activeMobileNav.classList.add('active');
 
     // Page-specific on-enter hooks
-    if (pageName === 'storage') {
+    if (pageName === 'rooms') {
+        updateHubActiveCard();
+    } else if (pageName === 'storage') {
         refreshStorageDashboard();
     } else if (pageName === 'study') {
         if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
@@ -558,18 +606,39 @@ try {
 
 async function renderDiagram(code, recordHistory = true, customSummary = null, customTerms = null, customNotes = null, customQuiz = null, customFlashcards = null) {
     try {
-        const clean = (code || '').trim().replace(/^```(mermaid)?\s*/i, '').replace(/```$/, '');
+        let clean = (code || '').trim().replace(/^```(mermaid)?\s*/i, '').replace(/```$/, '').trim();
         if (!clean) return false;
+
+        if (!clean.includes('flowchart') && !clean.includes('graph')) {
+            clean = 'flowchart TD\n' + clean;
+        }
 
         let svg = '';
         if (typeof mermaid !== 'undefined') {
-            await mermaid.parse(clean);
-            const id = `mermaid-graph-${++mermaidSeq}`;
-            const result = await mermaid.render(id, clean);
-            svg = result.svg;
+            try {
+                await mermaid.parse(clean);
+                const id = `mermaid-graph-${++mermaidSeq}`;
+                const result = await mermaid.render(id, clean);
+                svg = result.svg;
+            } catch (renderErr) {
+                console.warn('[Mermaid] Syntax recovery active:', renderErr);
+                document.querySelectorAll('[id^="dmermaid"], [id^="mermaid-"]').forEach((el) => {
+                    if (el.classList.contains('error-icon') || (el.textContent && el.textContent.includes('Syntax error'))) {
+                        el.remove();
+                    }
+                });
+
+                const safeClean = 'flowchart TD\n    A["Live Classroom Concept Map"] --> B["Listening for Lecture..."]';
+                const id = `mermaid-graph-${++mermaidSeq}`;
+                const result = await mermaid.render(id, safeClean);
+                svg = result.svg;
+                clean = safeClean;
+            }
         } else {
             svg = `<pre class="text-xs font-mono text-slate-300 p-4">${escapeHtml(clean)}</pre>`;
         }
+
+        document.querySelectorAll('.error-icon, [id*="dmermaid"]').forEach((el) => el.remove());
 
         const snapshot = {
             id: mermaidSeq,
@@ -587,6 +656,7 @@ async function renderDiagram(code, recordHistory = true, customSummary = null, c
         if (recordHistory) {
             sessionDiagrams.push(snapshot);
             (customTerms || []).forEach((t) => allSessionKeyTerms.add(t));
+            hasUnsavedSessionChanges = true;
             saveCurrentSessionToStorage();
         }
 
@@ -602,19 +672,38 @@ async function renderDiagram(code, recordHistory = true, customSummary = null, c
         return true;
     } catch (err) {
         console.error('Mermaid render error:', err);
-        showError('Gemini diagram syntax error. Showing previous diagram.');
+        document.querySelectorAll('.error-icon, [id*="dmermaid"]').forEach((el) => el.remove());
         return false;
     }
 }
 
-function displayDiagramSnapshot(index) {
+function renderDiagramDirect(code, summaryBullets = [], keyTerms = []) {
+    return renderDiagram(code, true, summaryBullets, keyTerms);
+}
+
+function applyLiveDiagramDelta(deltas, mermaidCode, summaryBullets = [], keyTerms = []) {
+    if (mermaidCode) {
+        return renderDiagram(mermaidCode, true, summaryBullets, keyTerms);
+    }
+}
+
+window.renderDiagram = renderDiagram;
+window.renderDiagramDirect = renderDiagramDirect;
+window.applyLiveDiagramDelta = applyLiveDiagramDelta;
+
+async function displayDiagramSnapshot(index) {
     if (index < 0 || index >= sessionDiagrams.length) return;
     currentDiagramIndex = index;
     const snap = sessionDiagrams[index];
 
     const wrapper = $('diagram-svg-wrapper');
     if (wrapper) {
-        wrapper.innerHTML = `<div class="rise-in w-full h-full min-h-0 min-w-0 flex items-center justify-center">${snap.svg}</div>`;
+        if (snap.svg) {
+            wrapper.innerHTML = `<div class="rise-in w-full h-full min-h-0 min-w-0 flex items-center justify-center">${snap.svg}</div>`;
+        } else {
+            // Restored snapshots skip the heavy SVG; re-render from Mermaid code.
+            await restoreSnapshotSvg(snap, wrapper);
+        }
     }
 
     const lastUp = $('last-update');
@@ -629,6 +718,19 @@ function displayDiagramSnapshot(index) {
     if ($('nav-study-badge')) $('nav-study-badge').textContent = String(sessionDiagrams.length);
 
     updateTimelineControls();
+}
+
+async function restoreSnapshotSvg(snap, wrapper) {
+    if (!window.mermaid || !snap.diagram_code) return;
+    try {
+        const { svg } = await window.mermaid.render(`mermaid-restore-${++mermaidSeq}`, snap.diagram_code);
+        snap.svg = svg;
+        if (sessionDiagrams[currentDiagramIndex] === snap && wrapper) {
+            wrapper.innerHTML = `<div class="rise-in w-full h-full min-h-0 min-w-0 flex items-center justify-center">${svg}</div>`;
+        }
+    } catch (e) {
+        console.warn('Snapshot re-render failed:', e);
+    }
 }
 
 function updateTimelineControls() {
@@ -659,6 +761,78 @@ function updateTimelineControls() {
     if (counter) counter.textContent = `${currentDiagramIndex + 1} / ${count}`;
 }
 
+function initTimelineControls() {
+    const slider = $('diagram-slider');
+    const prevBtn = $('prev-diagram-btn');
+    const nextBtn = $('next-diagram-btn');
+    const liveFollow = $('live-follow-toggle');
+
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+            if (currentDiagramIndex > 0) {
+                if (liveFollow) liveFollow.checked = false;
+                displayDiagramSnapshot(currentDiagramIndex - 1);
+                showToast(`Viewing diagram ${currentDiagramIndex + 1} of ${sessionDiagrams.length}`);
+            }
+        });
+    }
+
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+            if (currentDiagramIndex < sessionDiagrams.length - 1) {
+                const nextIdx = currentDiagramIndex + 1;
+                displayDiagramSnapshot(nextIdx);
+                if (nextIdx === sessionDiagrams.length - 1 && liveFollow) {
+                    liveFollow.checked = true;
+                }
+                showToast(`Viewing diagram ${currentDiagramIndex + 1} of ${sessionDiagrams.length}`);
+            }
+        });
+    }
+
+    if (slider) {
+        slider.addEventListener('input', () => {
+            const val = parseInt(slider.value, 10);
+            const targetIndex = val - 1;
+            if (targetIndex >= 0 && targetIndex < sessionDiagrams.length) {
+                if (targetIndex < sessionDiagrams.length - 1 && liveFollow) {
+                    liveFollow.checked = false;
+                }
+                displayDiagramSnapshot(targetIndex);
+            }
+        });
+    }
+
+    if (liveFollow) {
+        liveFollow.addEventListener('change', () => {
+            if (liveFollow.checked && sessionDiagrams.length > 0) {
+                displayDiagramSnapshot(sessionDiagrams.length - 1);
+                showToast('Live diagram follow enabled');
+            }
+        });
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+        if (sessionDiagrams.length <= 1) return;
+
+        if ((e.altKey && e.key === 'ArrowLeft') || e.key === '[') {
+            e.preventDefault();
+            if (currentDiagramIndex > 0) {
+                if (liveFollow) liveFollow.checked = false;
+                displayDiagramSnapshot(currentDiagramIndex - 1);
+            }
+        } else if ((e.altKey && e.key === 'ArrowRight') || e.key === ']') {
+            e.preventDefault();
+            if (currentDiagramIndex < sessionDiagrams.length - 1) {
+                displayDiagramSnapshot(currentDiagramIndex + 1);
+            }
+        }
+    });
+
+    updateTimelineControls();
+}
+
 function renderSummaryAndNotes(bullets, notes, terms) {
     const sumList = $('summary-list');
     if (sumList) {
@@ -681,6 +855,10 @@ function renderSummaryAndNotes(bullets, notes, terms) {
             : '<span class="text-slate-500 italic text-xs">No key terms recorded yet.</span>';
     }
 }
+
+// Lettered quiz prefixes like "A. " or "B) " — the only safe case for a
+// short-prefix answer comparison.
+const QUIZ_LETTERED_PREFIX = /^[a-f][.)]\s/i;
 
 function renderQuiz(quizItems) {
     const container = $('quiz-questions-container');
@@ -730,8 +908,11 @@ function renderQuiz(quizItems) {
             const selectedOpt = btn.dataset.option || '';
             const correctOpt = quizItems[qIdx]?.answer || '';
 
+            // Full-text match, or lettered-prefix match only. A blind 2-char
+            // prefix comparison marked wrong answers correct ("Ozone" vs "Oxygen").
             const isCorrect = selectedOpt.trim().toLowerCase() === correctOpt.trim().toLowerCase() ||
-                              selectedOpt.slice(0, 2).toLowerCase() === correctOpt.slice(0, 2).toLowerCase();
+                (QUIZ_LETTERED_PREFIX.test(selectedOpt) && QUIZ_LETTERED_PREFIX.test(correctOpt) &&
+                 selectedOpt.slice(0, 2).toLowerCase() === correctOpt.slice(0, 2).toLowerCase());
 
             if (isCorrect) {
                 btn.classList.add('correct');
@@ -742,7 +923,8 @@ function renderQuiz(quizItems) {
                 card.querySelectorAll('.quiz-option').forEach((b) => {
                     const optText = b.dataset.option || '';
                     if (optText.trim().toLowerCase() === correctOpt.trim().toLowerCase() ||
-                        optText.slice(0, 2).toLowerCase() === correctOpt.slice(0, 2).toLowerCase()) {
+                        (QUIZ_LETTERED_PREFIX.test(optText) && QUIZ_LETTERED_PREFIX.test(correctOpt) &&
+                         optText.slice(0, 2).toLowerCase() === correctOpt.slice(0, 2).toLowerCase())) {
                         b.classList.add('correct');
                     }
                 });
@@ -844,7 +1026,7 @@ function initStudyTabs() {
 }
 
 // ------------------------------------------------------------------
-// Zoom & Fullscreen Controls
+// Zoom & Fullscreen Controls & Downloads
 // ------------------------------------------------------------------
 function setZoom(factor) {
     zoomLevel = Math.max(0.5, Math.min(2.5, factor));
@@ -854,200 +1036,236 @@ function setZoom(factor) {
     if (label) label.textContent = `${Math.round(zoomLevel * 100)}%`;
 }
 
+function adjustZoom(delta) {
+    setZoom(zoomLevel + delta);
+}
+
+function resetZoom() {
+    setZoom(1.0);
+}
+
+function downloadDiagramSvg() {
+    const svgEl = $('diagram-svg-wrapper')?.querySelector('svg');
+    if (!svgEl) {
+        showToast('No diagram SVG to download yet', true);
+        return;
+    }
+    const svgData = new XMLSerializer().serializeToString(svgEl);
+    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lecture_diagram_${Date.now()}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('💾 Diagram SVG downloaded!');
+}
+
+function downloadDiagramPng() {
+    const svgEl = $('diagram-svg-wrapper')?.querySelector('svg');
+    if (!svgEl) {
+        showToast('No diagram to download yet', true);
+        return;
+    }
+    const svgData = new XMLSerializer().serializeToString(svgEl);
+    const canvas = document.createElement('canvas');
+    const bbox = svgEl.getBoundingClientRect();
+    canvas.width = Math.max(bbox.width * 2, 800);
+    canvas.height = Math.max(bbox.height * 2, 600);
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const pngUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = pngUrl;
+        a.download = `lecture_diagram_${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('💾 Diagram PNG downloaded!');
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+}
+
 function initZoomAndFullscreen() {
-    const zoomIn = $('zoom-in-btn');
-    if (zoomIn) zoomIn.addEventListener('click', () => setZoom(zoomLevel + 0.15));
-    const zoomOut = $('zoom-out-btn');
-    if (zoomOut) zoomOut.addEventListener('click', () => setZoom(zoomLevel - 0.15));
-    const zoomReset = $('zoom-reset-btn');
-    if (zoomReset) zoomReset.addEventListener('click', () => setZoom(1.0));
-
-    const slider = $('diagram-slider');
-    if (slider) {
-        slider.addEventListener('input', () => {
-            const idx = parseInt(slider.value, 10) - 1;
-            displayDiagramSnapshot(idx);
-        });
-    }
-
-    const prevBtn = $('prev-diagram-btn');
-    if (prevBtn) {
-        prevBtn.addEventListener('click', () => {
-            if (currentDiagramIndex > 0) displayDiagramSnapshot(currentDiagramIndex - 1);
-        });
-    }
-
-    const nextBtn = $('next-diagram-btn');
-    if (nextBtn) {
-        nextBtn.addEventListener('click', () => {
-            if (currentDiagramIndex < sessionDiagrams.length - 1) displayDiagramSnapshot(currentDiagramIndex + 1);
-        });
-    }
-
+    const zoomInBtn = $('zoom-in-btn');
+    const zoomOutBtn = $('zoom-out-btn');
+    const zoomResetBtn = $('zoom-reset-btn');
+    const copyCodeBtn = $('copy-diagram-btn');
+    const dlSvgBtn = $('download-svg-btn');
+    const dlPngBtn = $('download-png-btn');
     const fsBtn = $('diagram-fullscreen-btn');
+    const focusBtn = $('toggle-focus-btn');
     const fsModal = $('fullscreen-modal');
-    const fsBody = $('fullscreen-diagram-body');
     const closeFs = $('close-fullscreen-btn');
 
-    if (fsBtn && fsModal && fsBody) {
-        fsBtn.addEventListener('click', () => {
-            if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
-                showToast('No diagram to view in fullscreen');
-                return;
+    if (focusBtn) {
+        let isFocused = false;
+        focusBtn.addEventListener('click', () => {
+            isFocused = !isFocused;
+            const captionCol = $('caption-column');
+            const visualCol = $('visual-column');
+            if (captionCol && visualCol) {
+                if (isFocused) {
+                    captionCol.classList.add('hidden');
+                    visualCol.classList.remove('lg:col-span-7');
+                    visualCol.classList.add('lg:col-span-12');
+                    showToast('🔍 Full Whiteboard Focus Mode enabled');
+                } else {
+                    captionCol.classList.remove('hidden');
+                    visualCol.classList.remove('lg:col-span-12');
+                    visualCol.classList.add('lg:col-span-7');
+                    showToast('Split Classroom View restored');
+                }
             }
-            fsBody.innerHTML = sessionDiagrams[currentDiagramIndex].svg;
-            fsModal.classList.remove('hidden');
         });
     }
+
+    if (zoomInBtn) zoomInBtn.addEventListener('click', () => adjustZoom(0.15));
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => adjustZoom(-0.15));
+    if (zoomResetBtn) zoomResetBtn.addEventListener('click', () => resetZoom());
+
+    if (copyCodeBtn) {
+        copyCodeBtn.addEventListener('click', () => {
+            if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
+                copyToClipboard(sessionDiagrams[currentDiagramIndex].diagram_code, '📋 Mermaid syntax copied!');
+            } else {
+                showToast('No diagram to copy yet');
+            }
+        });
+    }
+
+    if (dlSvgBtn) dlSvgBtn.addEventListener('click', downloadDiagramSvg);
+    if (dlPngBtn) dlPngBtn.addEventListener('click', downloadDiagramPng);
+
+    if (fsBtn && fsModal) {
+        fsBtn.addEventListener('click', () => {
+            const currentSvg = $('diagram-svg-wrapper')?.innerHTML;
+            const fsContent = $('fullscreen-diagram-body');
+            if (currentSvg && fsContent) {
+                fsContent.innerHTML = currentSvg;
+                fsModal.classList.remove('hidden');
+            }
+        });
+    }
+
     if (closeFs && fsModal) {
         closeFs.addEventListener('click', () => fsModal.classList.add('hidden'));
     }
-
-    const copyDiag = $('copy-diagram-btn');
-    if (copyDiag) {
-        copyDiag.addEventListener('click', () => {
-            if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
-                showToast('No diagram available to copy');
-                return;
-            }
-            copyToClipboard(sessionDiagrams[currentDiagramIndex].diagram_code, '📊 Mermaid code copied!');
-        });
-    }
-
-    const dlSvg = $('download-svg-btn');
-    if (dlSvg) {
-        dlSvg.addEventListener('click', () => {
-            if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
-                showToast('No diagram to download');
-                return;
-            }
-            const snap = sessionDiagrams[currentDiagramIndex];
-            downloadTextFile(`diagram_${snap.id}_${fileStamp()}.svg`, snap.svg);
-            showToast('SVG diagram downloaded');
-        });
-    }
-
-    const dlPng = $('download-png-btn');
-    if (dlPng) {
-        dlPng.addEventListener('click', () => {
-            if (currentDiagramIndex < 0 || !sessionDiagrams[currentDiagramIndex]) {
-                showToast('No diagram to download');
-                return;
-            }
-            const snap = sessionDiagrams[currentDiagramIndex];
-            convertSvgToPngAndDownload(snap.svg, `diagram_${snap.id}_${fileStamp()}.png`);
-        });
-    }
 }
 
-// ------------------------------------------------------------------
-// Live Captioning & Urdu Audio Recognition
-// ------------------------------------------------------------------
 function initLiveSpeechRecognition() {
     const micLang = $('mic-lang-select');
     const startBtn = $('start-class-btn');
     const micWarning = $('mic-warning');
 
-    if (!SpeechRecognition) {
-        if (micWarning) micWarning.classList.remove('hidden');
-        if (startBtn) {
-            startBtn.disabled = true;
-            startBtn.classList.add('opacity-40', 'cursor-not-allowed');
-        }
-        console.warn('SpeechRecognition not supported in this browser');
-        return;
-    }
-
-    recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = micLang ? micLang.value : 'en-US';
-
-    recognition.onresult = (event) => {
-        let interim = '';
-        let finalChunk = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-            const res = event.results[i];
-            if (!res || !res[0]) continue;
-            const text = res[0].transcript || '';
-            if (res.isFinal) {
-                const trimmed = text.trim();
-                if (trimmed.length > 0) {
-                    if (interimBuffer.length > 0 && !interimBuffer.endsWith(' ') && !interimBuffer.endsWith('\n')) {
-                        interimBuffer += ' ';
-                    }
-                    interimBuffer += trimmed + ' ';
-                    finalChunk += (finalChunk ? ' ' : '') + trimmed;
-                }
-            } else {
-                interim += text;
-            }
-        }
-        renderCaption(interim);
-
-        // Stream over WebSocket for <800ms caption latency and live visual delta updates
-        if (finalChunk.trim()) {
-            sendWsTranscriptChunk(finalChunk.trim(), true, true);
-        } else if (interim.trim()) {
-            sendWsTranscriptChunk(interim.trim(), false, false);
-        }
-
-        // Keep REST fallback debounce active if WS connection drops
-        if (!wsConnected) {
-            scheduleAutoDiagramDebounced();
-        }
-    };
-
-    recognition.onerror = (event) => {
-        // Ignore transient browser events like no-speech or aborted during normal continuous listening
-        if (event.error === 'no-speech' || event.error === 'aborted') {
-            return;
-        }
-        console.error('Speech recognition error:', event.error);
-        if (event.error === 'not-allowed') {
-            setStatus('mic blocked', 'bg-red-950 text-red-300 border-red-900');
-            stopListening();
-        }
-    };
-
-    recognition.onend = () => {
-        if (isListening) {
-            // Immediate seamless restart with fallback retry to keep captions continuous
-            try {
-                recognition.start();
-            } catch (e) {
-                setTimeout(() => {
-                    if (isListening) {
-                        try { recognition.start(); } catch (err) {}
-                    }
-                }, 100);
-            }
-        }
-    };
-
-    if (micLang) {
-        micLang.addEventListener('change', () => {
-            recognition.lang = micLang.value;
-            showToast(`🎙️ Microphone set to ${micLang.options[micLang.selectedIndex].text}`);
-            if (isListening) {
-                try {
-                    recognition.stop();
-                    setTimeout(() => {
-                        try { if (isListening) recognition.start(); } catch (e) {}
-                    }, 150);
-                } catch (e) {}
-            }
-        });
-    }
-
     if (startBtn) {
         startBtn.addEventListener('click', () => {
+            if (!SpeechRecognition) {
+                showToast('🎙️ Live speech recognition requires Chrome or Edge. You can also use the Prompt chips or Expression board!', true);
+                if (micWarning) micWarning.classList.remove('hidden');
+                return;
+            }
             isListening ? stopListening() : startListening();
         });
     }
+
+    if (!SpeechRecognition) {
+        if (micWarning) micWarning.classList.remove('hidden');
+        console.warn('SpeechRecognition API not available in this browser');
+        return;
+    }
+
+    try {
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = micLang ? micLang.value : 'en-US';
+
+        recognition.onresult = (event) => {
+            let interim = '';
+            let finalChunk = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const res = event.results[i];
+                if (!res || !res[0]) continue;
+                const text = res[0].transcript || '';
+                if (res.isFinal) {
+                    const trimmed = text.trim();
+                    if (trimmed.length > 0) {
+                        if (interimBuffer.length > 0 && !interimBuffer.endsWith(' ') && !interimBuffer.endsWith('\n')) {
+                            interimBuffer += ' ';
+                        }
+                        interimBuffer += trimmed + ' ';
+                        finalChunk += (finalChunk ? ' ' : '') + trimmed;
+                    }
+                } else {
+                    interim += text;
+                }
+            }
+            renderCaption(interim);
+
+            if (finalChunk.trim()) {
+                sendWsTranscriptChunk(finalChunk.trim(), true, true);
+            } else if (interim.trim()) {
+                sendWsTranscriptChunk(interim.trim(), false, false);
+            }
+
+            if (!wsConnected) {
+                scheduleAutoDiagramDebounced();
+            }
+        };
+
+        recognition.onerror = (event) => {
+            if (event.error === 'no-speech' || event.error === 'aborted') {
+                return;
+            }
+            console.error('Speech recognition error:', event.error);
+            if (event.error === 'not-allowed') {
+                setStatus('mic blocked', 'bg-red-950 text-red-300 border-red-900');
+                stopListening();
+                showToast('Microphone permission denied.', true);
+            }
+        };
+
+        recognition.onend = () => {
+            if (isListening) {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    setTimeout(() => {
+                        if (isListening) {
+                            try { recognition.start(); } catch (err) {}
+                        }
+                    }, 100);
+                }
+            }
+        };
+
+        if (micLang) {
+            micLang.addEventListener('change', () => {
+                recognition.lang = micLang.value;
+                showToast(`🎙️ Microphone set to ${micLang.options[micLang.selectedIndex].text}`);
+                if (isListening) {
+                    try {
+                        recognition.stop();
+                        setTimeout(() => {
+                            try { if (isListening) recognition.start(); } catch (e) {}
+                        }, 150);
+                    } catch (e) {}
+                }
+            });
+        }
+    } catch (e) {
+        console.warn('SpeechRecognition setup error:', e);
+    }
 }
 
-function renderCaption(interimText) {
+function renderCaption(interimText, markDirty = true) {
     const finalSpan = $('caption-final');
     const interimSpan = $('caption-interim');
     const emptyP = $('caption-empty');
@@ -1064,6 +1282,9 @@ function renderCaption(interimText) {
     if (emptyP) emptyP.classList.toggle('hidden', (cleanFinal + cleanInterim).trim().length > 0);
     if (body) body.scrollTop = body.scrollHeight;
 
+    if (markDirty && (cleanFinal + cleanInterim).trim().length > 0) {
+        hasUnsavedSessionChanges = true;
+    }
     saveCurrentSessionToStorage();
 }
 
@@ -1101,6 +1322,9 @@ function triggerAutoDiagram() {
 }
 
 function resetClassroomForNewClass() {
+    // 0. Auto-save previous class session if it had content
+    autoSaveSessionOnClassEnd('Previous lecture ended');
+
     // 1. Reset state variables
     interimBuffer = '';
     sessionDiagrams = [];
@@ -1110,6 +1334,7 @@ function resetClassroomForNewClass() {
     sessionStartTime = new Date();
     lastAutoDiagramTranscript = '';
     lastAutoDiagramAt = 0;
+    hasUnsavedSessionChanges = false;
 
     // Reset WebSocket server session graph state
     sendWsMessage({ type: 'reset_session' });
@@ -1167,11 +1392,12 @@ function resetClassroomForNewClass() {
 }
 
 function startListening() {
-    if (!recognition) return;
+    if (!recognition) {
+        showToast('🎙️ Live speech recognition requires Chrome or Edge.', true);
+        return;
+    }
 
-    // Reset and clear all previous session content when starting a new class
     resetClassroomForNewClass();
-
     isListening = true;
 
     const dot = $('caption-dot');
@@ -1184,8 +1410,12 @@ function startListening() {
 
     const startBtn = $('start-class-btn');
     if (startBtn) {
-        startBtn.textContent = 'Stop Class';
         startBtn.classList.replace('bg-accent', 'bg-red-600');
+        // Target the label span specifically — the button also contains a
+        // pulse-dot span that querySelector('span') would wrongly grab.
+        const label = $('start-btn-text') || startBtn.querySelector('span:last-child');
+        if (label) label.textContent = 'Stop Class';
+        else startBtn.textContent = 'Stop Class';
     }
 
     const meter = $('audio-meter');
@@ -1195,12 +1425,14 @@ function startListening() {
     autoDiagramInterval = setInterval(() => checkAndTriggerAutoDiagram(), AUTO_DIAGRAM_INTERVAL_MS);
 
     setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
-    showToast('🎙️ New class started! Previous content cleared. Live speech transcribing...');
+    showToast('🎙️ Live lecture started! Transcribing speech into visual diagrams...');
 }
 
 function stopListening() {
     isListening = false;
-    if (recognition) recognition.stop();
+    if (recognition) {
+        try { recognition.stop(); } catch (e) {}
+    }
 
     if (autoDiagramInterval) {
         clearInterval(autoDiagramInterval);
@@ -1213,8 +1445,10 @@ function stopListening() {
 
     const startBtn = $('start-class-btn');
     if (startBtn) {
-        startBtn.textContent = 'Start Class';
         startBtn.classList.replace('bg-red-600', 'bg-accent');
+        const label = $('start-btn-text') || startBtn.querySelector('span:last-child');
+        if (label) label.textContent = 'Start Class';
+        else startBtn.textContent = 'Start Class';
     }
 
     const meter = $('audio-meter');
@@ -1226,31 +1460,15 @@ function stopListening() {
         dot.classList.replace('bg-emerald-400', 'bg-slate-600');
     }
 
-    // Process any remaining speech captured right before stopping
     checkAndTriggerAutoDiagram(true);
-
     setStatus('idle', 'bg-raised text-slate-400 border-edge');
 
-    // Automatically archive the session snapshot with a description if there was speech or diagrams
-    const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
-    if (fullText.length > 0 || sessionDiagrams.length > 0) {
-        autoSaveSessionOnClassEnd();
-        showToast('💾 Class ended. Session snapshot automatically saved to storage archive!');
-    } else {
-        saveCurrentSessionToStorage();
-        showToast('Class paused / mic stopped');
-    }
+    // Automatically archive the ended lecture to storage!
+    autoSaveSessionOnClassEnd('Lecture ended');
 }
 
-// ------------------------------------------------------------------
-// Transcript Helper
-// ------------------------------------------------------------------
 function getCurrentLectureTranscript() {
-    let raw = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
-    if (!raw && typeof fullTranscript !== 'undefined' && fullTranscript) {
-        raw = fullTranscript.trim();
-    }
-    return raw;
+    return (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
 }
 
 // ------------------------------------------------------------------
@@ -1542,6 +1760,7 @@ async function sendNotesRequest(transcript) {
 
     const data = await res.json();
     const notes = data.short_notes || [];
+    hasUnsavedSessionChanges = true;
 
     if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
         sessionDiagrams[currentDiagramIndex].short_notes = notes;
@@ -1571,6 +1790,7 @@ async function sendQuizRequest(transcript) {
 
     const data = await res.json();
     const quiz = data.quiz || [];
+    hasUnsavedSessionChanges = true;
 
     if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
         sessionDiagrams[currentDiagramIndex].quiz = quiz;
@@ -1595,6 +1815,7 @@ async function sendFlashcardsRequest(transcript) {
 
     const data = await res.json();
     const flashcards = data.flashcards || [];
+    hasUnsavedSessionChanges = true;
 
     if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
         sessionDiagrams[currentDiagramIndex].flashcards = flashcards;
@@ -1866,6 +2087,108 @@ function speakTranslatedText(text, language) {
 // ------------------------------------------------------------------
 // Student Expression Board (Shorthand refinement + Speech)
 // ------------------------------------------------------------------
+
+
+// ------------------------------------------------------------------
+// Live Concept Chips & HUD
+// ------------------------------------------------------------------
+function renderLiveConceptChips(terms) {
+    const container = $('live-terms-chips');
+    if (!container) return;
+    if (!terms || !terms.length) {
+        container.innerHTML = '<span class="text-[10px] text-slate-500 italic font-mono">Terms extracted live as teacher speaks...</span>';
+        return;
+    }
+    container.innerHTML = terms.map((t) => `
+        <button class="concept-chip px-2.5 py-0.5 rounded-lg bg-accent/15 border border-accent/30 text-accent text-[10px] font-mono whitespace-nowrap hover:bg-accent hover:text-white transition-all shadow-sm flex items-center gap-1"
+                data-term="${escapeHtml(t)}" title="Click to copy concept">
+            <span>⚡</span>
+            <span>${escapeHtml(t)}</span>
+        </button>
+    `).join('');
+
+    container.querySelectorAll('.concept-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            copyToClipboard(btn.dataset.term, `Copied concept: ${btn.dataset.term}`);
+        });
+    });
+
+    const hudNode = $('diagram-node-hud');
+    if (hudNode) {
+        hudNode.textContent = `${terms.length} Concepts Identified`;
+    }
+}
+
+function initPromptChips() {
+    $$('.prompt-chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+            const promptText = chip.dataset.prompt;
+            if (!promptText) return;
+            showToast(`🚀 Generating visual for "${chip.innerText.trim()}"...`);
+            enqueueApiTask('diagram', promptText);
+        });
+    });
+}
+
+function toggleAudioVisualizer(active) {
+    const vis = $('tts-audio-visualizer');
+    if (vis) {
+        vis.classList.toggle('hidden', !active);
+        vis.classList.toggle('flex', active);
+    }
+    const badge = $('voice-engine-badge');
+    if (badge) {
+        badge.textContent = active ? '🔊 Speaking...' : 'Neural TTS Ready';
+        badge.classList.toggle('text-accent', active);
+        badge.classList.toggle('border-accent/40', active);
+    }
+}
+
+function initToneBadges() {
+    const hiddenInput = $('shorthand-tone-select');
+    const badges = $$('.tone-badge');
+    badges.forEach((badge) => {
+        badge.addEventListener('click', () => {
+            badges.forEach((b) => {
+                b.classList.remove('active', 'bg-accent', 'text-white', 'border-accent/50', 'shadow-md', 'shadow-accent/20');
+                b.classList.add('bg-raised', 'text-slate-300', 'border-edge');
+            });
+            badge.classList.add('active', 'bg-accent', 'text-white', 'border-accent/50', 'shadow-md', 'shadow-accent/20');
+            badge.classList.remove('bg-raised', 'text-slate-300', 'border-edge');
+            if (hiddenInput) {
+                hiddenInput.value = badge.dataset.tone;
+            }
+            showToast(`Persona: ${badge.innerText.trim()}`);
+        });
+    });
+}
+
+function initSoundboardTabs() {
+    const tabs = $$('.soundboard-tab');
+    const presetBtns = $$('#soundboard-grid .preset-btn');
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            tabs.forEach((t) => {
+                t.classList.remove('active', 'bg-raised', 'text-white', 'border-accent/40', 'shadow-sm');
+                t.classList.add('bg-ink', 'text-slate-400', 'border-edge');
+            });
+            tab.classList.add('active', 'bg-raised', 'text-white', 'border-accent/40', 'shadow-sm');
+            tab.classList.remove('bg-ink', 'text-slate-400', 'border-edge');
+
+            const cat = tab.dataset.cat;
+            presetBtns.forEach((btn) => {
+                if (cat === 'all' || btn.dataset.cat === cat) {
+                    btn.classList.remove('hidden');
+                    btn.classList.add('flex');
+                } else {
+                    btn.classList.add('hidden');
+                    btn.classList.remove('flex');
+                }
+            });
+        });
+    });
+}
+
 function initStudentExpressionBoard() {
     const input = $('shorthand-input');
     const count = $('char-count');
@@ -1945,6 +2268,19 @@ function initStudentExpressionBoard() {
     }
 
     renderCustomPresets();
+    initToneBadges();
+    initSoundboardTabs();
+    initPromptChips();
+
+    const clearLogBtn = $('clear-spoken-log-btn');
+    if (clearLogBtn) {
+        clearLogBtn.addEventListener('click', () => {
+            spokenHistory = [];
+            renderSpokenLog();
+            saveCurrentSessionToStorage();
+            showToast('Spoken questions history cleared.');
+        });
+    }
 }
 
 async function refineAndSpeak(payload) {
@@ -2022,6 +2358,7 @@ function speak(text, rawShorthand = '') {
 function logSpoken(text, rawShorthand = '') {
     const item = { time: stamp(), text, raw: rawShorthand || text };
     spokenHistory.unshift(item);
+    hasUnsavedSessionChanges = true;
     renderSpokenLog();
     saveCurrentSessionToStorage();
 }
@@ -2083,7 +2420,13 @@ function saveCustomPreset(phrase) {
     const list = getSavedPresets();
     if (!list.includes(phrase)) {
         list.push(phrase);
-        localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(list));
+        try {
+            localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(list));
+        } catch (e) {
+            console.warn('Preset save failed:', e);
+            showToast('Could not save preset (storage full?)', true);
+            return;
+        }
         renderCustomPresets();
         showToast(`Saved preset: "${phrase.slice(0, 20)}..."`);
     }
@@ -2092,7 +2435,11 @@ function saveCustomPreset(phrase) {
 function deleteCustomPreset(phrase) {
     let list = getSavedPresets();
     list = list.filter((p) => p !== phrase);
-    localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(list));
+    try {
+        localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(list));
+    } catch (e) {
+        console.warn('Preset delete failed:', e);
+    }
     renderCustomPresets();
     showToast('Preset removed');
 }
@@ -2301,20 +2648,48 @@ function generateSessionDescription(transcript, diagrams, keyTerms) {
     return 'Classroom Lecture Session';
 }
 
-function saveCurrentSessionToStorage() {
+// Strip the rendered SVG markup before persisting: it is the bulk of the
+// payload and can be re-rendered from diagram_code on demand, so sessions
+// no longer risk blowing the localStorage quota.
+function serializeSessionDiagrams() {
+    return sessionDiagrams.map((d) => ({ ...d, svg: undefined }));
+}
+
+function buildSessionRecord() {
     const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
     const desc = generateSessionDescription(fullText, sessionDiagrams, allSessionKeyTerms);
-    const currentSession = {
+    return {
         id: sessionStartTime ? sessionStartTime.getTime() : Date.now(),
         date: sessionStartTime ? sessionStartTime.toLocaleString() : new Date().toLocaleString(),
         description: desc,
         transcript: fullText,
-        diagrams: [...sessionDiagrams],
+        diagrams: serializeSessionDiagrams(),
         spokenLog: [...spokenHistory],
         keyTerms: Array.from(allSessionKeyTerms),
     };
+}
+
+// Debounced: renderCaption fires several times per second during live speech,
+// and serializing the whole session on every interim result caused jank.
+let sessionSaveTimer = null;
+function saveCurrentSessionToStorage() {
+    if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
+    sessionSaveTimer = setTimeout(() => {
+        sessionSaveTimer = null;
+        try {
+            localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(buildSessionRecord()));
+        } catch (e) {
+            console.warn('LocalStorage save failed:', e);
+        }
+    }, 2000);
+}
+
+function flushSessionSave() {
+    if (!sessionSaveTimer) return;
+    clearTimeout(sessionSaveTimer);
+    sessionSaveTimer = null;
     try {
-        localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(currentSession));
+        localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(buildSessionRecord()));
     } catch (e) {
         console.warn('LocalStorage save failed:', e);
     }
@@ -2328,18 +2703,19 @@ function getSavedSessions() {
     }
 }
 
-function autoSaveSessionOnClassEnd() {
+function autoSaveSessionOnClassEnd(reason = 'Class ended') {
+    // Skip when nothing changed since the last archive (prevents duplicate
+    // saves and toasts when stopping and immediately restarting a class).
+    if (!hasUnsavedSessionChanges) return false;
     const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
-    const desc = generateSessionDescription(fullText, sessionDiagrams, allSessionKeyTerms);
-    const sessionSnapshot = {
-        id: sessionStartTime ? sessionStartTime.getTime() : Date.now(),
-        date: sessionStartTime ? sessionStartTime.toLocaleString() : new Date().toLocaleString(),
-        description: desc,
-        transcript: fullText,
-        diagrams: [...sessionDiagrams],
-        spokenLog: [...spokenHistory],
-        keyTerms: Array.from(allSessionKeyTerms),
-    };
+    if (fullText.length === 0 && sessionDiagrams.length === 0 && spokenHistory.length === 0) {
+        return false;
+    }
+
+    const roomTag = currentRoomId ? ` [Room: ${currentRoomId}]` : '';
+    const sessionSnapshot = buildSessionRecord();
+    sessionSnapshot.description += roomTag;
+    sessionSnapshot.room = currentRoomId || null;
 
     const list = getSavedSessions();
     const existingIndex = list.findIndex((s) => s.id === sessionSnapshot.id);
@@ -2347,7 +2723,7 @@ function autoSaveSessionOnClassEnd() {
         list[existingIndex] = sessionSnapshot;
     } else {
         list.unshift(sessionSnapshot);
-        while (list.length > 15) list.pop();
+        while (list.length > 25) list.pop();
     }
 
     try {
@@ -2356,27 +2732,32 @@ function autoSaveSessionOnClassEnd() {
     } catch (e) {
         console.warn('LocalStorage save error:', e);
     }
+    hasUnsavedSessionChanges = false;
 
     renderSavedSessionsList();
     refreshStorageDashboard();
+    showToast(`💾 ${reason}: Class session auto-saved to Storage!`);
+    return true;
 }
+window.autoSaveSessionOnClassEnd = autoSaveSessionOnClassEnd;
 
 function saveCurrentSnapshot() {
-    const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
-    const desc = generateSessionDescription(fullText, sessionDiagrams, allSessionKeyTerms);
-    const currentSession = {
-        id: Date.now(),
-        date: new Date().toLocaleString(),
-        description: desc,
-        transcript: fullText,
-        diagrams: [...sessionDiagrams],
-        spokenLog: [...spokenHistory],
-        keyTerms: Array.from(allSessionKeyTerms),
-    };
+    const roomTag = currentRoomId ? ` [Room: ${currentRoomId}]` : '';
+    const currentSession = buildSessionRecord();
+    currentSession.id = Date.now();
+    currentSession.date = new Date().toLocaleString();
+    currentSession.description += roomTag;
+    currentSession.room = currentRoomId || null;
+
     const list = getSavedSessions();
     list.unshift(currentSession);
-    while (list.length > 15) list.pop();
-    localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(list));
+    while (list.length > 25) list.pop();
+    try {
+        localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(list));
+        localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(currentSession));
+    } catch (e) {
+        console.warn('LocalStorage save error:', e);
+    }
     renderSavedSessionsList();
     refreshStorageDashboard();
     showToast('Session snapshot saved to storage archive!');
@@ -2396,33 +2777,43 @@ function renderSavedSessionsList() {
     const list = getSavedSessions();
     if (!list.length) {
         listEl.innerHTML = `
-            <div class="text-xs text-slate-500 italic p-4 bg-raised rounded-xl border border-edge text-center">
-                No saved sessions in archive. Sessions are automatically saved when class ends.
+            <div class="text-xs text-slate-500 italic p-6 bg-raised rounded-2xl border border-edge text-center flex flex-col items-center gap-1.5">
+                <span class="text-xl">💾</span>
+                <span class="font-medium text-slate-300">No saved sessions in archive yet.</span>
+                <span class="text-[11px] text-slate-500">Classes and lectures are automatically saved here as soon as they end.</span>
             </div>
         `;
         return;
     }
 
     listEl.innerHTML = list.map((s, idx) => `
-        <div class="p-4 bg-raised border border-edge rounded-2xl flex items-center justify-between gap-4 text-xs shadow-sm hover:border-accent/40 transition-colors">
+        <div class="p-4 bg-raised border ${idx === 0 ? 'border-accent/50 bg-accent/5' : 'border-edge'} rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm hover:border-accent/60 transition-all">
             <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="font-semibold text-white text-sm">${escapeHtml(s.date)}</span>
+                    ${idx === 0 ? '<span class="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">⚡ RECENTLY ENDED</span>' : ''}
+                    ${s.room ? `<span class="text-[9px] font-mono px-2 py-0.5 rounded-full bg-raised text-indigo-300 border border-indigo-500/30 font-medium">Room: ${escapeHtml(s.room)}</span>` : ''}
                     <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/30 font-medium truncate max-w-sm">
                         ${escapeHtml(s.description || 'Classroom Lecture Session')}
                     </span>
                 </div>
-                <div class="text-xs text-slate-400 font-mono mt-1">
-                    ${s.diagrams ? s.diagrams.length : 0} diagrams • ${(s.transcript || '').length} chars • ${(s.keyTerms || []).length} key terms • ${(s.spokenLog || []).length} spoken questions
+                <div class="text-xs text-slate-400 font-mono mt-1 flex items-center gap-2 flex-wrap">
+                    <span>📊 ${s.diagrams ? s.diagrams.length : 0} diagrams</span>
+                    <span>•</span>
+                    <span>📝 ${(s.transcript || '').length} chars</span>
+                    <span>•</span>
+                    <span>🔑 ${(s.keyTerms || []).length} key terms</span>
+                    <span>•</span>
+                    <span>🗣️ ${(s.spokenLog || []).length} spoken items</span>
                 </div>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
                 <button onclick="window.restoreSessionByIndex(${idx})" title="Restore session to Classroom & Study Hub"
-                        class="px-3 py-1.5 rounded-lg bg-panel hover:bg-edge text-slate-200 border border-edge font-mono text-xs font-medium transition-colors">
+                        class="px-3.5 py-1.5 rounded-xl bg-accent hover:opacity-90 text-white font-mono text-xs font-semibold shadow-sm shadow-accent/20 transition-all">
                     Restore to View
                 </button>
                 <button onclick="window.deleteSessionByIndex(${idx})" title="Delete archived session"
-                        class="p-1.5 rounded-lg hover:bg-red-950 text-slate-400 hover:text-red-400 transition-colors">
+                        class="p-2 rounded-xl bg-panel hover:bg-red-950/60 text-slate-400 hover:text-red-400 border border-edge transition-colors">
                     <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
@@ -2444,7 +2835,11 @@ window.restoreSessionByIndex = function(idx) {
 window.deleteSessionByIndex = function(idx) {
     const list = getSavedSessions();
     list.splice(idx, 1);
-    localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(list));
+    try {
+        localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(list));
+    } catch (e) {
+        console.warn('Session delete failed:', e);
+    }
     renderSavedSessionsList();
     showToast('Saved session removed');
 };
@@ -2456,7 +2851,8 @@ function restoreSession(session) {
     spokenHistory = session.spokenLog || [];
     allSessionKeyTerms = new Set(session.keyTerms || []);
 
-    renderCaption('');
+    // Restored content already lives in storage; do not mark it dirty.
+    renderCaption('', false);
     renderSpokenLog();
 
     if (sessionDiagrams.length > 0) {
@@ -2501,7 +2897,11 @@ function exportMarkdownStudyGuide() {
     } else {
         sessionDiagrams.forEach((snap, idx) => {
             md += `### Diagram ${idx + 1} (${snap.timeString})\n\n`;
-            md += `\`\`\`mermaid\n${snap.diagram_code}\n\`\`\`\n\n`;
+            md += `\`\`\`mermaid
+${snap.diagram_code}
+\`\`\`
+
+`;
             md += `**Summary:**\n`;
             if (snap.summary_bullets && snap.summary_bullets.length) {
                 snap.summary_bullets.forEach((b) => { md += `- ${b}\n`; });
@@ -2630,20 +3030,6 @@ function exportHtmlStudyReport() {
     showToast('🌐 HTML Study Report with Flashcards downloaded!');
 }
 
-function exportSessionJson() {
-    const sessionObj = {
-        app: 'EchoVisual & QuickTalk AI',
-        version: '3.0.0',
-        exportedAt: new Date().toISOString(),
-        transcript: interimBuffer,
-        diagrams: sessionDiagrams,
-        spokenLog: spokenHistory,
-        keyTerms: Array.from(allSessionKeyTerms),
-    };
-    downloadTextFile(`session-data_${fileStamp()}.json`, JSON.stringify(sessionObj, null, 2), 'application/json');
-    showToast('💾 Session JSON backup downloaded!');
-}
-
 function downloadTextFile(filename, content, mimeType = 'text/plain;charset=utf-8') {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -2714,21 +3100,31 @@ function initStorageActions() {
 // Application Initialization
 // ------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
-    initThemesAndModes();
-    initPageRouter();
-    initLiveWebSocket();
-    initLiveSpeechRecognition();
-    initOnCommandGenerator();
-    initStudyGenerators();
-    initStudyTabs();
-    initZoomAndFullscreen();
-    initCaptionToolbar();
-    initTranslationControls();
-    initStudentExpressionBoard();
-    initChatbot();
-    initStorageActions();
-    updateTimelineControls();
-    refreshStorageDashboard();
+    const safeInit = (name, fn) => {
+        try {
+            fn();
+        } catch (err) {
+            console.error(`[Init Error] ${name}:`, err);
+        }
+    };
+
+    safeInit('Themes', initThemesAndModes);
+    safeInit('Router', initPageRouter);
+    safeInit('WebSocket', initLiveWebSocket);
+    safeInit('SpeechRecognition', initLiveSpeechRecognition);
+    safeInit('OnCommandGenerator', initOnCommandGenerator);
+    safeInit('StudyGenerators', initStudyGenerators);
+    safeInit('StudyTabs', initStudyTabs);
+    safeInit('ZoomAndFullscreen', initZoomAndFullscreen);
+    safeInit('CaptionToolbar', initCaptionToolbar);
+    safeInit('TranslationControls', initTranslationControls);
+    safeInit('StudentExpressionBoard', initStudentExpressionBoard);
+    safeInit('Chatbot', initChatbot);
+    safeInit('StorageActions', initStorageActions);
+    safeInit('Lobby', initLobby);
+    safeInit('DraggableDeck', initDraggableVideoDeck);
+    safeInit('Timeline', initTimelineControls);
+    safeInit('StorageDashboard', refreshStorageDashboard);
 
     const micWarning = $('mic-warning');
     if (!window.isSecureContext && micWarning) {
@@ -2736,5 +3132,598 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Not a secure context, microphone APIs may be blocked');
     }
 
-    console.log('EchoVisual & QuickTalk AI Multi-Page Suite initialized successfully');
+    window.addEventListener('beforeunload', () => {
+        flushSessionSave();
+        autoSaveSessionOnClassEnd('Session closed');
+    });
+
+    console.log('EchoVisual & QuickTalk AI Suite successfully loaded and ready!');
 });
+
+
+// ------------------------------------------------------------------
+
+
+// ------------------------------------------------------------------
+
+// ------------------------------------------------------------------
+// WebRTC Video & Audio Conference Engine
+// ------------------------------------------------------------------
+let localStream = null;
+const peerConnections = {}; // peer_id -> RTCPeerConnection
+const iceCandidateQueues = {}; // peer_id -> Array of candidates
+const rtcConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
+    ]
+};
+
+async function startLocalVideo() {
+    try {
+        console.log('[WebRTC] Requesting camera and microphone access...');
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                frameRate: { ideal: 30 }
+            },
+            audio: true
+        });
+        console.log('[WebRTC] Camera and microphone acquired successfully');
+        addVideoElement(currentClientId, localStream, true);
+        attachLocalStreamToPeers();
+    } catch (err) {
+        console.warn('[WebRTC] Video+Audio capture failed, trying audio only:', err);
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log('[WebRTC] Audio-only stream acquired');
+            addVideoElement(currentClientId, localStream, true);
+            attachLocalStreamToPeers();
+        } catch (err2) {
+            console.warn('[WebRTC] Audio capture failed:', err2);
+            showToast('Camera/Microphone not available. You can still watch the live session.', true);
+        }
+    }
+}
+
+function attachLocalStreamToPeers() {
+    if (!localStream) return;
+    Object.entries(peerConnections).forEach(([peerId, pc]) => {
+        localStream.getTracks().forEach((track) => {
+            const senders = pc.getSenders ? pc.getSenders() : [];
+            const alreadyAdded = senders.some((s) => s.track === track);
+            if (!alreadyAdded) {
+                try {
+                    pc.addTrack(track, localStream);
+                    console.log(`[WebRTC] Attached local track (${track.kind}) to peer ${peerId}`);
+                } catch (e) {
+                    console.warn(`[WebRTC] Failed to add track to peer ${peerId}:`, e);
+                }
+            }
+        });
+    });
+}
+
+function stopLocalVideo() {
+    if (localStream) {
+        localStream.getTracks().forEach((track) => {
+            try { track.stop(); } catch (e) {}
+        });
+        localStream = null;
+    }
+    removeVideoElement(currentClientId);
+    Object.keys(peerConnections).forEach((peerId) => {
+        try { peerConnections[peerId].close(); } catch (e) {}
+        delete peerConnections[peerId];
+        delete iceCandidateQueues[peerId];
+        removeVideoElement(peerId);
+    });
+}
+
+function addVideoElement(peerId, stream, isLocal = false) {
+    const grid = $('video-grid');
+    const streamTrack = $('video-deck-streams') || grid;
+    if (!grid || !streamTrack) return;
+
+    grid.classList.remove('hidden');
+    grid.classList.add('flex');
+
+    let container = $(`video-container-${peerId}`);
+    if (!container) {
+        container = document.createElement('div');
+        container.id = `video-container-${peerId}`;
+        container.className = 'video-card relative shrink-0 h-24 sm:h-28 aspect-video rounded-xl bg-ink overflow-hidden border border-edge shadow-lg';
+
+        const videoEl = document.createElement('video');
+        videoEl.id = `video-${peerId}`;
+        videoEl.className = 'video-stream w-full h-full object-cover rounded-xl';
+        videoEl.autoplay = true;
+        videoEl.playsInline = true;
+        videoEl.setAttribute('autoplay', 'true');
+        videoEl.setAttribute('playsinline', 'true');
+        if (isLocal) {
+            videoEl.muted = true;
+            videoEl.setAttribute('muted', 'true');
+            videoEl.style.transform = 'scaleX(-1)';
+        }
+
+        const badge = document.createElement('div');
+        badge.className = 'absolute bottom-1.5 left-1.5 bg-panel/90 backdrop-blur border border-edge text-slate-200 text-[10px] px-2 py-0.5 rounded-md font-mono flex items-center gap-1.5 shadow-sm z-10';
+        badge.innerHTML = isLocal
+            ? `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> You`
+            : `<span class="w-2 h-2 rounded-full bg-accent"></span> Peer ${escapeHtml(peerId.slice(0, 5))}`;
+
+        container.appendChild(videoEl);
+        container.appendChild(badge);
+        streamTrack.appendChild(container);
+    }
+
+    const videoEl = $(`video-${peerId}`);
+    if (videoEl && stream) {
+        if (videoEl.srcObject !== stream) {
+            videoEl.srcObject = stream;
+        }
+        videoEl.onloadedmetadata = () => {
+            videoEl.play().catch((err) => console.warn(`[WebRTC] Video play error for ${peerId}:`, err));
+        };
+        videoEl.play().catch((err) => console.warn(`[WebRTC] Direct play error for ${peerId}:`, err));
+    }
+}
+
+function removeVideoElement(peerId) {
+    const container = $(`video-container-${peerId}`);
+    if (container) container.remove();
+
+    const streamTrack = $('video-deck-streams') || $('video-grid');
+    const grid = $('video-grid');
+    if (streamTrack && streamTrack.children.length === 0 && grid) {
+        grid.classList.add('hidden');
+        grid.classList.remove('flex');
+    }
+}
+
+function handleQueuedIceCandidates(peerId, pc) {
+    if (iceCandidateQueues[peerId] && pc && pc.remoteDescription && pc.remoteDescription.type) {
+        const queue = iceCandidateQueues[peerId];
+        delete iceCandidateQueues[peerId];
+        queue.forEach((cand) => {
+            try {
+                pc.addIceCandidate(new RTCIceCandidate(cand)).catch((e) => console.warn('[WebRTC] Error adding queued ICE:', e));
+            } catch (e) {
+                console.warn('[WebRTC] Invalid queued ICE candidate:', e);
+            }
+        });
+    }
+}
+
+function createPeerConnection(peerId, initiate = false) {
+    if (peerConnections[peerId]) return peerConnections[peerId];
+
+    console.log(`[WebRTC] Initializing RTCPeerConnection for ${peerId} (initiate=${initiate})`);
+    const pc = new RTCPeerConnection(rtcConfig);
+    peerConnections[peerId] = pc;
+
+    if (localStream) {
+        localStream.getTracks().forEach((track) => {
+            try {
+                pc.addTrack(track, localStream);
+                console.log(`[WebRTC] Added local track (${track.kind}) to new peer ${peerId}`);
+            } catch (e) {
+                console.warn(`[WebRTC] addTrack error for ${peerId}:`, e);
+            }
+        });
+    }
+
+    pc.ontrack = (event) => {
+        console.log(`[WebRTC] Received remote track from ${peerId}:`, event.track.kind);
+        let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
+        if (!stream) {
+            stream = new MediaStream();
+            stream.addTrack(event.track);
+        }
+        addVideoElement(peerId, stream, false);
+    };
+
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            sendWsMessage({
+                type: 'webrtc_ice_candidate',
+                target_peer: peerId,
+                candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
+            });
+        }
+    };
+
+    pc.onconnectionstatechange = () => {
+        console.log(`[WebRTC] Peer ${peerId} connectionState: ${pc.connectionState}`);
+        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            removeVideoElement(peerId);
+        }
+    };
+
+    if (initiate) {
+        pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+            .then((offer) => pc.setLocalDescription(offer))
+            .then(() => {
+                console.log(`[WebRTC] Sending offer to ${peerId}`);
+                sendWsMessage({
+                    type: 'webrtc_offer',
+                    target_peer: peerId,
+                    offer: pc.localDescription,
+                });
+            })
+            .catch((err) => console.warn('[WebRTC] Offer creation error:', err));
+    }
+
+    return pc;
+}
+
+// ------------------------------------------------------------------
+// Online Classroom Lobby & Room Lifecycle
+// ------------------------------------------------------------------
+
+// ------------------------------------------------------------------
+// Floating Draggable Video Deck Engine
+// ------------------------------------------------------------------
+function initDraggableVideoDeck() {
+    const deck = $('video-grid');
+    const handle = $('video-deck-drag-handle');
+    const minBtn = $('minimize-video-deck-btn');
+    const streams = $('video-deck-streams');
+
+    if (minBtn && streams) {
+        let isMinimized = false;
+        minBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            isMinimized = !isMinimized;
+            streams.classList.toggle('hidden', isMinimized);
+            minBtn.innerHTML = isMinimized
+                ? '<svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>'
+                : '<svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
+            showToast(isMinimized ? 'Cameras minimized' : 'Cameras expanded');
+        });
+    }
+
+    if (!deck || !handle) return;
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+
+    const onMouseDown = (e) => {
+        if (e.button !== 0 || e.target.closest('button') || e.target.closest('input')) return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = deck.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        deck.style.left = `${initialLeft}px`;
+        deck.style.top = `${initialTop}px`;
+        deck.style.right = 'auto';
+        deck.style.bottom = 'auto';
+
+        handle.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    const onMouseMove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        let newLeft = initialLeft + dx;
+        let newTop = initialTop + dy;
+
+        const pad = 8;
+        const maxLeft = window.innerWidth - deck.offsetWidth - pad;
+        const maxTop = window.innerHeight - deck.offsetHeight - pad;
+
+        newLeft = Math.max(pad, Math.min(newLeft, maxLeft));
+        newTop = Math.max(pad, Math.min(newTop, maxTop));
+
+        deck.style.left = `${newLeft}px`;
+        deck.style.top = `${newTop}px`;
+    };
+
+    const onMouseUp = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        handle.style.cursor = 'grab';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    const onTouchStart = (e) => {
+        if (e.target.closest('button') || e.target.closest('input') || !e.touches[0]) return;
+        isDragging = true;
+        const touch = e.touches[0];
+        startX = touch.clientX;
+        startY = touch.clientY;
+
+        const rect = deck.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        deck.style.left = `${initialLeft}px`;
+        deck.style.top = `${initialTop}px`;
+        deck.style.right = 'auto';
+        deck.style.bottom = 'auto';
+
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', onTouchEnd);
+    };
+
+    const onTouchMove = (e) => {
+        if (!isDragging || !e.touches[0]) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+
+        let newLeft = initialLeft + dx;
+        let newTop = initialTop + dy;
+
+        const pad = 8;
+        const maxLeft = window.innerWidth - deck.offsetWidth - pad;
+        const maxTop = window.innerHeight - deck.offsetHeight - pad;
+
+        newLeft = Math.max(pad, Math.min(newLeft, maxLeft));
+        newTop = Math.max(pad, Math.min(newTop, maxTop));
+
+        deck.style.left = `${newLeft}px`;
+        deck.style.top = `${newTop}px`;
+    };
+
+    const onTouchEnd = () => {
+        isDragging = false;
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', onTouchEnd);
+    };
+
+    handle.addEventListener('mousedown', onMouseDown);
+    handle.addEventListener('touchstart', onTouchStart, { passive: true });
+}
+
+function initLobby() {
+    const openModalBtn = $('open-online-modal-btn');
+    const navRoomsBtn = $('nav-rooms');
+
+    // Hub page elements
+    const hubJoinBtn = $('hub-join-btn');
+    const hubCreateBtn = $('hub-create-btn');
+    const hubRoomInput = $('hub-room-code-input');
+    const hubNameInput = $('hub-name-input');
+    const hubLeaveBtn = $('hub-leave-active-btn');
+    const hubCopyBtn = $('hub-copy-active-btn');
+
+    const handleJoin = async (roomCode, displayName) => {
+        const code = (roomCode || '').trim().toUpperCase();
+        const name = (displayName || '').trim() || 'Student';
+        if (!code) {
+            showToast('Please enter a 6-digit room code', true);
+            return;
+        }
+        try {
+            showToast(`Connecting to room ${code}...`);
+            const res = await fetch(`${API_BASE}/api/rooms/${code}/validate`);
+            const data = await res.json();
+            if (data && (data.valid || data.exists)) {
+                enterRoom(code, name);
+                navigateToPage('classroom');
+                showToast(`🎉 Joined online class ${code}!`);
+            } else {
+                enterRoom(code, name);
+                navigateToPage('classroom');
+                showToast(`🎉 Created & joined classroom ${code}!`);
+            }
+        } catch (e) {
+            enterRoom(code, name);
+            navigateToPage('classroom');
+            showToast(`🎉 Joined classroom ${code}!`);
+        }
+    };
+
+    const handleCreate = async (displayName) => {
+        const name = (displayName || '').trim() || 'Teacher';
+        try {
+            showToast('Creating new live classroom...');
+            const res = await fetch(`${API_BASE}/api/rooms/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ host_name: name })
+            });
+            const data = await res.json();
+            if (data && data.room_id) {
+                enterRoom(data.room_id, name);
+                navigateToPage('classroom');
+                showToast(`✨ Classroom ${data.room_id} created!`);
+            }
+        } catch (e) {
+            const fallbackCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            enterRoom(fallbackCode, name);
+            navigateToPage('classroom');
+            showToast(`✨ Classroom ${fallbackCode} created!`);
+        }
+    };
+
+    if (openModalBtn) {
+        openModalBtn.addEventListener('click', () => {
+            navigateToPage('rooms');
+        });
+    }
+
+    // Hub page listeners
+    if (hubJoinBtn) {
+        hubJoinBtn.addEventListener('click', () => {
+            handleJoin(hubRoomInput?.value, hubNameInput?.value);
+        });
+    }
+
+    if (hubCreateBtn) {
+        hubCreateBtn.addEventListener('click', () => {
+            handleCreate(hubNameInput?.value);
+        });
+    }
+
+    if (hubLeaveBtn) {
+        hubLeaveBtn.addEventListener('click', () => {
+            leaveRoom();
+            updateHubActiveCard();
+            showToast('Left classroom');
+        });
+    }
+
+    if (hubCopyBtn) {
+        hubCopyBtn.addEventListener('click', () => {
+            if (currentRoomId) copyToClipboard(currentRoomId, '📋 Room code copied!');
+        });
+    }
+
+    // Quick demo room cards
+    $$('.quick-room-card').forEach((card) => {
+        card.addEventListener('click', () => {
+            const code = card.dataset.room;
+            if (code) handleJoin(code, 'Student');
+        });
+    });
+
+    // Direct room joining via shared link, e.g. #room=ABC123
+    const hash = window.location.hash || '';
+    if (hash.includes('room=')) {
+        const match = hash.match(/room=([A-Za-z0-9]+)/);
+        if (match && match[1]) {
+            setTimeout(() => handleJoin(match[1], 'Student'), 500);
+        }
+    }
+}
+
+function updateHubActiveCard() {
+    const card = $('hub-active-session-card');
+    const badge = $('nav-room-badge');
+    const text = $('hub-active-room-text');
+    if (!card) return;
+
+    if (currentRoomId) {
+        card.classList.remove('hidden');
+        if (badge) badge.classList.remove('hidden');
+        if (text) text.textContent = `Room: ${currentRoomId}`;
+    } else {
+        card.classList.add('hidden');
+        if (badge) badge.classList.add('hidden');
+    }
+}
+
+function enterRoom(roomId, displayName) {
+    currentRoomId = roomId;
+    updateHubActiveCard();
+
+    // 1. Update Header UI Controls
+    const openBtn = $('open-online-modal-btn');
+    if (openBtn) openBtn.classList.add('hidden');
+
+    const roomControls = $('room-controls');
+    if (roomControls) {
+        roomControls.classList.remove('hidden');
+        roomControls.classList.add('flex');
+    }
+
+    const roomCodeDisplay = $('room-code-display');
+    if (roomCodeDisplay) {
+        roomCodeDisplay.textContent = `Room: ${roomId}`;
+    }
+
+    const copyBtn = $('copy-room-code-btn');
+    if (copyBtn) {
+        copyBtn.onclick = () => {
+            copyToClipboard(roomId, `📋 Room code ${roomId} copied!`);
+        };
+    }
+
+    const toggleVideoBtn = $('toggle-video-btn');
+    if (toggleVideoBtn) {
+        toggleVideoBtn.onclick = () => {
+            if (localStream) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.enabled = !videoTrack.enabled;
+                    toggleVideoBtn.classList.toggle('bg-red-500/20', !videoTrack.enabled);
+                    showToast(videoTrack.enabled ? '📹 Camera on' : '📹 Camera off');
+                }
+            }
+        };
+    }
+
+    const toggleAudioBtn = $('toggle-audio-btn');
+    if (toggleAudioBtn) {
+        toggleAudioBtn.onclick = () => {
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    toggleAudioBtn.classList.toggle('bg-red-500/20', !audioTrack.enabled);
+                    showToast(audioTrack.enabled ? '🎙️ Mic unmuted' : '🎙️ Mic muted');
+                }
+            }
+        };
+    }
+
+    const leaveBtn = $('leave-class-btn');
+    if (leaveBtn) {
+        leaveBtn.onclick = () => leaveRoom();
+    }
+
+    // 2. Connect WebSocket to Room
+    initLiveWebSocket(roomId);
+
+    // 3. Display Floating Draggable Video Deck & Start WebRTC
+    const grid = $('video-grid');
+    if (grid) {
+        grid.classList.remove('hidden');
+        grid.classList.add('flex');
+    }
+    startLocalVideo().catch((e) => console.warn('WebRTC start error:', e));
+
+    // 4. Navigate to Classroom Whiteboard View
+    navigateToPage('classroom');
+}
+
+function leaveRoom() {
+    autoSaveSessionOnClassEnd('Left online classroom');
+    stopLocalVideo();
+    if (wsSocket) {
+        try { wsSocket.close(); } catch (e) {}
+        wsSocket = null;
+    }
+    currentRoomId = null;
+    updateHubActiveCard();
+
+    const openBtn = $('open-online-modal-btn');
+    if (openBtn) openBtn.classList.remove('hidden');
+
+    const roomControls = $('room-controls');
+    if (roomControls) {
+        roomControls.classList.add('hidden');
+        roomControls.classList.remove('flex');
+    }
+
+    const grid = $('video-grid');
+    if (grid) {
+        grid.classList.add('hidden');
+        grid.classList.remove('flex');
+    }
+
+    showToast('👋 You left the online class room.');
+}

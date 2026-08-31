@@ -18,9 +18,11 @@ import json
 import os
 import re
 import time
+import string
+import random
 from collections import deque
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Dict, List, Set, Any
 
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -56,6 +58,17 @@ MAX_TRANSCRIPT_CHARS = 4000
 MAX_SHORTHAND_CHARS = 1000
 MAX_CHAT_MESSAGE_CHARS = 2000
 MAX_CHAT_CONTEXT_CHARS = 4000
+
+# Per-pipeline output caps. Diagrams stay tight for speed, while quiz/chat/
+# translate need room so responses never truncate mid-JSON or mid-sentence
+# (a truncated JSON object fails Pydantic validation and surfaces as a 502).
+MAX_TOKENS_DIAGRAM = 600
+MAX_TOKENS_NOTES = 900
+MAX_TOKENS_QUIZ = 1400
+MAX_TOKENS_FLASHCARDS = 900
+MAX_TOKENS_SHORTHAND = 300
+MAX_TOKENS_CHAT = 1600
+MAX_TOKENS_TRANSLATE = 2048
 
 # Configure the SDK once at startup. Tests may run without a key; that is
 # handled gracefully per request instead of crashing at import time.
@@ -120,9 +133,6 @@ class DiagramOutput(BaseModel):
     diagram_code: str
     summary_bullets: list[str] = Field(default_factory=list)
     key_terms: list[str] = Field(default_factory=list)
-    short_notes: list[str] = Field(default_factory=list)
-    quiz: list[QuizQuestion] = Field(default_factory=list)
-    flashcards: list[Flashcard] = Field(default_factory=list)
 
 
 class ShorthandInput(BaseModel):
@@ -165,6 +175,15 @@ class HealthResponse(BaseModel):
     model: str
 
 
+class CreateRoomResponse(BaseModel):
+    room_id: str
+
+
+class ValidateRoomResponse(BaseModel):
+    valid: bool
+    exists: bool = True
+
+
 # ---------------------------------------------------------------------------
 # Backend rate limiter (sliding window, in-memory — fine for a hackathon demo)
 # ---------------------------------------------------------------------------
@@ -197,16 +216,18 @@ def _require_api_key() -> None:
 # ---------------------------------------------------------------------------
 # Gemini helpers
 # ---------------------------------------------------------------------------
-def _build_model(system: str, response_mime_type: str) -> genai.GenerativeModel:
+def _build_model(
+    system: str, response_mime_type: str, max_output_tokens: int = MAX_TOKENS_DIAGRAM
+) -> genai.GenerativeModel:
     return genai.GenerativeModel(
         MODEL_NAME,
         system_instruction=system,
         generation_config={
             "temperature": 0.4,
             "response_mime_type": response_mime_type,
-            # Hard cap on generation length: diagrams are small by design,
-            # and a runaway response is the biggest latency risk.
-            "max_output_tokens": 600,
+            # Hard cap on generation length: a runaway response is the
+            # biggest latency risk. Callers size the cap per pipeline.
+            "max_output_tokens": max_output_tokens,
         },
     )
 
@@ -225,14 +246,24 @@ def _extract_json(raw: str) -> dict:
         raise
 
 
-async def _call_gemini(prompt: str, system: str, response_mime: str) -> str:
+async def _call_gemini(
+    prompt: str,
+    system: str,
+    response_mime: str,
+    max_output_tokens: int = MAX_TOKENS_DIAGRAM,
+) -> str:
     """Run the (synchronous) SDK call in a worker thread so the event loop
     stays free for other requests."""
 
     def _sync_call() -> str:
-        model = _build_model(system, response_mime)
+        model = _build_model(system, response_mime, max_output_tokens)
         response = model.generate_content(prompt)
-        return response.text
+        text = response.text
+        if not text or not text.strip():
+            # Blocked/empty responses surface as a clean error instead of a
+            # cryptic JSON parse failure downstream.
+            raise ValueError("Gemini returned an empty response (content may have been blocked).")
+        return text
 
     return await asyncio.to_thread(_sync_call)
 
@@ -259,12 +290,17 @@ class GraphState:
     @staticmethod
     def _sanitize_id(raw_id: str) -> str:
         clean = re.sub(r"[^a-zA-Z0-9_]", "", str(raw_id).strip())
-        return clean or f"N_{int(time.time() * 1000) % 100000}"
+        if not clean:
+            return f"N_{int(time.time() * 1000) % 100000}"
+        if clean[0].isdigit():
+            clean = f"N_{clean}"
+        return clean
 
     @staticmethod
     def _sanitize_text(text: str) -> str:
-        clean = str(text).replace('"', "'").replace("\n", " ").strip()
-        return clean[:80]
+        clean = str(text).replace('"', "'").replace("\n", " ").replace("\r", " ").strip()
+        clean = re.sub(r'[\"\|\`\[\]\(\)\{\}\<\>\;\#]', ' ', clean).strip()
+        return clean[:80] or "Concept"
 
     def apply_delta(self, action: str, data: dict) -> bool:
         act = str(action).upper().strip()
@@ -320,16 +356,16 @@ class GraphState:
 
     def to_mermaid(self) -> str:
         if not self.nodes:
-            return "flowchart TD\n    A[Waiting for lecture speech...]"
+            return 'flowchart TD\n    A["Waiting for lecture speech..."]'
         lines = ["flowchart TD"]
         for node in self.nodes.values():
-            n_id = node["id"]
-            lbl = node["label"]
+            n_id = self._sanitize_id(node["id"])
+            lbl = self._sanitize_text(node["label"])
             lines.append(f'    {n_id}["{lbl}"]')
         for edge in self.edges:
-            src = edge["from"]
-            dst = edge["to"]
-            rel = edge.get("relation", "")
+            src = self._sanitize_id(edge["from"])
+            dst = self._sanitize_id(edge["to"])
+            rel = self._sanitize_text(edge.get("relation", ""))
             if rel:
                 lines.append(f"    {src} -->|{rel}| {dst}")
             else:
@@ -343,6 +379,36 @@ class GraphState:
             "summary_bullets": self.summary_bullets,
             "key_terms": self.key_terms,
         }
+
+
+class RoomState:
+    def __init__(self):
+        self.graph_state = GraphState()
+        self.clients: Dict[str, WebSocket] = {}
+        self.rolling_transcript = ""
+        self.last_delta_length = 0
+
+
+class RoomManager:
+    def __init__(self):
+        self.rooms: Dict[str, RoomState] = {}
+
+    def create_room(self, custom_id: str = None) -> str:
+        room_id = (custom_id or "".join(random.choices(string.ascii_uppercase + string.digits, k=6))).upper()
+        if room_id not in self.rooms:
+            self.rooms[room_id] = RoomState()
+        return room_id
+        
+    def get_room(self, room_id: str):
+        return self.rooms.get((room_id or "").upper())
+
+    def get_or_create_room(self, room_id: str) -> RoomState:
+        rid = (room_id or "").upper()
+        if rid not in self.rooms:
+            self.rooms[rid] = RoomState()
+        return self.rooms[rid]
+
+room_manager = RoomManager()
 
 
 async def generate_graph_delta(transcript: str, graph_state: GraphState) -> dict:
@@ -414,6 +480,19 @@ async def health() -> HealthResponse:
     )
 
 
+@app.post("/api/rooms/create", response_model=CreateRoomResponse)
+async def create_room() -> CreateRoomResponse:
+    room_id = room_manager.create_room()
+    return CreateRoomResponse(room_id=room_id)
+
+
+@app.get("/api/rooms/{room_id}/validate", response_model=ValidateRoomResponse)
+async def validate_room(room_id: str) -> ValidateRoomResponse:
+    room = room_manager.get_room(room_id)
+    is_valid = room is not None
+    return ValidateRoomResponse(valid=is_valid, exists=is_valid)
+
+
 @app.post("/api/transcribe-to-diagram", response_model=DiagramOutput)
 async def transcribe_to_diagram(payload: TranscriptInput) -> DiagramOutput:
     _require_api_key()
@@ -422,7 +501,10 @@ async def transcribe_to_diagram(payload: TranscriptInput) -> DiagramOutput:
     prompt = prompts.DIAGRAM_PROMPT_TEMPLATE.format(transcript=payload.transcript)
     try:
         raw = await _call_gemini(
-            prompt, prompts.DIAGRAM_SYSTEM_INSTRUCTIONS, "application/json"
+            prompt,
+            prompts.DIAGRAM_SYSTEM_INSTRUCTIONS,
+            "application/json",
+            MAX_TOKENS_DIAGRAM,
         )
         data = _extract_json(raw)
         # Pydantic validates the schema before anything reaches the frontend.
@@ -444,7 +526,10 @@ async def generate_notes(payload: TranscriptInput) -> NotesOutput:
     prompt = prompts.NOTES_PROMPT_TEMPLATE.format(transcript=payload.transcript)
     try:
         raw = await _call_gemini(
-            prompt, prompts.NOTES_SYSTEM_INSTRUCTIONS, "application/json"
+            prompt,
+            prompts.NOTES_SYSTEM_INSTRUCTIONS,
+            "application/json",
+            MAX_TOKENS_NOTES,
         )
         data = _extract_json(raw)
         return NotesOutput.model_validate(data)
@@ -465,7 +550,10 @@ async def generate_quiz(payload: TranscriptInput) -> QuizOutput:
     prompt = prompts.QUIZ_PROMPT_TEMPLATE.format(transcript=payload.transcript)
     try:
         raw = await _call_gemini(
-            prompt, prompts.QUIZ_SYSTEM_INSTRUCTIONS, "application/json"
+            prompt,
+            prompts.QUIZ_SYSTEM_INSTRUCTIONS,
+            "application/json",
+            MAX_TOKENS_QUIZ,
         )
         data = _extract_json(raw)
         return QuizOutput.model_validate(data)
@@ -486,7 +574,10 @@ async def generate_flashcards(payload: TranscriptInput) -> FlashcardsOutput:
     prompt = prompts.FLASHCARDS_PROMPT_TEMPLATE.format(transcript=payload.transcript)
     try:
         raw = await _call_gemini(
-            prompt, prompts.FLASHCARDS_SYSTEM_INSTRUCTIONS, "application/json"
+            prompt,
+            prompts.FLASHCARDS_SYSTEM_INSTRUCTIONS,
+            "application/json",
+            MAX_TOKENS_FLASHCARDS,
         )
         data = _extract_json(raw)
         return FlashcardsOutput.model_validate(data)
@@ -510,7 +601,10 @@ async def shorthand_to_speech(payload: ShorthandInput) -> SpeechOutput:
     )
     try:
         text = await _call_gemini(
-            prompt, prompts.SHORTHAND_SYSTEM_INSTRUCTIONS, "text/plain"
+            prompt,
+            prompts.SHORTHAND_SYSTEM_INSTRUCTIONS,
+            "text/plain",
+            MAX_TOKENS_SHORTHAND,
         )
         refined = text.strip().strip('"').strip("'").strip()
         if not refined:
@@ -542,7 +636,10 @@ async def chat_assistant(payload: ChatInput) -> ChatOutput:
     )
     try:
         reply = await _call_gemini(
-            prompt, prompts.CHAT_SYSTEM_INSTRUCTIONS, "text/plain"
+            prompt,
+            prompts.CHAT_SYSTEM_INSTRUCTIONS,
+            "text/plain",
+            MAX_TOKENS_CHAT,
         )
         cleaned = reply.strip()
         if not cleaned:
@@ -568,7 +665,10 @@ async def translate_text(payload: TranslateInput) -> TranslateOutput:
     )
     try:
         translated = await _call_gemini(
-            prompt, prompts.TRANSLATE_SYSTEM_INSTRUCTIONS, "text/plain"
+            prompt,
+            prompts.TRANSLATE_SYSTEM_INSTRUCTIONS,
+            "text/plain",
+            MAX_TOKENS_TRANSLATE,
         )
         cleaned = translated.strip().strip('"').strip("'").strip()
         if not cleaned:
@@ -589,20 +689,31 @@ async def translate_text(payload: TranslateInput) -> TranslateOutput:
 # ---------------------------------------------------------------------------
 # WebSocket Bidirectional Streaming Pipeline
 # ---------------------------------------------------------------------------
-@app.websocket("/ws/live-session")
-async def websocket_live_session(websocket: WebSocket) -> None:
+@app.websocket("/ws/live-session/{room_id}/{client_id}")
+async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: str) -> None:
+    room = room_manager.get_or_create_room(room_id)
+
     await websocket.accept()
-    session_graph = GraphState()
-    rolling_transcript = ""
-    last_delta_length = 0
+    room.clients[client_id] = websocket
+    
+    # Broadcast to others that a new peer joined
+    for cid, client in list(room.clients.items()):
+        if cid != client_id:
+            try:
+                await client.send_json({"type": "peer_joined", "peer_id": client_id})
+            except Exception:
+                pass
 
     try:
         # Send initial handshake with current graph state
         await websocket.send_json({
             "type": "ready",
             "message": "WebSocket streaming pipeline connected.",
-            "mermaid_code": session_graph.to_mermaid(),
-            "graph_state": session_graph.to_dict(),
+            "client_id": client_id,
+            "room_id": room_id,
+            "mermaid_code": room.graph_state.to_mermaid(),
+            "graph_state": room.graph_state.to_dict(),
+            "peers": [cid for cid in room.clients if cid != client_id]
         })
 
         while True:
@@ -612,7 +723,6 @@ async def websocket_live_session(websocket: WebSocket) -> None:
 
             # 1. Handle binary audio stream ingestion (PCM 16-bit 16kHz / Opus chunks)
             if "bytes" in raw_msg and raw_msg["bytes"]:
-                audio_bytes = raw_msg["bytes"]
                 continue
 
             # 2. Handle JSON control frames
@@ -631,15 +741,19 @@ async def websocket_live_session(websocket: WebSocket) -> None:
                 await websocket.send_json({"type": "pong", "timestamp": time.time()})
 
             elif msg_type == "reset_session":
-                session_graph.reset()
-                rolling_transcript = ""
-                last_delta_length = 0
-                await websocket.send_json({
-                    "type": "session_reset",
-                    "status": "ok",
-                    "mermaid_code": session_graph.to_mermaid(),
-                    "graph_state": session_graph.to_dict(),
-                })
+                room.graph_state.reset()
+                room.rolling_transcript = ""
+                room.last_delta_length = 0
+                for client in room.clients.values():
+                    try:
+                        await client.send_json({
+                            "type": "session_reset",
+                            "status": "ok",
+                            "mermaid_code": room.graph_state.to_mermaid(),
+                            "graph_state": room.graph_state.to_dict(),
+                        })
+                    except Exception:
+                        pass
 
             elif msg_type == "transcript_chunk":
                 chunk_text = msg.get("text", "").strip()
@@ -648,49 +762,64 @@ async def websocket_live_session(websocket: WebSocket) -> None:
 
                 if chunk_text:
                     if is_final:
-                        if rolling_transcript:
-                            rolling_transcript += " " + chunk_text
+                        if room.rolling_transcript:
+                            room.rolling_transcript += " " + chunk_text
                         else:
-                            rolling_transcript = chunk_text
-                    if len(rolling_transcript) > MAX_TRANSCRIPT_CHARS:
-                        rolling_transcript = rolling_transcript[-MAX_TRANSCRIPT_CHARS:]
+                            room.rolling_transcript = chunk_text
+                    if len(room.rolling_transcript) > MAX_TRANSCRIPT_CHARS:
+                        room.rolling_transcript = room.rolling_transcript[-MAX_TRANSCRIPT_CHARS:]
 
                 # Instant caption relay (< 100ms)
-                await websocket.send_json({
+                caption_msg = {
                     "type": "caption",
                     "text": chunk_text,
                     "is_final": is_final,
                     "speaker_pause": speaker_pause,
-                    "rolling_transcript": rolling_transcript,
-                })
+                    "rolling_transcript": room.rolling_transcript,
+                }
+                for client in room.clients.values():
+                    try:
+                        await client.send_json(caption_msg)
+                    except Exception:
+                        pass
 
                 # Delta-based visual calculation
-                diff_len = len(rolling_transcript) - last_delta_length
+                diff_len = len(room.rolling_transcript) - room.last_delta_length
                 should_delta = (
                     (is_final or speaker_pause or diff_len >= 25)
-                    and len(rolling_transcript) >= 15
+                    and len(room.rolling_transcript) >= 15
                 )
 
                 if should_delta and API_KEY:
-                    last_delta_length = len(rolling_transcript)
+                    room.last_delta_length = len(room.rolling_transcript)
                     try:
                         delta_result = await generate_graph_delta(
-                            rolling_transcript[-1000:], session_graph
+                            room.rolling_transcript[-1000:], room.graph_state
                         )
-                        await websocket.send_json({
+                        delta_msg = {
                             "type": "diagram_delta",
                             "deltas": delta_result["deltas"],
                             "graph_state": delta_result["graph_state"],
                             "mermaid_code": delta_result["mermaid_code"],
                             "summary_bullets": delta_result["summary_bullets"],
                             "key_terms": delta_result["key_terms"],
-                        })
+                        }
+                        for client in room.clients.values():
+                            try:
+                                await client.send_json(delta_msg)
+                            except Exception:
+                                pass
                     except Exception as delta_err:
                         print(f"[WARN] Live delta update error: {delta_err}")
-                        await websocket.send_json({
+                        error_msg = {
                             "type": "diagram_delta_error",
                             "error": str(delta_err),
-                        })
+                        }
+                        for client in room.clients.values():
+                            try:
+                                await client.send_json(error_msg)
+                            except Exception:
+                                pass
 
             elif msg_type == "shorthand_speak":
                 shorthand_text = msg.get("shorthand", "").strip()
@@ -753,11 +882,29 @@ async def websocket_live_session(websocket: WebSocket) -> None:
                         "refined_text": refined_text,
                     })
 
+            elif msg_type in ("webrtc_offer", "webrtc_answer", "webrtc_ice_candidate"):
+                target_peer = msg.get("target_peer")
+                if target_peer and target_peer in room.clients:
+                    # relay to target
+                    msg["source_peer"] = client_id
+                    try:
+                        await room.clients[target_peer].send_json(msg)
+                    except Exception:
+                        pass
+
     except WebSocketDisconnect:
         pass
     except Exception as ws_err:
         print(f"[WARN] WebSocket session error: {ws_err}")
-
+    finally:
+        # Cleanup
+        if room:
+            room.clients.pop(client_id, None)
+            for cid, client in list(room.clients.items()):
+                try:
+                    await client.send_json({"type": "peer_left", "peer_id": client_id})
+                except Exception:
+                    pass
 
 # ---------------------------------------------------------------------------
 # Frontend serving

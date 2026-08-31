@@ -4,10 +4,8 @@ Run from the project root with:  python test_smoke.py
 Uses FastAPI's TestClient with a mocked Gemini call so no API quota is spent.
 """
 
-import asyncio
 import json
 import os
-import sys
 import unittest
 from unittest.mock import patch
 
@@ -50,23 +48,8 @@ VALID_FLASHCARDS_JSON = json.dumps({
     ]
 })
 
-VALID_CODE_SWITCHING_JSON = json.dumps({
-    "clean_english": "Define velocity and check the formula.",
-    "nastaliq_urdu": "ویسٹی کی تعریف کریں اور فارمولا چیک کریں۔",
-    "roman_urdu": "Velocity define karein aur formula check karein.",
-    "detected_terms": [
-        {
-            "term": "Velocity",
-            "definition": "Rate of change of displacement with respect to time."
-        }
-    ]
-})
-
-
-async def fake_call_gemini(prompt, system, response_mime):
+async def fake_call_gemini(prompt, system, response_mime, max_output_tokens=600):
     if response_mime == "application/json":
-        if "code-switching" in prompt.lower() or "code-switching" in system.lower() or "nastaliq" in prompt.lower() or "dual-script" in prompt.lower():
-            return VALID_CODE_SWITCHING_JSON
         if "flashcard" in prompt.lower() or "flashcard" in system.lower():
             return VALID_FLASHCARDS_JSON
         if "quiz" in prompt.lower() or "quiz" in system.lower():
@@ -118,7 +101,7 @@ class TestTranscribeToDiagram(unittest.TestCase):
         self.assertEqual(len(body["key_terms"]), 2)
 
     def test_gemini_json_wrapped_in_prose_is_recovered(self):
-        async def messy_gemini(prompt, system, mime):
+        async def messy_gemini(prompt, system, mime, max_output_tokens=600):
             return f"Here you go: {VALID_DIAGRAM_JSON} hope it helps"
 
         with patch.object(main, "_call_gemini", messy_gemini):
@@ -140,7 +123,7 @@ class TestTranscribeToDiagram(unittest.TestCase):
         self.assertEqual(res.status_code, 422)
 
     def test_malformed_gemini_response_returns_502(self):
-        async def broken_gemini(prompt, system, mime):
+        async def broken_gemini(prompt, system, mime, max_output_tokens=600):
             return "this is definitely not json"
 
         with patch.object(main, "_call_gemini", broken_gemini):
@@ -362,15 +345,20 @@ class TestGraphState(unittest.TestCase):
 
 
 class TestWebSocketLiveSession(unittest.TestCase):
+    def setUp(self):
+        resp = client.post("/api/rooms/create")
+        self.room_id = resp.json()["room_id"]
+        self.ws_url = f"/ws/live-session/{self.room_id}/testclient"
+
     def test_websocket_handshake(self):
-        with client.websocket_connect("/ws/live-session") as ws:
+        with client.websocket_connect(self.ws_url) as ws:
             data = ws.receive_json()
             self.assertEqual(data["type"], "ready")
             self.assertIn("WebSocket streaming pipeline connected", data["message"])
             self.assertIn("mermaid_code", data)
 
     def test_websocket_ping_pong(self):
-        with client.websocket_connect("/ws/live-session") as ws:
+        with client.websocket_connect(self.ws_url) as ws:
             ws.receive_json()  # Handshake
             ws.send_json({"type": "ping"})
             resp = ws.receive_json()
@@ -378,7 +366,7 @@ class TestWebSocketLiveSession(unittest.TestCase):
             self.assertIn("timestamp", resp)
 
     def test_websocket_transcript_caption(self):
-        with client.websocket_connect("/ws/live-session") as ws:
+        with client.websocket_connect(self.ws_url) as ws:
             ws.receive_json()  # Handshake
             ws.send_json({
                 "type": "transcript_chunk",
@@ -392,7 +380,7 @@ class TestWebSocketLiveSession(unittest.TestCase):
             self.assertTrue(resp["is_final"])
 
     def test_websocket_reset_session(self):
-        with client.websocket_connect("/ws/live-session") as ws:
+        with client.websocket_connect(self.ws_url) as ws:
             ws.receive_json()  # Handshake
             ws.send_json({"type": "reset_session"})
             resp = ws.receive_json()
@@ -402,7 +390,7 @@ class TestWebSocketLiveSession(unittest.TestCase):
     def test_websocket_shorthand_speak_event(self):
         with patch.object(main, "_call_gemini", fake_call_gemini), \
              patch.object(main, "generate_edge_tts_stream", fake_edge_tts_stream):
-            with client.websocket_connect("/ws/live-session") as ws:
+            with client.websocket_connect(self.ws_url) as ws:
                 ws.receive_json()  # Handshake
                 ws.send_json({
                     "type": "shorthand_speak",
@@ -428,52 +416,68 @@ class TestWebSocketLiveSession(unittest.TestCase):
                 self.assertIsNotNone(last_msg)
                 self.assertEqual(last_msg["type"], "tts_end")
 
-    def test_websocket_code_switching_parse(self):
-        with patch.object(main, "_call_gemini", fake_call_gemini):
-            with client.websocket_connect("/ws/live-session") as ws:
-                ws.receive_json()  # Handshake
-                ws.send_json({
-                    "type": "code_switching_parse",
-                    "transcript": "Velocity define karein aur formula check karein",
+
+class TestRoomManagement(unittest.TestCase):
+    def test_create_room_returns_valid_id(self):
+        resp = client.post("/api/rooms/create")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("room_id", data)
+        self.assertEqual(len(data["room_id"]), 6)
+
+    def test_validate_existing_room(self):
+        resp_create = client.post("/api/rooms/create")
+        room_id = resp_create.json()["room_id"]
+        resp_val = client.get(f"/api/rooms/{room_id}/validate")
+        self.assertEqual(resp_val.status_code, 200)
+        self.assertTrue(resp_val.json()["valid"])
+
+    def test_validate_nonexistent_room(self):
+        resp_val = client.get("/api/rooms/NONEXISTENT/validate")
+        self.assertEqual(resp_val.status_code, 200)
+        self.assertFalse(resp_val.json()["valid"])
+
+    def test_webrtc_signaling_relay(self):
+        resp = client.post("/api/rooms/create")
+        room_id = resp.json()["room_id"]
+
+        with client.websocket_connect(f"/ws/live-session/{room_id}/peerA") as ws_a:
+            ready_a = ws_a.receive_json()
+            self.assertEqual(ready_a["type"], "ready")
+
+            with client.websocket_connect(f"/ws/live-session/{room_id}/peerB") as ws_b:
+                ready_b = ws_b.receive_json()
+                self.assertEqual(ready_b["type"], "ready")
+                self.assertIn("peerA", ready_b["peers"])
+
+                # peerA should receive peer_joined
+                joined_msg = ws_a.receive_json()
+                self.assertEqual(joined_msg["type"], "peer_joined")
+                self.assertEqual(joined_msg["peer_id"], "peerB")
+
+                # peerA sends offer to peerB
+                ws_a.send_json({
+                    "type": "webrtc_offer",
+                    "target_peer": "peerB",
+                    "offer": {"type": "offer", "sdp": "fake_sdp"}
                 })
-                resp = ws.receive_json()
-                self.assertEqual(resp["type"], "code_switching_result")
-                self.assertIn("clean_english", resp["data"])
-                self.assertIn("nastaliq_urdu", resp["data"])
-                self.assertIn("roman_urdu", resp["data"])
-                self.assertIsInstance(resp["data"]["detected_terms"], list)
 
+                offer_msg = ws_b.receive_json()
+                self.assertEqual(offer_msg["type"], "webrtc_offer")
+                self.assertEqual(offer_msg["source_peer"], "peerA")
 
-class TestCodeSwitching(unittest.TestCase):
-    def setUp(self):
-        reset_rate_limiter()
+                # peerB sends answer to peerA
+                ws_b.send_json({
+                    "type": "webrtc_answer",
+                    "target_peer": "peerA",
+                    "answer": {"type": "answer", "sdp": "fake_answer"}
+                })
 
-    def test_valid_code_switching_returns_normalized_scripts(self):
-        with patch.object(main, "_call_gemini", fake_call_gemini):
-            res = client.post(
-                "/api/parse-code-switching",
-                json={"transcript": "Velocity define karein aur formula check karein"},
-            )
-        self.assertEqual(res.status_code, 200)
-        body = res.json()
-        self.assertIn("clean_english", body)
-        self.assertIn("nastaliq_urdu", body)
-        self.assertIn("roman_urdu", body)
-        self.assertIsInstance(body["detected_terms"], list)
-        self.assertEqual(len(body["detected_terms"]), 1)
-        self.assertEqual(body["detected_terms"][0]["term"], "Velocity")
-
-    def test_empty_transcript_rejected(self):
-        res = client.post("/api/parse-code-switching", json={"transcript": ""})
-        self.assertEqual(res.status_code, 422)
-
-    def test_oversized_transcript_rejected(self):
-        res = client.post(
-            "/api/parse-code-switching",
-            json={"transcript": "x" * (main.MAX_TRANSCRIPT_CHARS + 1)},
-        )
-        self.assertEqual(res.status_code, 422)
+                answer_msg = ws_a.receive_json()
+                self.assertEqual(answer_msg["type"], "webrtc_answer")
+                self.assertEqual(answer_msg["source_peer"], "peerB")
 
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

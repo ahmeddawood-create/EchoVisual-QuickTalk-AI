@@ -125,7 +125,7 @@ curl -X POST http://127.0.0.1:8000/api/shorthand-to-speech \
 
 ## Running the Tests
 
-Offline test suite with 32 unit and WebSocket tests (Gemini & TTS mocked):
+Offline test suite with 36 unit and WebSocket tests (Gemini & TTS mocked):
 
 ```bash
 python test_smoke.py
