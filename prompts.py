@@ -27,6 +27,52 @@ If the transcript is too short or unclear, return:
 {{"diagram_code": "flowchart TD\\nA[Waiting for more context]", "summary_bullets": [], "key_terms": []}}
 """
 
+DIAGRAM_DELTA_SYSTEM_INSTRUCTIONS = (
+    "You are an expert real-time visual diagram engineer for classroom accessibility. "
+    "You receive the current graph state (existing nodes and edges) and newly spoken classroom lecture transcript. "
+    "Your job is to emit incremental visual delta operations (ADD_NODE, UPDATE_NODE, CONNECT, REMOVE) "
+    "to evolve the classroom diagram dynamically without restarting or destroying the existing visual mental model."
+)
+
+DIAGRAM_DELTA_PROMPT_TEMPLATE = """You are incrementally updating a live classroom knowledge diagram.
+Speech may be in English, Roman Urdu, or bilingual code-switching.
+
+EXISTING GRAPH STATE:
+```json
+{existing_graph}
+```
+
+NEW TRANSCRIPT CHUNK / RECENT SPEECH:
+\"\"\"{transcript}\"\"\"
+
+Generate ONLY incremental delta actions to evolve the existing diagram to reflect the new lecture concepts.
+Valid Actions:
+1. "ADD_NODE": {{"action": "ADD_NODE", "data": {{"id": "UniqueId", "label": "Short label", "shape": "box"}}}}
+2. "UPDATE_NODE": {{"action": "UPDATE_NODE", "data": {{"id": "ExistingId", "label": "Updated label"}}}}
+3. "CONNECT": {{"action": "CONNECT", "data": {{"from": "SourceId", "to": "TargetId", "relation": "arrow label"}}}}
+4. "REMOVE": {{"action": "REMOVE", "data": {{"id": "NodeIdToRemove"}}}}
+
+Keep the graph concise (maximum 10 total active nodes). Connect newly introduced concepts to existing relevant nodes.
+
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "deltas": [
+    {{
+      "action": "ADD_NODE",
+      "data": {{
+        "id": "A",
+        "label": "Node Label"
+      }}
+    }}
+  ],
+  "summary_bullets": ["1-2 concise summary points for new concepts"],
+  "key_terms": ["1-3 newly introduced technical terms"]
+}}
+
+If no new meaningful concepts are introduced, return:
+{{"deltas": [], "summary_bullets": [], "key_terms": []}}
+"""
+
 NOTES_SYSTEM_INSTRUCTIONS = (
     "You are an expert academic tutor. You extract structured, high-yield study notes from classroom lectures. "
     "You understand English, Roman Urdu, and bilingual classroom speech seamlessly."

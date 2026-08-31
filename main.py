@@ -20,14 +20,21 @@ import re
 import time
 from collections import deque
 from pathlib import Path
+from typing import AsyncGenerator
 
 import google.generativeai as genai
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+try:
+    import edge_tts
+    HAS_EDGE_TTS = True
+except ImportError:
+    HAS_EDGE_TTS = False
 
 import prompts
 
@@ -231,6 +238,171 @@ async def _call_gemini(prompt: str, system: str, response_mime: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# GraphState Manager & Delta-Based Visual Pipeline
+# ---------------------------------------------------------------------------
+class GraphState:
+    """Maintains the server-side accumulated graph nodes and edges to support
+    delta mutations without layout jitter."""
+
+    def __init__(self) -> None:
+        self.nodes: dict[str, dict] = {}
+        self.edges: list[dict] = []
+        self.summary_bullets: list[str] = []
+        self.key_terms: list[str] = []
+
+    def reset(self) -> None:
+        self.nodes.clear()
+        self.edges.clear()
+        self.summary_bullets.clear()
+        self.key_terms.clear()
+
+    @staticmethod
+    def _sanitize_id(raw_id: str) -> str:
+        clean = re.sub(r"[^a-zA-Z0-9_]", "", str(raw_id).strip())
+        return clean or f"N_{int(time.time() * 1000) % 100000}"
+
+    @staticmethod
+    def _sanitize_text(text: str) -> str:
+        clean = str(text).replace('"', "'").replace("\n", " ").strip()
+        return clean[:80]
+
+    def apply_delta(self, action: str, data: dict) -> bool:
+        act = str(action).upper().strip()
+        if act == "ADD_NODE":
+            raw_id = data.get("id") or data.get("label") or f"N{len(self.nodes)+1}"
+            node_id = self._sanitize_id(raw_id)
+            label = self._sanitize_text(data.get("label", node_id))
+            shape = data.get("shape", "box")
+            self.nodes[node_id] = {"id": node_id, "label": label, "shape": shape}
+            return True
+
+        elif act == "UPDATE_NODE":
+            raw_id = data.get("id")
+            if not raw_id:
+                return False
+            node_id = self._sanitize_id(raw_id)
+            if node_id in self.nodes:
+                if "label" in data:
+                    self.nodes[node_id]["label"] = self._sanitize_text(data["label"])
+                if "shape" in data:
+                    self.nodes[node_id]["shape"] = data["shape"]
+                return True
+
+        elif act == "CONNECT":
+            src = self._sanitize_id(data.get("from", ""))
+            dst = self._sanitize_id(data.get("to", ""))
+            rel = self._sanitize_text(data.get("relation", ""))
+            if not src or not dst or src == dst:
+                return False
+            if src not in self.nodes:
+                self.nodes[src] = {"id": src, "label": src, "shape": "box"}
+            if dst not in self.nodes:
+                self.nodes[dst] = {"id": dst, "label": dst, "shape": "box"}
+            for edge in self.edges:
+                if edge.get("from") == src and edge.get("to") == dst:
+                    if rel:
+                        edge["relation"] = rel
+                    return True
+            self.edges.append({"from": src, "to": dst, "relation": rel})
+            return True
+
+        elif act == "REMOVE":
+            raw_id = data.get("id", "")
+            node_id = self._sanitize_id(raw_id)
+            if node_id in self.nodes:
+                del self.nodes[node_id]
+                self.edges = [
+                    e for e in self.edges if e.get("from") != node_id and e.get("to") != node_id
+                ]
+                return True
+
+        return False
+
+    def to_mermaid(self) -> str:
+        if not self.nodes:
+            return "flowchart TD\n    A[Waiting for lecture speech...]"
+        lines = ["flowchart TD"]
+        for node in self.nodes.values():
+            n_id = node["id"]
+            lbl = node["label"]
+            lines.append(f'    {n_id}["{lbl}"]')
+        for edge in self.edges:
+            src = edge["from"]
+            dst = edge["to"]
+            rel = edge.get("relation", "")
+            if rel:
+                lines.append(f"    {src} -->|{rel}| {dst}")
+            else:
+                lines.append(f"    {src} --> {dst}")
+        return "\n".join(lines)
+
+    def to_dict(self) -> dict:
+        return {
+            "nodes": list(self.nodes.values()),
+            "edges": self.edges,
+            "summary_bullets": self.summary_bullets,
+            "key_terms": self.key_terms,
+        }
+
+
+async def generate_graph_delta(transcript: str, graph_state: GraphState) -> dict:
+    """Calls Gemini to compute incremental delta operations for the visual graph."""
+    _require_api_key()
+    _check_rate_limit()
+
+    existing_state_json = json.dumps(graph_state.to_dict(), indent=2)
+    prompt = prompts.DIAGRAM_DELTA_PROMPT_TEMPLATE.format(
+        existing_graph=existing_state_json,
+        transcript=transcript,
+    )
+    raw = await _call_gemini(
+        prompt, prompts.DIAGRAM_DELTA_SYSTEM_INSTRUCTIONS, "application/json"
+    )
+    data = _extract_json(raw)
+    deltas = data.get("deltas", [])
+    for d in deltas:
+        action = d.get("action")
+        payload = d.get("data", {})
+        if action and isinstance(payload, dict):
+            graph_state.apply_delta(action, payload)
+
+    new_bullets = data.get("summary_bullets", [])
+    if new_bullets:
+        graph_state.summary_bullets.extend(new_bullets)
+        graph_state.summary_bullets = graph_state.summary_bullets[-6:]
+
+    new_terms = data.get("key_terms", [])
+    if new_terms:
+        for t in new_terms:
+            if t not in graph_state.key_terms:
+                graph_state.key_terms.append(t)
+        graph_state.key_terms = graph_state.key_terms[-10:]
+
+    return {
+        "deltas": deltas,
+        "graph_state": graph_state.to_dict(),
+        "mermaid_code": graph_state.to_mermaid(),
+        "summary_bullets": graph_state.summary_bullets,
+        "key_terms": graph_state.key_terms,
+    }
+
+
+async def generate_edge_tts_stream(
+    text: str, voice: str = "en-US-JennyNeural"
+) -> AsyncGenerator[bytes, None]:
+    """Stream audio chunks using Microsoft Edge Neural TTS."""
+    if not HAS_EDGE_TTS or not text.strip():
+        return
+    try:
+        communicate = edge_tts.Communicate(text=text.strip(), voice=voice)
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                yield chunk["data"]
+    except Exception as err:
+        print(f"[WARN] Edge-TTS stream error: {err}")
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 @app.get("/health", response_model=HealthResponse)
@@ -412,6 +584,179 @@ async def translate_text(payload: TranslateInput) -> TranslateOutput:
             status_code=502,
             detail=f"Gemini translation pipeline failed: {exc}",
         ) from exc
+
+
+# ---------------------------------------------------------------------------
+# WebSocket Bidirectional Streaming Pipeline
+# ---------------------------------------------------------------------------
+@app.websocket("/ws/live-session")
+async def websocket_live_session(websocket: WebSocket) -> None:
+    await websocket.accept()
+    session_graph = GraphState()
+    rolling_transcript = ""
+    last_delta_length = 0
+
+    try:
+        # Send initial handshake with current graph state
+        await websocket.send_json({
+            "type": "ready",
+            "message": "WebSocket streaming pipeline connected.",
+            "mermaid_code": session_graph.to_mermaid(),
+            "graph_state": session_graph.to_dict(),
+        })
+
+        while True:
+            raw_msg = await websocket.receive()
+            if raw_msg.get("type") == "websocket.disconnect":
+                break
+
+            # 1. Handle binary audio stream ingestion (PCM 16-bit 16kHz / Opus chunks)
+            if "bytes" in raw_msg and raw_msg["bytes"]:
+                audio_bytes = raw_msg["bytes"]
+                continue
+
+            # 2. Handle JSON control frames
+            text_data = raw_msg.get("text")
+            if not text_data:
+                continue
+
+            try:
+                msg = json.loads(text_data)
+            except Exception:
+                continue
+
+            msg_type = msg.get("type", "")
+
+            if msg_type == "ping":
+                await websocket.send_json({"type": "pong", "timestamp": time.time()})
+
+            elif msg_type == "reset_session":
+                session_graph.reset()
+                rolling_transcript = ""
+                last_delta_length = 0
+                await websocket.send_json({
+                    "type": "session_reset",
+                    "status": "ok",
+                    "mermaid_code": session_graph.to_mermaid(),
+                    "graph_state": session_graph.to_dict(),
+                })
+
+            elif msg_type == "transcript_chunk":
+                chunk_text = msg.get("text", "").strip()
+                is_final = bool(msg.get("is_final", False))
+                speaker_pause = bool(msg.get("speaker_pause", False))
+
+                if chunk_text:
+                    if is_final:
+                        if rolling_transcript:
+                            rolling_transcript += " " + chunk_text
+                        else:
+                            rolling_transcript = chunk_text
+                    if len(rolling_transcript) > MAX_TRANSCRIPT_CHARS:
+                        rolling_transcript = rolling_transcript[-MAX_TRANSCRIPT_CHARS:]
+
+                # Instant caption relay (< 100ms)
+                await websocket.send_json({
+                    "type": "caption",
+                    "text": chunk_text,
+                    "is_final": is_final,
+                    "speaker_pause": speaker_pause,
+                    "rolling_transcript": rolling_transcript,
+                })
+
+                # Delta-based visual calculation
+                diff_len = len(rolling_transcript) - last_delta_length
+                should_delta = (
+                    (is_final or speaker_pause or diff_len >= 25)
+                    and len(rolling_transcript) >= 15
+                )
+
+                if should_delta and API_KEY:
+                    last_delta_length = len(rolling_transcript)
+                    try:
+                        delta_result = await generate_graph_delta(
+                            rolling_transcript[-1000:], session_graph
+                        )
+                        await websocket.send_json({
+                            "type": "diagram_delta",
+                            "deltas": delta_result["deltas"],
+                            "graph_state": delta_result["graph_state"],
+                            "mermaid_code": delta_result["mermaid_code"],
+                            "summary_bullets": delta_result["summary_bullets"],
+                            "key_terms": delta_result["key_terms"],
+                        })
+                    except Exception as delta_err:
+                        print(f"[WARN] Live delta update error: {delta_err}")
+                        await websocket.send_json({
+                            "type": "diagram_delta_error",
+                            "error": str(delta_err),
+                        })
+
+            elif msg_type == "shorthand_speak":
+                shorthand_text = msg.get("shorthand", "").strip()
+                tone = msg.get("tone", "polite")
+                if shorthand_text:
+                    refined_text = shorthand_text
+                    if API_KEY:
+                        try:
+                            tone_desc = tone if tone else "polite"
+                            prompt = prompts.SHORTHAND_PROMPT_TEMPLATE.format(
+                                tone=tone_desc, shorthand=shorthand_text
+                            )
+                            raw_ref = await _call_gemini(
+                                prompt, prompts.SHORTHAND_SYSTEM_INSTRUCTIONS, "text/plain"
+                            )
+                            refined_text = (
+                                raw_ref.strip().strip('"').strip("'").strip() or shorthand_text
+                            )
+                        except Exception as e:
+                            print(f"[WARN] Shorthand refinement fallback: {e}")
+
+                    # Detect language for neural voice
+                    urdu_markers = [
+                        "kya",
+                        "hai",
+                        "hain",
+                        "kr",
+                        "karein",
+                        "sir",
+                        "bhai",
+                        "samjh",
+                        "shukriya",
+                        "mein",
+                        "ko",
+                        "se",
+                    ]
+                    lower_text = refined_text.lower()
+                    is_urdu = any(
+                        f" {w} " in f" {lower_text} " for w in urdu_markers
+                    ) or any("\u0600" <= c <= "\u06FF" for c in refined_text)
+                    voice = "ur-PK-UzmaNeural" if is_urdu else "en-US-JennyNeural"
+
+                    await websocket.send_json({
+                        "type": "tts_start",
+                        "refined_text": refined_text,
+                        "voice": voice,
+                        "format": "audio/mpeg",
+                        "has_audio_stream": HAS_EDGE_TTS,
+                    })
+
+                    # Stream binary audio frames
+                    if HAS_EDGE_TTS:
+                        async for audio_chunk in generate_edge_tts_stream(
+                            refined_text, voice
+                        ):
+                            await websocket.send_bytes(audio_chunk)
+
+                    await websocket.send_json({
+                        "type": "tts_end",
+                        "refined_text": refined_text,
+                    })
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as ws_err:
+        print(f"[WARN] WebSocket session error: {ws_err}")
 
 
 # ---------------------------------------------------------------------------

@@ -97,10 +97,11 @@ Then open **http://127.0.0.1:8000** in Chrome or Edge, allow microphone access, 
 
 ---
 
-## API Endpoints
+## API & Streaming Endpoints
 
-| Method | Path | Description |
+| Method / Protocol | Path | Description |
 | --- | --- | --- |
+| `WS` | `/ws/live-session` | Full-duplex WebSocket stream: binary audio ingestion, rolling captions, incremental diagram deltas, streaming Neural Edge-TTS |
 | `GET` | `/health` | Liveness check; reports API-key status and active model |
 | `POST` | `/api/transcribe-to-diagram` | Transcript chunk (≤ 4000 chars) -> `{ diagram_code, summary_bullets, key_terms }` |
 | `POST` | `/api/generate-notes` | Transcript chunk (≤ 4000 chars) -> `{ short_notes }` on-demand study notes |
@@ -124,7 +125,7 @@ curl -X POST http://127.0.0.1:8000/api/shorthand-to-speech \
 
 ## Running the Tests
 
-An offline smoke suite (11 tests, Gemini mocked — no API key needed):
+Offline test suite with 32 unit and WebSocket tests (Gemini & TTS mocked):
 
 ```bash
 python test_smoke.py

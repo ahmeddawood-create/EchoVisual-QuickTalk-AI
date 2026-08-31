@@ -54,7 +54,6 @@
             <div class="min-w-0">
                 <h1 class="text-sm font-semibold tracking-tight text-white truncate leading-tight flex items-center gap-2">
                     EchoVisual &amp; QuickTalk
-                    <span class="text-[10px] font-mono font-normal px-2 py-0.5 rounded-full bg-raised text-accent border border-edge">v3.0</span>
                 </h1>
                 <p class="text-[11px] text-slate-400 font-mono truncate hidden sm:block">Real-time classroom visual &amp; speech suite</p>
             </div>
@@ -122,6 +121,13 @@
                 <span class="meter-bar w-[3px] h-full rounded-sm bg-accent"></span>
                 <span class="meter-bar w-[3px] h-full rounded-sm bg-accent"></span>
             </div>
+
+            <!-- WebSocket Live Stream Indicator -->
+            <span id="ws-status-badge" title="WebSocket Bidirectional Streaming Pipeline Status"
+                  class="font-mono text-[10px] md:text-[11px] px-2.5 py-1 rounded-full bg-raised text-slate-400 border border-edge flex items-center gap-1.5 transition-colors">
+                <span id="ws-status-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span id="ws-status-text" class="hidden sm:inline">WS Connecting...</span>
+            </span>
 
             <span id="status-pill" class="font-mono text-[11px] px-3 py-1.5 rounded-full bg-raised text-slate-400 border border-edge hidden sm:inline-block">
                 idle

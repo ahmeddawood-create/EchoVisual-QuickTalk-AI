@@ -1,5 +1,5 @@
 /* ==========================================================================
-   EchoVisual & QuickTalk AI - Multi-Page Application Logic (v3.0)
+   EchoVisual & QuickTalk AI - Multi-Page Application Logic
    5 Dedicated Views with Continuous Live Background Recording:
    1. 🎙️ Classroom View (#classroom): Live Speech + Urdu/Eng + Multi-Lang Translation + Visual Stream
    2. 🗣️ Student Expression Board (#expression): Full-page voice composer, Pakistani soundboards & spoken history
@@ -63,6 +63,278 @@ const AUTO_DIAGRAM_MIN_NEW_CHARS = 20;
 const apiQueue = [];
 let queueRunning = false;
 let lastApiCallAt = 0;
+
+// ------------------------------------------------------------------
+// Web Audio API Streaming Player (Low-Latency Neural TTS)
+// ------------------------------------------------------------------
+class StreamAudioPlayer {
+    constructor() {
+        this.audioCtx = null;
+        this.queue = [];
+        this.isPlaying = false;
+        this.nextPlayTime = 0;
+    }
+
+    ensureContext() {
+        if (!this.audioCtx) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) {
+                this.audioCtx = new AudioContextClass();
+            }
+        }
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
+        return this.audioCtx;
+    }
+
+    reset() {
+        this.queue = [];
+        this.isPlaying = false;
+        this.nextPlayTime = 0;
+    }
+
+    async enqueueChunk(arrayBuffer) {
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        try {
+            const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+            this.queue.push(audioBuffer);
+            if (!this.isPlaying) {
+                this.playNext();
+            }
+        } catch (e) {
+            console.warn('Audio decoding chunk error:', e);
+        }
+    }
+
+    playNext() {
+        const ctx = this.ensureContext();
+        if (!ctx || this.queue.length === 0) {
+            this.isPlaying = false;
+            return;
+        }
+
+        this.isPlaying = true;
+        const audioBuffer = this.queue.shift();
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx.destination);
+
+        const now = ctx.currentTime;
+        const startTime = Math.max(now, this.nextPlayTime);
+        source.start(startTime);
+        this.nextPlayTime = startTime + audioBuffer.duration;
+
+        source.onended = () => {
+            if (this.queue.length > 0) {
+                this.playNext();
+            } else {
+                this.isPlaying = false;
+            }
+        };
+    }
+}
+const streamAudioPlayer = new StreamAudioPlayer();
+
+// ------------------------------------------------------------------
+// Full-Duplex WebSocket Streaming Pipeline Manager (/ws/live-session)
+// ------------------------------------------------------------------
+let wsSocket = null;
+let wsConnected = false;
+let wsReconnectTimer = null;
+let wsReconnectIndex = 0;
+const WS_RECONNECT_BACKOFF = [1000, 2000, 5000];
+
+function updateWsBadge(status, text) {
+    const badge = $('ws-status-badge');
+    const dot = $('ws-status-dot');
+    const label = $('ws-status-text');
+    if (!badge || !dot || !label) return;
+
+    if (status === 'connected') {
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        label.textContent = 'WS Live (Streaming)';
+        badge.className = 'font-mono text-[10px] md:text-[11px] px-2.5 py-1 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-800/80 flex items-center gap-1.5 transition-colors';
+    } else if (status === 'reconnecting') {
+        dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+        label.textContent = text || 'WS Reconnecting...';
+        badge.className = 'font-mono text-[10px] md:text-[11px] px-2.5 py-1 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/80 flex items-center gap-1.5 transition-colors';
+    } else {
+        dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+        label.textContent = 'REST Fallback';
+        badge.className = 'font-mono text-[10px] md:text-[11px] px-2.5 py-1 rounded-full bg-raised text-slate-400 border border-edge flex items-center gap-1.5 transition-colors';
+    }
+}
+
+function initLiveWebSocket() {
+    if (wsSocket) {
+        try { wsSocket.close(); } catch (e) {}
+        wsSocket = null;
+    }
+
+    const loc = window.location;
+    const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProto}//${loc.host}/ws/live-session`;
+
+    try {
+        wsSocket = new WebSocket(wsUrl);
+        wsSocket.binaryType = 'arraybuffer';
+
+        wsSocket.onopen = () => {
+            wsConnected = true;
+            wsReconnectIndex = 0;
+            updateWsBadge('connected');
+            console.log('⚡ Connected to full-duplex WebSocket live session streaming pipeline.');
+        };
+
+        wsSocket.onmessage = async (event) => {
+            if (event.data instanceof ArrayBuffer) {
+                streamAudioPlayer.enqueueChunk(event.data);
+                return;
+            }
+
+            try {
+                const msg = JSON.parse(event.data);
+                handleWsEvent(msg);
+            } catch (err) {
+                console.warn('WS message parse error:', err);
+            }
+        };
+
+        wsSocket.onerror = (err) => {
+            console.warn('WS error:', err);
+        };
+
+        wsSocket.onclose = () => {
+            wsConnected = false;
+            updateWsBadge('fallback');
+            scheduleWsReconnect();
+        };
+    } catch (e) {
+        wsConnected = false;
+        updateWsBadge('fallback');
+        scheduleWsReconnect();
+    }
+}
+
+function scheduleWsReconnect() {
+    if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+    const delay = WS_RECONNECT_BACKOFF[wsReconnectIndex] || 5000;
+    wsReconnectIndex = Math.min(wsReconnectIndex + 1, WS_RECONNECT_BACKOFF.length - 1);
+    updateWsBadge('reconnecting', `WS Reconnecting (${delay / 1000}s)...`);
+    wsReconnectTimer = setTimeout(() => {
+        initLiveWebSocket();
+    }, delay);
+}
+
+function sendWsMessage(payload) {
+    if (wsSocket && wsSocket.readyState === WebSocket.OPEN) {
+        wsSocket.send(JSON.stringify(payload));
+        return true;
+    }
+    return false;
+}
+
+function sendWsTranscriptChunk(text, isFinal = false, isPause = false) {
+    return sendWsMessage({
+        type: 'transcript_chunk',
+        text: text,
+        is_final: isFinal,
+        speaker_pause: isPause,
+    });
+}
+
+function handleWsEvent(msg) {
+    if (!msg || !msg.type) return;
+
+    switch (msg.type) {
+        case 'ready':
+            console.log('WS Handshake ready:', msg.message);
+            break;
+
+        case 'caption':
+            if (msg.rolling_transcript && msg.rolling_transcript.length > interimBuffer.length) {
+                interimBuffer = msg.rolling_transcript;
+                renderCaption('');
+            }
+            break;
+
+        case 'diagram_delta':
+            applyLiveDiagramDelta(msg.deltas, msg.mermaid_code, msg.summary_bullets, msg.key_terms);
+            break;
+
+        case 'tts_start':
+            streamAudioPlayer.ensureContext();
+            streamAudioPlayer.reset();
+            showToast(`🔊 Streaming ${msg.voice || 'Neural'} voice...`);
+            break;
+
+        case 'tts_end':
+            if (msg.refined_text) {
+                logSpoken(msg.refined_text);
+                if (!streamAudioPlayer.audioCtx && 'speechSynthesis' in window) {
+                    speak(msg.refined_text);
+                }
+            }
+            break;
+
+        case 'session_reset':
+            console.log('Server graph state reset.');
+            break;
+    }
+}
+
+function applyLiveDiagramDelta(deltas, mermaidCode, summaryBullets, keyTerms) {
+    if (!mermaidCode) return;
+
+    const snap = {
+        diagram_code: mermaidCode,
+        summary_bullets: summaryBullets || [],
+        key_terms: keyTerms || [],
+        short_notes: [],
+        quiz: [],
+        flashcards: [],
+        timeString: new Date().toLocaleTimeString(),
+    };
+
+    if (keyTerms && keyTerms.length) {
+        keyTerms.forEach((t) => allSessionKeyTerms.add(t));
+    }
+
+    sessionDiagrams.push(snap);
+    currentDiagramIndex = sessionDiagrams.length - 1;
+
+    renderDiagramDirect(mermaidCode, summaryBullets, keyTerms);
+    updateTimelineControls();
+    refreshStorageDashboard();
+    saveCurrentSessionToStorage();
+}
+
+async function renderDiagramDirect(mermaidCode, summaryBullets, keyTerms) {
+    const wrapper = $('diagram-svg-wrapper');
+    if (!wrapper || !window.mermaid) return;
+
+    mermaidSeq++;
+    const renderId = `mermaid-live-svg-${mermaidSeq}`;
+    try {
+        const { svg } = await window.mermaid.render(renderId, mermaidCode);
+        wrapper.innerHTML = svg;
+        const svgEl = wrapper.querySelector('svg');
+        if (svgEl) {
+            svgEl.style.maxWidth = '100%';
+            svgEl.style.maxHeight = '100%';
+            svgEl.style.height = 'auto';
+            svgEl.style.width = 'auto';
+            svgEl.classList.add('transition-all', 'duration-300', 'ease-out');
+        }
+        renderSummaryAndNotes(summaryBullets || [], [], keyTerms || []);
+        const lastUp = $('last-update');
+        if (lastUp) lastUp.textContent = `live delta @ ${new Date().toLocaleTimeString()}`;
+    } catch (e) {
+        console.warn('Mermaid delta render error:', e);
+    }
+}
 
 // ------------------------------------------------------------------
 // DOM Reference Utilities
@@ -696,16 +968,29 @@ function initLiveSpeechRecognition() {
 
     recognition.onresult = (event) => {
         let interim = '';
+        let finalChunk = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const text = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
                 interimBuffer += text + ' ';
+                finalChunk += text + ' ';
             } else {
                 interim += text;
             }
         }
         renderCaption(interim);
-        scheduleAutoDiagramDebounced();
+
+        // Stream over WebSocket for <800ms caption latency and live visual delta updates
+        if (finalChunk.trim()) {
+            sendWsTranscriptChunk(finalChunk.trim(), true, true);
+        } else if (interim.trim()) {
+            sendWsTranscriptChunk(interim.trim(), false, false);
+        }
+
+        // Keep REST fallback debounce active if WS connection drops
+        if (!wsConnected) {
+            scheduleAutoDiagramDebounced();
+        }
     };
 
     recognition.onerror = (event) => {
@@ -801,6 +1086,9 @@ function resetClassroomForNewClass() {
     sessionStartTime = new Date();
     lastAutoDiagramTranscript = '';
     lastAutoDiagramAt = 0;
+
+    // Reset WebSocket server session graph state
+    sendWsMessage({ type: 'reset_session' });
 
     // 2. Clear captions UI
     const finalSpan = $('caption-final');
@@ -1640,6 +1928,20 @@ async function refineAndSpeak(payload) {
     const tone = (typeof payload === 'object' && payload.tone) ? payload.tone : 'polite';
     if (!rawShorthand.trim()) return;
 
+    // Use full-duplex WebSocket Neural TTS streaming if connected (<500ms latency)
+    if (wsConnected) {
+        streamAudioPlayer.ensureContext();
+        streamAudioPlayer.reset();
+        sendWsMessage({
+            type: 'shorthand_speak',
+            shorthand: rawShorthand,
+            tone: tone,
+        });
+        showToast('⚡ QuickTalk Neural TTS streaming...');
+        return;
+    }
+
+    // Fallback REST pipeline
     const speakBtn = $('speak-btn');
     if (speakBtn) speakBtn.disabled = true;
     setStatus('refining', 'bg-accent/15 text-accent border-accent/30');
@@ -2390,6 +2692,7 @@ function initStorageActions() {
 document.addEventListener('DOMContentLoaded', () => {
     initThemesAndModes();
     initPageRouter();
+    initLiveWebSocket();
     initLiveSpeechRecognition();
     initOnCommandGenerator();
     initStudyGenerators();
@@ -2409,5 +2712,5 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Not a secure context, microphone APIs may be blocked');
     }
 
-    console.log('EchoVisual & QuickTalk AI v3.0 Multi-Page Suite initialized successfully');
+    console.log('EchoVisual & QuickTalk AI Multi-Page Suite initialized successfully');
 });

@@ -67,6 +67,10 @@ async def fake_call_gemini(prompt, system, response_mime):
     return "Could you please repeat the last point?"
 
 
+async def fake_edge_tts_stream(text, voice="en-US-JennyNeural"):
+    yield b"\xff\xfb\x90\x00\x00fake-mp3-frame"
+
+
 def reset_rate_limiter():
     main._request_timestamps.clear()
 
@@ -301,7 +305,114 @@ class TestFrontendServing(unittest.TestCase):
         self.assertEqual(css.status_code, 200)
         self.assertEqual(js.status_code, 200)
         self.assertIn("rise-in", css.text)
-        self.assertIn("enqueueApiTask", js.text)
+        self.assertIn("initLiveWebSocket", js.text)
+
+
+class TestGraphState(unittest.TestCase):
+    def setUp(self):
+        self.graph = main.GraphState()
+
+    def test_add_node_and_to_mermaid(self):
+        self.graph.apply_delta("ADD_NODE", {"id": "A", "label": "Photosynthesis"})
+        self.assertIn("A", self.graph.nodes)
+        self.assertEqual(self.graph.nodes["A"]["label"], "Photosynthesis")
+        mermaid = self.graph.to_mermaid()
+        self.assertIn('A["Photosynthesis"]', mermaid)
+
+    def test_update_node(self):
+        self.graph.apply_delta("ADD_NODE", {"id": "A", "label": "Initial"})
+        self.graph.apply_delta("UPDATE_NODE", {"id": "A", "label": "Updated Label"})
+        self.assertEqual(self.graph.nodes["A"]["label"], "Updated Label")
+
+    def test_connect_nodes(self):
+        self.graph.apply_delta("ADD_NODE", {"id": "A", "label": "Light"})
+        self.graph.apply_delta("ADD_NODE", {"id": "B", "label": "Chlorophyll"})
+        self.graph.apply_delta("CONNECT", {"from": "A", "to": "B", "relation": "absorbed by"})
+        self.assertEqual(len(self.graph.edges), 1)
+        mermaid = self.graph.to_mermaid()
+        self.assertIn("A -->|absorbed by| B", mermaid)
+
+    def test_remove_node(self):
+        self.graph.apply_delta("ADD_NODE", {"id": "A", "label": "A"})
+        self.graph.apply_delta("ADD_NODE", {"id": "B", "label": "B"})
+        self.graph.apply_delta("CONNECT", {"from": "A", "to": "B", "relation": "rel"})
+        self.graph.apply_delta("REMOVE", {"id": "A"})
+        self.assertNotIn("A", self.graph.nodes)
+        self.assertEqual(len(self.graph.edges), 0)
+
+    def test_reset_graph(self):
+        self.graph.apply_delta("ADD_NODE", {"id": "A", "label": "A"})
+        self.graph.reset()
+        self.assertEqual(len(self.graph.nodes), 0)
+        self.assertIn("Waiting for lecture speech", self.graph.to_mermaid())
+
+
+class TestWebSocketLiveSession(unittest.TestCase):
+    def test_websocket_handshake(self):
+        with client.websocket_connect("/ws/live-session") as ws:
+            data = ws.receive_json()
+            self.assertEqual(data["type"], "ready")
+            self.assertIn("WebSocket streaming pipeline connected", data["message"])
+            self.assertIn("mermaid_code", data)
+
+    def test_websocket_ping_pong(self):
+        with client.websocket_connect("/ws/live-session") as ws:
+            ws.receive_json()  # Handshake
+            ws.send_json({"type": "ping"})
+            resp = ws.receive_json()
+            self.assertEqual(resp["type"], "pong")
+            self.assertIn("timestamp", resp)
+
+    def test_websocket_transcript_caption(self):
+        with client.websocket_connect("/ws/live-session") as ws:
+            ws.receive_json()  # Handshake
+            ws.send_json({
+                "type": "transcript_chunk",
+                "text": "Photosynthesis produces oxygen",
+                "is_final": True,
+                "speaker_pause": True,
+            })
+            resp = ws.receive_json()
+            self.assertEqual(resp["type"], "caption")
+            self.assertEqual(resp["text"], "Photosynthesis produces oxygen")
+            self.assertTrue(resp["is_final"])
+
+    def test_websocket_reset_session(self):
+        with client.websocket_connect("/ws/live-session") as ws:
+            ws.receive_json()  # Handshake
+            ws.send_json({"type": "reset_session"})
+            resp = ws.receive_json()
+            self.assertEqual(resp["type"], "session_reset")
+            self.assertEqual(resp["status"], "ok")
+
+    def test_websocket_shorthand_speak_event(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini), \
+             patch.object(main, "generate_edge_tts_stream", fake_edge_tts_stream):
+            with client.websocket_connect("/ws/live-session") as ws:
+                ws.receive_json()  # Handshake
+                ws.send_json({
+                    "type": "shorthand_speak",
+                    "shorthand": "repeat last point pls",
+                    "tone": "polite",
+                })
+                resp = ws.receive_json()
+                self.assertEqual(resp["type"], "tts_start")
+                self.assertIn("refined_text", resp)
+                self.assertIn("voice", resp)
+
+                # May receive binary audio frames if edge_tts is active, followed by tts_end
+                last_msg = None
+                while True:
+                    msg = ws.receive()
+                    if "text" in msg:
+                        parsed = json.loads(msg["text"])
+                        if parsed.get("type") == "tts_end":
+                            last_msg = parsed
+                            break
+                    elif "bytes" in msg:
+                        continue
+                self.assertIsNotNone(last_msg)
+                self.assertEqual(last_msg["type"], "tts_end")
 
 
 if __name__ == "__main__":
