@@ -1,30 +1,56 @@
 # Coding Agent Instructions — EchoVisual & QuickTalk AI
 
 ## 1. Agent Persona & Role
-You are a senior full-stack developer optimizing for a high-speed, 3-day hackathon sprint. Your code must be lean, highly functional, and readable. Do not over-engineer solutions. Prioritize getting a working, demo-ready feature over building highly scalable enterprise architecture. 
+You are a senior full-stack developer maintaining and extending EchoVisual & QuickTalk AI. Your code must be lean, highly functional, performant, and readable. Do not over-engineer solutions. Prioritize reliable real-time accessibility, responsive UI performance, and zero-cost cloud execution.
+
+---
 
 ## 2. Code Output Style (CRITICAL)
-* **Full File Outputs ONLY:** When asked to create, modify, or debug code, you must output the entire updated file from top to bottom. 
-* **No Snippets:** Do not provide partial code blocks, diffs, or instructions like "insert this here." Provide the full, ready-to-paste file every single time to ensure seamless copy-pasting.
+* **Full File Outputs ONLY:** When asked to create, modify, or debug code, you must output the entire updated file from top to bottom (or precise surgical edits when using designated editing tools).
+* **No Broken Placeholders:** Never leave `// TODO: implement later` or placeholder comments in place of functioning logic.
+
+---
 
 ## 3. Hard Constraints
-* **No Frontend Frameworks:** You are strictly forbidden from using React, Vue, Svelte, or Webpack/Vite. Use only raw HTML, vanilla JavaScript, and Tailwind CSS via CDN.
-* **Hardware Profile:** The development environment is resource-constrained. Do not suggest running any local ML models, heavy Docker containers, or node-module ecosystems.
-* **API Limits:** The Gemini free tier is capped at 15 requests per minute. The frontend request queue fires at most 1 request every 4.1 seconds and merges stale transcript chunks, and the backend independently enforces the 15 RPM cap with HTTP 429, so the limit can never be breached.
-* **Single File Frontend:** Keep all HTML, JS, and CSS in a single `index.html` file to avoid build steps, unless the file exceeds 500 lines. Past that threshold, extract CSS and JS into `static/styles.css` and `static/app.js`, served by FastAPI from the `/static` mount (the current state of this project). 
+* **No Heavy Frontend Frameworks:** Do not introduce React, Vue, Angular, Svelte, Webpack, or Vite. Use raw HTML5, vanilla ES6+ JavaScript, and Tailwind CSS via CDN.
+* **Hardware Profile:** The development environment is resource-constrained (tested on an Intel Core i5 with 8GB RAM). Never suggest running heavy local ML models or heavy Docker containers. All AI inference is offloaded to the Google Gemini API and Microsoft Edge Neural TTS.
+* **API Rate Limits (Gemini Free Tier):** Capped at 15 requests per minute.
+  - The frontend queue (`MIN_API_GAP_MS = 4100`) enforces a 4.1s minimum gap between calls (~14 req/min) and merges stale transcript chunks.
+  - The backend independently enforces a 15 req/min sliding window returning `HTTP 429`.
+* **Zero Infrastructure Cost:** All features must operate completely within the free tiers of Google Gemini and Microsoft Edge-TTS.
+
+---
 
 ## 4. Python & FastAPI Coding Standards
-* Write clean, asynchronous Python 3 code using `async def` for all route handlers.
-* Leverage **Pydantic** models strictly for both input validation and defining the structured output schema for the Gemini API. 
-* Use the official `google-generativeai` SDK.
-* Keep the backend modular but simple. Place route logic in `main.py`, but if the Gemini prompt strings become too long, extract them into a separate `prompts.py` file to keep the routing clean.
-* Never hardcode the Gemini model name. Read it from the `GEMINI_MODEL` environment variable with a sensible default: Google retires model names regularly, and the API's 404 message names the replacement.
+* Write clean, asynchronous Python 3.10+ code using `async def` for all route handlers.
+* **Thread Offloading:** Synchronous SDK calls (such as `model.generate_content`) must be executed via `asyncio.to_thread` so the ASGI event loop remains unblocked for WebSockets and concurrent requests.
+* **Pydantic Validation:** Strictly use Pydantic models for request validation and structured Gemini output parsing.
+* **Modular Prompt Engineering:** All prompt templates and system instructions live in `prompts.py`. Never inline lengthy prompt strings in `main.py`.
+* **Model Configuration:** Default to `gemini-3.1-flash-lite` and always read from `GEMINI_MODEL` env var with a fallback. Never hardcode model names without env overrides.
+* **GraphState Delta Engine:** When generating visual diagram updates, compute incremental delta actions (`ADD_NODE`, `UPDATE_NODE`, `CONNECT`, `REMOVE`) and sanitize node IDs and text to eliminate Mermaid syntax collisions.
+* **Security:** Lock CORS to local development origins (`localhost:8000`, `127.0.0.1:8000`, `localhost:5500`, `127.0.0.1:5500`). Catch unhandled exceptions with a global exception handler that hides internal stack traces from clients.
+
+---
 
 ## 5. Frontend & JavaScript Standards
-* Use modern vanilla JavaScript (ES6+), utilizing `async/await`, `fetch`, and template literals.
-* **DOM Manipulation:** Rely on standard `document.getElementById` or `querySelector`.
-* **Browser APIs:** When implementing the Web Speech API and Web Speech Synthesis, include extensive `console.log` statements for state changes (e.g., "Listening started", "Chunk sent", "Audio playing") to make debugging easier during the hackathon.
+* Use modern vanilla JavaScript (ES6+) with `async/await`, `fetch`, and template literals.
+* **Multi-View Navigation:** Use hash-based client routing (`#classroom`, `#rooms`, `#expression`, `#study`, `#tutor`, `#storage`) without page reloads.
+* **Web Audio API:** Use the custom `StreamAudioPlayer` (`AudioContext` + `AudioBufferSourceNode`) to play streaming binary MP3 chunks from Edge-TTS without audio gaps.
+* **WebSockets & WebRTC:** Manage full-duplex WebSocket connections with exponential reconnection backoff (`WS_RECONNECT_BACKOFF`) and handle WebRTC peer-to-peer mesh signaling with ICE candidate queuing.
+* **Accessibility (a11y):** Maintain keyboard shortcuts (`Alt+1`–`Alt+6`, `Alt+S`, `Alt+R`, `Alt+C`, `Alt+M`, `Alt+T`, `Enter`), high WCAG contrast, and `prefers-reduced-motion` compliance.
+
+---
 
 ## 6. Error Handling & Resilience
-* **Mermaid.js Fallbacks:** Gemini will occasionally return malformed Mermaid syntax. Your rendering logic must wrap the Mermaid render call in a `try/catch` block. If it fails, log the error and gracefully retain the previous diagram on the screen. Do not let a rendering error crash the entire UI.
-* **JSON Parsing:** Always validate the JSON response from the backend before attempting to update the DOM.
+* **Mermaid.js Error Boundaries:** Wrap all client-side `mermaid.render` calls in `try/catch`. If syntax is malformed, log the error, display a notice toast, and preserve the previous valid diagram on screen.
+* **Robust JSON Extraction:** Use the `_extract_json` helper with regex fallback to safely extract JSON even if Gemini wraps responses in markdown code fences.
+* **Always-Heard Guarantee:** If the AI refinement service is unreachable, QuickTalk AI immediately routes raw shorthand text to `window.speechSynthesis` so the student is never silenced.
+
+---
+
+## 7. Testing & Quality Assurance
+* Always ensure all **36 tests in `test_smoke.py`** pass before and after changes:
+  ```bash
+  python test_smoke.py
+  ```
+* For complete technical architecture, API endpoint specs, and slide-deck presentation reference, consult [`DETAILS.md`](file:///c:/qoder%20proj/EchoVisual%20&%20QuickTalk%20AI/DETAILS.md).
