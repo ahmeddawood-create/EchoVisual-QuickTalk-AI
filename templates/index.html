@@ -37,6 +37,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet" />
     <!-- Mermaid.js via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <!-- Favicon & Touch Icons -->
+    <link rel="icon" type="image/png" href="/static/favicon.png" />
+    <link rel="shortcut icon" href="/static/favicon.ico" />
+    <link rel="apple-touch-icon" href="/static/favicon.png" />
     <!-- App styles -->
     <link rel="stylesheet" href="/static/styles.css" />
 </head>
@@ -45,11 +49,9 @@
     <!-- ========== Top Global Header 1/2 — Brand & Navigation (48px) ========== -->
     <header class="h-12 shrink-0 flex items-center gap-3 px-3 sm:px-4 lg:px-6 border-b border-edge bg-panel sticky top-0 z-30">
         <!-- Logo & Brand -->
-        <div class="flex items-center gap-3 shrink-0">
-            <div class="w-9 h-9 shrink-0 rounded-xl bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
-                <svg viewBox="0 0 24 24" class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                    <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" />
-                </svg>
+        <div class="flex items-center gap-2.5 shrink-0">
+            <div class="w-9 h-9 shrink-0 rounded-xl bg-white flex items-center justify-center shadow-md shadow-accent/20 border border-edge/30 overflow-hidden p-1">
+                <img src="/static/my-logo.png" alt="EchoVisual &amp; QuickTalk Logo" class="w-full h-full object-contain" />
             </div>
             <div class="min-w-0">
                 <h1 class="text-sm font-semibold tracking-tight text-white truncate leading-tight flex items-center gap-2">

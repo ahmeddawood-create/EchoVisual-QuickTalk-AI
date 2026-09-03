@@ -912,6 +912,11 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def serve_favicon() -> FileResponse:
+    return FileResponse(BASE_DIR / "static" / "favicon.ico")
+
+
 @app.get("/", include_in_schema=False)
 async def serve_index() -> FileResponse:
     return FileResponse(BASE_DIR / "templates" / "index.html")

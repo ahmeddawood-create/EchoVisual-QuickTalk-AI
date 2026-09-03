@@ -299,10 +299,17 @@ class TestFrontendServing(unittest.TestCase):
     def test_static_assets_served(self):
         css = client.get("/static/styles.css")
         js = client.get("/static/app.js")
+        logo = client.get("/static/my-logo.png")
+        favicon_png = client.get("/static/favicon.png")
+        favicon_ico = client.get("/favicon.ico")
         self.assertEqual(css.status_code, 200)
         self.assertEqual(js.status_code, 200)
+        self.assertEqual(logo.status_code, 200)
+        self.assertEqual(favicon_png.status_code, 200)
+        self.assertEqual(favicon_ico.status_code, 200)
         self.assertIn("rise-in", css.text)
         self.assertIn("initLiveWebSocket", js.text)
+        self.assertEqual(logo.headers.get("content-type"), "image/png")
 
 
 class TestGraphState(unittest.TestCase):
