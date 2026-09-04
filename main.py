@@ -767,7 +767,8 @@ async def speech_to_text(request: Request) -> JSONResponse:
         transcription = groq_client.audio.transcriptions.create(
             model=GROQ_STT_MODEL,
             file=(filename, io.BytesIO(body), groq_mime),
-            language="ur",  # hint Urdu; Whisper still auto-detects English
+            language="ur",
+            prompt="یہ پاکستانی کلاس روم کی تقریر ہے۔ صرف خالص اردو رسم الخط میں نقل کریں۔ رومن اردو استعمال نہ کریں۔",
             response_format="text",
         )
         return transcription
