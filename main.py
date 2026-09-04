@@ -38,6 +38,12 @@ try:
 except ImportError:
     HAS_EDGE_TTS = False
 
+try:
+    from groq import Groq as GroqClient
+    HAS_GROQ_SDK = True
+except ImportError:
+    HAS_GROQ_SDK = False
+
 import prompts
 
 # ---------------------------------------------------------------------------
@@ -69,6 +75,16 @@ MAX_TOKENS_FLASHCARDS = 900
 MAX_TOKENS_SHORTHAND = 300
 MAX_TOKENS_CHAT = 1600
 MAX_TOKENS_TRANSLATE = 2048
+
+# Groq Whisper configuration (free Urdu speech-to-text)
+# Groq free tier: 20 RPM, 2 000 RPD, 7 200 audio-sec/hr, 28 800 audio-sec/day.
+# Backend limiter: 18 req/min sliding window — safely under the 20 RPM cap.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_STT_MODEL = os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo").strip()
+GROQ_RATE_LIMIT_MAX_REQUESTS = 18
+GROQ_RATE_LIMIT_WINDOW_SECONDS = 60
+
+groq_client = GroqClient(api_key=GROQ_API_KEY) if HAS_GROQ_SDK and GROQ_API_KEY else None
 
 # Configure the SDK once at startup. Tests may run without a key; that is
 # handled gracefully per request instead of crashing at import time.
@@ -173,6 +189,8 @@ class HealthResponse(BaseModel):
     status: str
     api_key_configured: bool
     model: str
+    groq_configured: bool = False
+    groq_stt_model: str = ""
 
 
 class CreateRoomResponse(BaseModel):
@@ -188,6 +206,7 @@ class ValidateRoomResponse(BaseModel):
 # Backend rate limiter (sliding window, in-memory — fine for a hackathon demo)
 # ---------------------------------------------------------------------------
 _request_timestamps: deque[float] = deque()
+_groq_request_timestamps: deque[float] = deque()
 
 
 def _check_rate_limit() -> None:
@@ -202,6 +221,20 @@ def _check_rate_limit() -> None:
             "Please wait a few seconds and try again.",
         )
     _request_timestamps.append(now)
+
+
+def _check_groq_rate_limit() -> None:
+    """Raise 429 if Groq Whisper requests exceed the free-tier cap."""
+    now = time.monotonic()
+    while _groq_request_timestamps and now - _groq_request_timestamps[0] > GROQ_RATE_LIMIT_WINDOW_SECONDS:
+        _groq_request_timestamps.popleft()
+    if len(_groq_request_timestamps) >= GROQ_RATE_LIMIT_MAX_REQUESTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Groq rate limit reached (18 requests/minute). "
+            "Please wait a few seconds and try again.",
+        )
+    _groq_request_timestamps.append(now)
 
 
 def _require_api_key() -> None:
@@ -477,6 +510,8 @@ async def health() -> HealthResponse:
         status="ok",
         api_key_configured=bool(API_KEY),
         model=MODEL_NAME,
+        groq_configured=bool(groq_client),
+        groq_stt_model=GROQ_STT_MODEL,
     )
 
 
@@ -684,6 +719,71 @@ async def translate_text(payload: TranslateInput) -> TranslateOutput:
             status_code=502,
             detail=f"Gemini translation pipeline failed: {exc}",
         ) from exc
+
+
+@app.post("/api/speech-to-text")
+async def speech_to_text(request: Request) -> JSONResponse:
+    """Transcribe audio via Groq Whisper (free Urdu speech-to-text).
+
+    Groq free-tier limits (whisper-large-v3-turbo):
+      20 RPM | 2 000 RPD | 7 200 audio-sec/hr | 28 800 audio-sec/day
+    The backend sliding-window limiter (18 RPM) keeps us safely under 20 RPM.
+    Max file size on free tier: 25 MB.
+    """
+    if not groq_client:
+        raise HTTPException(
+            status_code=503,
+            detail="Groq API is not configured. Add GROQ_API_KEY to .env and restart.",
+        )
+    _check_groq_rate_limit()
+
+    body = await request.body()
+    if not body or len(body) < 1000:
+        raise HTTPException(
+            status_code=400,
+            detail="Audio data is too short (need at least ~1 second of audio).",
+        )
+    if len(body) > 25 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Audio payload exceeds 25 MB Groq free-tier limit.",
+        )
+
+    import io
+
+    # Map Content-Type to the filename Groq expects (tells it the container format)
+    content_type = (request.headers.get("content-type") or "").split(";")[0].strip()
+    _EXT_MAP = {
+        "audio/webm": ("audio.webm", "audio/webm"),
+        "audio/ogg":  ("audio.ogg",  "audio/ogg"),
+        "audio/mp4":  ("audio.mp4",  "audio/mp4"),
+        "audio/wav":  ("audio.wav",  "audio/wav"),
+        "audio/mpeg": ("audio.mp3",  "audio/mpeg"),
+        "audio/mp3":  ("audio.mp3",  "audio/mpeg"),
+    }
+    filename, groq_mime = _EXT_MAP.get(content_type, ("audio.webm", "audio/webm"))
+
+    def _sync_transcribe() -> str:
+        transcription = groq_client.audio.transcriptions.create(
+            model=GROQ_STT_MODEL,
+            file=(filename, io.BytesIO(body), groq_mime),
+            language="ur",  # hint Urdu; Whisper still auto-detects English
+            response_format="text",
+        )
+        return transcription
+
+    try:
+        text = await asyncio.to_thread(_sync_transcribe)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        print(f"[WARN] Groq STT error: {exc}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Groq Whisper transcription failed: {exc}",
+        )
+
+    return JSONResponse(content={"text": (text or "").strip()})
 
 
 # ---------------------------------------------------------------------------

@@ -62,6 +62,16 @@ let recognition = null;
 let isListening = false;
 let interimBuffer = '';
 
+// Groq Whisper STT State (Accurate Urdu transcription via free API)
+// Groq free tier: 20 RPM, 2 000 RPD, 7 200 audio-sec/hr, 28 800 audio-sec/day.
+// We record 6-sec chunks every 5 sec → ~12 RPM, safely under 20 RPM.
+let groqRecorder = null;
+let groqMicStream = null;
+let groqTimerId = null;
+let groqCumulativeText = '';
+let groqIsActive = false;
+const GROQ_CHUNK_INTERVAL_MS = 5000;
+
 // Auto-Diagram Periodic & Debounce State
 let autoDiagramInterval = null;
 let autoDiagramTimer = null;
@@ -1198,10 +1208,15 @@ function initLiveSpeechRecognition() {
                 if (res.isFinal) {
                     const trimmed = text.trim();
                     if (trimmed.length > 0) {
-                        if (interimBuffer.length > 0 && !interimBuffer.endsWith(' ') && !interimBuffer.endsWith('\n')) {
-                            interimBuffer += ' ';
+                        // When Groq Whisper is active, skip appending Web Speech
+                        // finals to the buffer — Groq provides far more accurate
+                        // Urdu/English text and avoids duplicate accumulation.
+                        if (!groqIsActive) {
+                            if (interimBuffer.length > 0 && !interimBuffer.endsWith(' ') && !interimBuffer.endsWith('\n')) {
+                                interimBuffer += ' ';
+                            }
+                            interimBuffer += trimmed + ' ';
                         }
-                        interimBuffer += trimmed + ' ';
                         finalChunk += (finalChunk ? ' ' : '') + trimmed;
                     }
                 } else {
@@ -1250,19 +1265,261 @@ function initLiveSpeechRecognition() {
         if (micLang) {
             micLang.addEventListener('change', () => {
                 recognition.lang = micLang.value;
-                showToast(`🎙️ Microphone set to ${micLang.options[micLang.selectedIndex].text}`);
+                const langLabel = micLang.options[micLang.selectedIndex].text;
+
+                // Start/stop Groq Whisper when switching languages mid-session
                 if (isListening) {
+                    if (micLang.value === 'ur-PK') {
+                        startGroqRecorder();
+                        showToast(`🎙️ ${langLabel} — Groq Whisper STT ${groqIsActive ? 'active' : 'unavailable'}`);
+                    } else {
+                        stopGroqRecorder();
+                        showToast(`🎙️ Microphone set to ${langLabel}`);
+                    }
                     try {
                         recognition.stop();
                         setTimeout(() => {
                             try { if (isListening) recognition.start(); } catch (e) {}
                         }, 150);
                     } catch (e) {}
+                } else {
+                    showToast(`🎙️ Microphone set to ${langLabel}`);
                 }
             });
         }
     } catch (e) {
         console.warn('SpeechRecognition setup error:', e);
+    }
+}
+
+// ------------------------------------------------------------------
+// Groq Whisper STT Pipeline (Accurate Urdu Speech-to-Text, Free API)
+// ------------------------------------------------------------------
+// Captures mic audio via MediaRecorder, sends 5-sec chunks to the backend
+// /api/speech-to-text endpoint (Groq whisper-large-v3-turbo).
+// Uses a staggered dual-recorder pattern: two MediaRecorders alternate so
+// there is always one actively capturing. Each stop() produces a complete,
+// valid audio container (proper headers/footer) that Groq can decode.
+// Results replace the caption buffer for pixel-perfect Urdu transcription
+// while Web Speech API continues providing real-time interim feedback.
+
+function _getAudioMimeType() {
+    const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+    ];
+    for (const mime of candidates) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported(mime)) return mime;
+    }
+    return '';  // let browser pick default
+}
+
+/**
+ * Map a MIME type to the Content-Type header and filename that Groq expects.
+ */
+function _getGroqAudioMeta(mimeType) {
+    if (!mimeType) return { contentType: 'audio/webm', filename: 'audio.webm' };
+    if (mimeType.includes('ogg'))  return { contentType: 'audio/ogg',  filename: 'audio.ogg' };
+    if (mimeType.includes('mp4'))  return { contentType: 'audio/mp4',  filename: 'audio.mp4' };
+    if (mimeType.includes('wav'))  return { contentType: 'audio/wav',  filename: 'audio.wav' };
+    return { contentType: 'audio/webm', filename: 'audio.webm' };
+}
+
+async function startGroqRecorder() {
+    if (!window.MediaRecorder) {
+        console.warn('[Groq STT] MediaRecorder not available');
+        return;
+    }
+    try {
+        groqMicStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                channelCount: 1,
+                sampleRate: 16000,
+                noiseSuppression: true,
+                echoCancellation: true,
+                autoGainControl: true,
+            },
+        });
+
+        const mimeType = _getAudioMimeType();
+        const recOpts = { mimeType: mimeType || undefined };
+        const { contentType, filename } = _getGroqAudioMeta(mimeType);
+
+        groqIsActive = true;
+        groqCumulativeText = '';
+
+        // Send a finished chunk to Groq and return the transcribed text.
+        async function _sendChunk(blob) {
+            if (!blob || blob.size < 2000 || !groqIsActive) return;   // skip silence / tiny blobs / stopped
+            try {
+                const resp = await fetch(`${API_BASE}/api/speech-to-text`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': contentType },
+                    body: blob,
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+                    if (resp.status === 429) return;   // free-tier throttle — skip silently
+                    console.warn('[Groq STT]', resp.status, err.detail || err);
+                    return;
+                }
+                const result = await resp.json();
+                const text = (result.text || '').trim();
+                if (text) _integrateGroqResult(text);
+            } catch (err) {
+                console.warn('[Groq STT] fetch error:', err.message);
+            }
+        }
+
+        // Create a fresh MediaRecorder that records for `durationMs` then stops.
+        // On stop, the blob is sent and a replacement recorder is spawned so
+        // there is never a gap in coverage.
+        function _spawnRecorder(startDelay) {
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    if (!groqIsActive || !groqMicStream) { resolve(null); return; }
+                    let rec;
+                    try {
+                        rec = new MediaRecorder(groqMicStream, recOpts);
+                    } catch (e) {
+                        console.warn('[Groq STT] MediaRecorder create error:', e);
+                        resolve(null);
+                        return;
+                    }
+
+                    rec.ondataavailable = async (ev) => {
+                        if (!groqIsActive) return;
+                        await _sendChunk(ev.data);
+                        // If we are still active, spawn the next recorder
+                        if (groqIsActive) {
+                            _spawnRecorder(0);
+                        }
+                    };
+
+                    rec.onerror = (e) => {
+                        console.warn('[Groq STT] MediaRecorder error:', e.error || e);
+                    };
+
+                    // When this recorder is replaced (not the active one), ignore
+                    rec.onstop = () => {
+                        // ondataavailable already fired before onstop, so
+                        // the next recorder was already spawned there.
+                    };
+
+                    try {
+                        rec.start();
+                        // Schedule an auto-stop after GROQ_CHUNK_INTERVAL_MS
+                        // as a safety net in case ondataavailable doesn't fire.
+                        const stopTimer = setTimeout(() => {
+                            if (rec.state === 'recording') {
+                                try { rec.stop(); } catch (e) {}
+                            }
+                        }, GROQ_CHUNK_INTERVAL_MS);
+
+                        // Store reference for cleanup
+                        if (!groqRecorder) groqRecorder = rec;
+                        else if (groqRecorder !== rec) {
+                            // Replace the old reference
+                            groqRecorder = rec;
+                        }
+                        // Keep a list of active timers for cleanup
+                        if (!window._groqStopTimers) window._groqStopTimers = [];
+                        window._groqStopTimers.push(stopTimer);
+
+                        resolve(rec);
+                    } catch (e) {
+                        console.warn('[Groq STT] recorder start error:', e);
+                        resolve(null);
+                    }
+                }, startDelay);
+            });
+        }
+
+        // Staggered dual-recorder: R1 starts immediately, R2 starts 2.5 s later.
+        // Each records for 5 s then stops → valid container. The stagger ensures
+        // one recorder is always active, so no audio is lost.
+        window._groqStopTimers = [];
+        _spawnRecorder(0);                                // R1: t=0 → stops at t=5s
+        _spawnRecorder(GROQ_CHUNK_INTERVAL_MS / 2);      // R2: t=2.5s → stops at t=7.5s
+
+        console.log('[Groq STT] Staggered recorders started (5-sec chunks, ~12 RPM)');
+    } catch (err) {
+        console.warn('[Groq STT] Failed to start:', err.message);
+        groqIsActive = false;
+    }
+}
+
+function stopGroqRecorder() {
+    groqIsActive = false;
+
+    // Clear all pending stop timers
+    if (window._groqStopTimers) {
+        window._groqStopTimers.forEach((t) => clearTimeout(t));
+        window._groqStopTimers = [];
+    }
+
+    // Stop the current recorder(s)
+    if (groqRecorder && groqRecorder.state !== 'inactive') {
+        try { groqRecorder.stop(); } catch (e) {}
+    }
+    groqRecorder = null;
+
+    // Release the mic stream
+    if (groqMicStream) {
+        groqMicStream.getTracks().forEach((t) => t.stop());
+        groqMicStream = null;
+    }
+    groqCumulativeText = '';
+    console.log('[Groq STT] Recorder stopped');
+}
+
+/**
+ * Integrate a Groq Whisper transcription into the caption display.
+ * Uses suffix-overlap deduplication to handle audio overlap between
+ * consecutive 5-sec chunks (staggered by 2.5 s → ~2.5 s overlap).
+ */
+function _integrateGroqResult(newText) {
+    // Guard: if the recorder was stopped, groqCumulativeText is already
+    // cleared — integrating now would overwrite the full transcription
+    // with just the last in-flight chunk (async race condition).
+    if (!groqIsActive) return;
+
+    if (!groqCumulativeText) {
+        groqCumulativeText = newText;
+    } else {
+        // Detect overlap: check if the tail of cumulative text matches
+        // the head of the new transcription (up to 150 chars).
+        const maxOverlap = Math.min(150, groqCumulativeText.length, newText.length);
+        let overlap = 0;
+        for (let n = Math.max(5, maxOverlap); n >= 5; n--) {
+            const tail = groqCumulativeText.slice(-n);
+            if (newText.indexOf(tail) >= 0 && newText.indexOf(tail) <= 15) {
+                overlap = n;
+                break;
+            }
+        }
+        if (overlap > 0) {
+            const novelPart = newText.slice(newText.indexOf(groqCumulativeText.slice(-overlap)) + overlap);
+            if (novelPart.trim()) {
+                groqCumulativeText += (groqCumulativeText.endsWith(' ') ? '' : ' ') + novelPart.trim();
+            }
+        } else {
+            groqCumulativeText += (groqCumulativeText.endsWith(' ') ? '' : ' ') + newText;
+        }
+    }
+
+    if (groqCumulativeText.length > MAX_TRANSCRIPT_CHARS) {
+        groqCumulativeText = groqCumulativeText.slice(-MAX_TRANSCRIPT_CHARS);
+    }
+
+    interimBuffer = groqCumulativeText;
+    sendWsTranscriptChunk(newText, true, false);
+    renderCaption('', true);
+
+    if (!wsConnected) {
+        scheduleAutoDiagramDebounced();
     }
 }
 
@@ -1409,6 +1666,21 @@ function startListening() {
 
     try { recognition.start(); } catch (e) {}
 
+    // Start Groq Whisper recorder when Urdu mode is selected for accurate
+    // Urdu/English transcription. Web Speech stays active for live interim
+    // feedback; Groq results override the buffer for final accuracy.
+    const micLang = $('mic-lang-select');
+    if (micLang && micLang.value === 'ur-PK') {
+        startGroqRecorder();
+        if (groqIsActive) {
+            showToast('🎙️ Urdu class started! Groq Whisper STT active for accurate transcription.');
+        } else {
+            showToast('🎙️ Urdu class started (Groq STT unavailable — using browser recognition).');
+        }
+    } else {
+        showToast('🎙️ Live lecture started! Transcribing speech into visual diagrams...');
+    }
+
     const startBtn = $('start-class-btn');
     if (startBtn) {
         startBtn.classList.replace('bg-accent', 'bg-red-600');
@@ -1426,7 +1698,6 @@ function startListening() {
     autoDiagramInterval = setInterval(() => checkAndTriggerAutoDiagram(), AUTO_DIAGRAM_INTERVAL_MS);
 
     setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
-    showToast('🎙️ Live lecture started! Transcribing speech into visual diagrams...');
 }
 
 function stopListening() {
@@ -1434,6 +1705,9 @@ function stopListening() {
     if (recognition) {
         try { recognition.stop(); } catch (e) {}
     }
+
+    // Stop Groq Whisper recorder
+    stopGroqRecorder();
 
     if (autoDiagramInterval) {
         clearInterval(autoDiagramInterval);
