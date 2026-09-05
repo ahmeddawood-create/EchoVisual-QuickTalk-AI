@@ -602,6 +602,22 @@ function initThemesAndModes() {
             }
         });
     });
+
+    const themeBtn = $('theme-btn');
+    if (themeBtn) {
+        themeBtn.addEventListener('click', (e) => {
+            // On mobile or touch devices, tapping cycles to the next theme
+            if (window.innerWidth < 1024 || 'ontouchstart' in window) {
+                e.stopPropagation();
+                const allThemes = ['theme-indigo', 'theme-cobalt', 'theme-emerald', 'theme-violet', 'theme-cyan'];
+                const idx = allThemes.indexOf(currentThemeClass);
+                const nextTheme = allThemes[(idx + 1) % allThemes.length];
+                currentThemeClass = nextTheme;
+                applyThemeAndMode();
+                showToast(`Applied theme: ${nextTheme.replace('theme-', '')}`);
+            }
+        });
+    }
 }
 
 // ------------------------------------------------------------------
@@ -1045,6 +1061,8 @@ function setZoom(factor) {
     if (wrapper) wrapper.style.transform = `scale(${zoomLevel})`;
     const label = $('zoom-label');
     if (label) label.textContent = `${Math.round(zoomLevel * 100)}%`;
+    const mobileLabel = $('mobile-zoom-label');
+    if (mobileLabel) mobileLabel.textContent = `${Math.round(zoomLevel * 100)}%`;
 }
 
 function adjustZoom(delta) {
@@ -1107,6 +1125,9 @@ function initZoomAndFullscreen() {
     const zoomInBtn = $('zoom-in-btn');
     const zoomOutBtn = $('zoom-out-btn');
     const zoomResetBtn = $('zoom-reset-btn');
+    const mobileZoomIn = $('mobile-zoom-in');
+    const mobileZoomOut = $('mobile-zoom-out');
+    const mobileZoomFit = $('mobile-zoom-fit');
     const copyCodeBtn = $('copy-diagram-btn');
     const dlSvgBtn = $('download-svg-btn');
     const dlPngBtn = $('download-png-btn');
@@ -1141,6 +1162,85 @@ function initZoomAndFullscreen() {
     if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => adjustZoom(-0.15));
     if (zoomResetBtn) zoomResetBtn.addEventListener('click', () => resetZoom());
 
+    // Mobile on-canvas zoom buttons
+    if (mobileZoomIn) mobileZoomIn.addEventListener('click', () => adjustZoom(0.15));
+    if (mobileZoomOut) mobileZoomOut.addEventListener('click', () => adjustZoom(-0.15));
+    if (mobileZoomFit) mobileZoomFit.addEventListener('click', () => resetZoom());
+
+    // Multi-touch pinch-to-zoom, touch pan, and double-tap on diagram canvas
+    const diagContainer = $('diagram-container');
+    if (diagContainer) {
+        let initialPinchDistance = null;
+        let initialZoom = zoomLevel;
+        let lastTapTime = 0;
+        let isTouchPanning = false;
+        let touchStartX = 0, touchStartY = 0;
+        let scrollStartLeft = 0, scrollStartTop = 0;
+
+        diagContainer.addEventListener('touchstart', (e) => {
+            if (e.target.closest('button') || e.target.closest('input')) return;
+
+            if (e.touches.length === 2) {
+                // Two-finger pinch start
+                isTouchPanning = false;
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                initialPinchDistance = Math.hypot(dx, dy);
+                initialZoom = zoomLevel;
+            } else if (e.touches.length === 1) {
+                // Double tap check
+                const now = Date.now();
+                if (now - lastTapTime < 300) {
+                    setZoom(zoomLevel > 1.1 ? 1.0 : 1.5);
+                    lastTapTime = 0;
+                    return;
+                }
+                lastTapTime = now;
+
+                // Single finger pan ONLY when significantly zoomed in AND diagram overflows container
+                const hasScrollOverflow = (diagContainer.scrollWidth > diagContainer.clientWidth + 10) ||
+                                          (diagContainer.scrollHeight > diagContainer.clientHeight + 10);
+                if (zoomLevel > 1.25 && hasScrollOverflow) {
+                    isTouchPanning = true;
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    scrollStartLeft = diagContainer.scrollLeft;
+                    scrollStartTop = diagContainer.scrollTop;
+                } else {
+                    isTouchPanning = false;
+                }
+            }
+        }, { passive: true });
+
+        diagContainer.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && initialPinchDistance) {
+                // Pinch zoom active
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const currentDistance = Math.hypot(dx, dy);
+                if (initialPinchDistance > 0) {
+                    const scale = currentDistance / initialPinchDistance;
+                    setZoom(initialZoom * scale);
+                }
+            } else if (e.touches.length === 1 && isTouchPanning) {
+                // Single finger pan active only if moving significantly
+                const dx = e.touches[0].clientX - touchStartX;
+                const dy = e.touches[0].clientY - touchStartY;
+                if (Math.hypot(dx, dy) > 8) {
+                    e.preventDefault();
+                    diagContainer.scrollLeft = scrollStartLeft - dx;
+                    diagContainer.scrollTop = scrollStartTop - dy;
+                }
+            }
+        }, { passive: false });
+
+        diagContainer.addEventListener('touchend', () => {
+            initialPinchDistance = null;
+            isTouchPanning = false;
+        }, { passive: true });
+    }
+
     if (copyCodeBtn) {
         copyCodeBtn.addEventListener('click', () => {
             if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
@@ -1168,6 +1268,47 @@ function initZoomAndFullscreen() {
     if (closeFs && fsModal) {
         closeFs.addEventListener('click', () => fsModal.classList.add('hidden'));
     }
+}
+
+// ------------------------------------------------------------------
+// Mobile Classroom Mode Switcher (Split / Captions / Whiteboard)
+// ------------------------------------------------------------------
+function initClassroomMobileSwitcher() {
+    const splitBtn = $('mobile-mode-split');
+    const captionsBtn = $('mobile-mode-captions');
+    const boardBtn = $('mobile-mode-board');
+    const classroom = $('view-classroom');
+
+    if (!splitBtn || !captionsBtn || !boardBtn || !classroom) return;
+
+    function setClassroomMode(mode) {
+        [splitBtn, captionsBtn, boardBtn].forEach((btn) => {
+            btn.classList.remove('active', 'bg-raised', 'text-white');
+            btn.classList.add('text-slate-400');
+        });
+
+        classroom.classList.remove('mobile-mode-captions', 'mobile-mode-board');
+
+        if (mode === 'captions') {
+            classroom.classList.add('mobile-mode-captions');
+            captionsBtn.classList.add('active', 'bg-raised', 'text-white');
+            captionsBtn.classList.remove('text-slate-400');
+            showToast('🎙️ Live Captions Focus Mode');
+        } else if (mode === 'board') {
+            classroom.classList.add('mobile-mode-board');
+            boardBtn.classList.add('active', 'bg-raised', 'text-white');
+            boardBtn.classList.remove('text-slate-400');
+            showToast('📐 Whiteboard Focus Mode');
+        } else {
+            splitBtn.classList.add('active', 'bg-raised', 'text-white');
+            splitBtn.classList.remove('text-slate-400');
+            showToast('⊞ Split Classroom Mode');
+        }
+    }
+
+    splitBtn.addEventListener('click', () => setClassroomMode('split'));
+    captionsBtn.addEventListener('click', () => setClassroomMode('captions'));
+    boardBtn.addEventListener('click', () => setClassroomMode('board'));
 }
 
 function initLiveSpeechRecognition() {
@@ -3578,6 +3719,7 @@ document.addEventListener('DOMContentLoaded', () => {
     safeInit('StudyGenerators', initStudyGenerators);
     safeInit('StudyTabs', initStudyTabs);
     safeInit('ZoomAndFullscreen', initZoomAndFullscreen);
+    safeInit('ClassroomMobileSwitcher', initClassroomMobileSwitcher);
     safeInit('CaptionToolbar', initCaptionToolbar);
     safeInit('TranslationControls', initTranslationControls);
     safeInit('StudentExpressionBoard', initStudentExpressionBoard);

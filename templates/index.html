@@ -2,7 +2,11 @@
 <html lang="en" class="dark theme-indigo h-full">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#07090e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>EchoVisual &amp; QuickTalk AI - Multi-Page Classroom Suite</title>
     <!-- Tailwind CSS via CDN (no build step per AGENTS.md) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -96,7 +100,7 @@
             </button>
 
             <!-- Theme Switcher -->
-            <div class="relative group hidden sm:flex items-center">
+            <div class="relative group flex items-center">
                 <button id="theme-btn" aria-label="Cycle color theme" data-kbd="Alt+T" data-kbd-label="Cycle color theme" data-kbd-pos="left"
                         class="p-2 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors flex items-center gap-1.5 text-xs font-mono">
                     <span class="w-2.5 h-2.5 rounded-full bg-accent inline-block"></span>
@@ -127,7 +131,7 @@
     <header class="h-11 shrink-0 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 border-b border-edge bg-panel shadow-md">
         <!-- Left: Live session state indicators (status, mic meter, active room) -->
         <div class="flex items-center gap-2.5 min-w-0">
-            <span id="status-pill" class="font-mono text-[11px] px-3 py-1.5 rounded-full bg-raised text-slate-400 border border-edge hidden sm:inline-block">
+            <span id="status-pill" class="font-mono text-[10px] sm:text-[11px] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-raised text-slate-400 border border-edge inline-block">
                 idle
             </span>
 
@@ -194,6 +198,24 @@
         <!-- PAGE 1: LIVE CLASSROOM & VISUAL STREAM                                -->
         <!-- ===================================================================== -->
         <section id="view-classroom" class="page-view active grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0 h-full w-full">
+            <!-- Mobile Classroom View Mode Switcher (< lg only) -->
+            <div id="classroom-mobile-switcher" class="lg:hidden col-span-1 flex items-center justify-between p-1 bg-panel border border-edge rounded-xl shrink-0 shadow-sm">
+                <div class="grid grid-cols-3 w-full gap-1 text-xs font-semibold">
+                    <button type="button" id="mobile-mode-split" class="classroom-mode-btn active py-1.5 px-2 rounded-lg bg-raised text-white border border-edge/60 shadow-sm flex items-center justify-center gap-1.5 transition-all">
+                        <span class="text-xs">⊞</span>
+                        <span>Split</span>
+                    </button>
+                    <button type="button" id="mobile-mode-captions" class="classroom-mode-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all">
+                        <span class="text-xs">🎙️</span>
+                        <span>Captions</span>
+                    </button>
+                    <button type="button" id="mobile-mode-board" class="classroom-mode-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all">
+                        <span class="text-xs">📐</span>
+                        <span>Whiteboard</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- Left Column: Live Captioning & Translation Sidebar (5 cols) -->
             <div id="caption-column" class="lg:col-span-5 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl overflow-hidden shadow-lg transition-all duration-300">
                 <!-- Caption Header (shrink-0, fixed height) -->
@@ -413,8 +435,15 @@
                 </div>
 
                 <!-- Rigid Diagram Canvas Container -->
-                <div id="diagram-container" class="flex-1 min-h-0 min-w-0 bg-ink flex items-center justify-center p-4 md:p-6 border-b border-edge overflow-auto relative">
+                <div id="diagram-container" class="flex-1 min-h-0 min-w-0 bg-ink flex items-center justify-center p-3 sm:p-4 md:p-6 border-b border-edge overflow-auto relative">
                     
+                    <!-- Floating Mobile Zoom Controls HUD (< lg only) -->
+                    <div id="mobile-canvas-zoom-hud" class="lg:hidden absolute top-2.5 right-2.5 z-10 flex items-center bg-panel/90 backdrop-blur-md border border-edge rounded-xl p-1 shadow-lg gap-1">
+                        <button type="button" id="mobile-zoom-out" aria-label="Zoom out diagram" class="w-7 h-7 flex items-center justify-center rounded-lg bg-raised hover:bg-edge active:bg-accent text-slate-300 active:text-white text-sm font-bold transition-all">-</button>
+                        <span id="mobile-zoom-label" class="text-[11px] font-mono font-semibold text-accent px-1 select-none">100%</span>
+                        <button type="button" id="mobile-zoom-in" aria-label="Zoom in diagram" class="w-7 h-7 flex items-center justify-center rounded-lg bg-raised hover:bg-edge active:bg-accent text-slate-300 active:text-white text-sm font-bold transition-all">+</button>
+                        <button type="button" id="mobile-zoom-fit" aria-label="Fit diagram" class="px-2 h-7 flex items-center justify-center rounded-lg bg-raised hover:bg-edge active:bg-accent text-[10px] font-mono text-slate-300 active:text-white font-medium transition-all">fit</button>
+                    </div>
 
                     <div id="diagram-svg-wrapper" class="w-full h-full min-h-0 min-w-0 flex items-center justify-center">
                         <div class="text-center max-w-md p-6 rounded-2xl bg-raised/30 border border-edge/60 backdrop-blur-sm shadow-xl select-none">
@@ -1140,48 +1169,49 @@
 
 
     <!-- ======================= Mobile Bottom Navigation Bar ======================= -->
-    <nav class="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-panel border-t border-edge flex items-center justify-around z-30 shadow-2xl">
-        <a href="#classroom" class="mobile-nav-link active flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="classroom" data-kbd="Alt+1" data-kbd-label="Classroom">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+    <!-- ======================= Mobile Bottom Navigation Bar ======================= -->
+    <nav class="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-panel/95 backdrop-blur-lg border-t border-edge flex items-center justify-around z-30 shadow-2xl safe-pb">
+        <a href="#classroom" class="mobile-nav-link active flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="classroom" data-kbd="Alt+1" data-kbd-label="Classroom">
+            <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
             </svg>
-            <span>Classroom</span>
+            <span class="truncate px-0.5 leading-tight">Classroom</span>
         </a>
-        <a href="#rooms" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="rooms" data-kbd="Alt+2" data-kbd-label="Online Class">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+        <a href="#rooms" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="rooms" data-kbd="Alt+2" data-kbd-label="Online Class">
+            <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                 <circle cx="9" cy="7" r="4"></circle>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
-            <span>Online</span>
+            <span class="truncate px-0.5 leading-tight">Online</span>
         </a>
-        <a href="#expression" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="expression" data-kbd="Alt+3" data-kbd-label="Expression Board">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+        <a href="#expression" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="expression" data-kbd="Alt+3" data-kbd-label="Expression Board">
+            <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
             </svg>
-            <span>Speak</span>
+            <span class="truncate px-0.5 leading-tight">Speak</span>
         </a>
-        <a href="#study" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="study" data-kbd="Alt+4" data-kbd-label="Study Hub">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+        <a href="#study" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="study" data-kbd="Alt+4" data-kbd-label="Study Hub">
+            <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
-            <span>Study</span>
+            <span class="truncate px-0.5 leading-tight">Study</span>
         </a>
-        <a href="#tutor" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="tutor" data-kbd="Alt+5" data-kbd-label="AI Tutor">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+        <a href="#tutor" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="tutor" data-kbd="Alt+5" data-kbd-label="AI Tutor">
+            <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            <span>AI Tutor</span>
+            <span class="truncate px-0.5 leading-tight">AI Tutor</span>
         </a>
-        <a href="#storage" class="mobile-nav-link flex flex-col items-center gap-0.5 text-[10px] text-slate-400" data-page="storage" data-kbd="Alt+6" data-kbd-label="Storage">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+        <a href="#storage" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="storage" data-kbd="Alt+6" data-kbd-label="Storage">
+            <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
             </svg>
-            <span>Storage</span>
+            <span class="truncate px-0.5 leading-tight">Storage</span>
         </a>
     </nav>
 

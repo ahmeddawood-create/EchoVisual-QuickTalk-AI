@@ -451,11 +451,37 @@ html.light #diagram-container svg text {
 }
 
 /* Mobile Bottom Navigation */
-.mobile-nav-link.active {
-    color: var(--accent-soft);
+.mobile-nav-link {
+    position: relative;
+    transition: color 0.15s ease, transform 0.1s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
+
+.mobile-nav-link:active {
+    transform: scale(0.93);
+}
+
+.mobile-nav-link.active {
+    color: var(--accent-soft) !important;
+}
+
 .mobile-nav-link.active svg {
-    stroke: var(--accent-primary);
+    stroke: var(--accent-primary) !important;
+    filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+.mobile-nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 14px;
+    height: 2.5px;
+    background: var(--accent-primary);
+    border-radius: 9999px;
+    box-shadow: 0 0 6px var(--accent-glow);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -610,4 +636,348 @@ html.light #diagram-container svg text {
 
 .kbd-tooltip .kbd-plus {
     color: var(--text-dim);
+}
+
+/* ==========================================================================
+   Mobile Phone Optimization
+   Every rule below lives inside a max-width media query, so the desktop
+   (lg+) experience stays pixel-identical. Phones (< 640px) additionally get
+   touch-sized controls, safe-area-aware chrome, no iOS focus zoom, and
+   naturally scrolling stacked pages.
+   ========================================================================== */
+
+/* ---------- App shell: bottom nav, safe areas, touch scroll feel (< lg) ---------- */
+@media (max-width: 1023.98px) {
+    html {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
+    body {
+        /* Reserve room for the bottom nav + iPhone home-indicator inset */
+        padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px)) !important;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Bottom nav grows with the safe area instead of hiding behind it */
+    body > nav.lg\:hidden {
+        height: auto;
+        min-height: 3.5rem;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* Full-height tap targets for each nav tab */
+    body > nav.lg\:hidden a {
+        align-self: stretch;
+        justify-content: center;
+        padding: 0.375rem 0.25rem;
+    }
+
+    /* Toasts float above the bottom nav + safe area */
+    #toast-container {
+        bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Momentum scrolling with native touch feel */
+    .slim-scroll {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: auto;
+    }
+}
+
+/* Landscape phones: collapse the bottom nav into an icon rail */
+@media (max-width: 1023.98px) and (max-height: 460px) {
+    body {
+        padding-bottom: calc(2.75rem + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    body > nav.lg\:hidden {
+        min-height: 2.75rem;
+    }
+    body > nav.lg\:hidden a span {
+        display: none;
+    }
+}
+
+/* ---------- Page 1 · Classroom: caption band + whiteboard stack (< lg) ---------- */
+@media (max-width: 1023.98px) {
+    /* Stack the two panels; the section itself scrolls smoothly on short screens */
+    #view-classroom.page-view.active {
+        display: flex !important;
+        flex-direction: column;
+        gap: 0.5rem;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: auto;
+    }
+
+    /* Transcript gets a comfortable fixed band in split mode */
+    #caption-column {
+        flex: 0 0 auto;
+        height: clamp(14rem, 34vh, 24rem);
+        min-height: 14rem;
+    }
+
+    /* The whiteboard owns remaining space */
+    #visual-column {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 16rem;
+    }
+
+    /* Mobile Classroom Mode: Captions full-height (fits viewport cleanly without scroll-trap) */
+    #view-classroom.mobile-mode-captions.page-view.active {
+        overflow-y: hidden !important;
+    }
+    #view-classroom.mobile-mode-captions #caption-column {
+        flex: 1 1 0% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: 100% !important;
+    }
+    #view-classroom.mobile-mode-captions #visual-column {
+        display: none !important;
+    }
+
+    /* Mobile Classroom Mode: Whiteboard full-height (fits viewport cleanly without scroll-trap) */
+    #view-classroom.mobile-mode-board.page-view.active {
+        overflow-y: hidden !important;
+    }
+    #view-classroom.mobile-mode-board #visual-column {
+        flex: 1 1 0% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: 100% !important;
+    }
+    #view-classroom.mobile-mode-board #caption-column {
+        display: none !important;
+    }
+
+    /* Segmented Mode Button Active */
+    .classroom-mode-btn.active {
+        background-color: var(--accent-primary) !important;
+        color: #ffffff !important;
+        border-color: var(--accent-soft) !important;
+        box-shadow: 0 0 10px var(--accent-glow);
+    }
+}
+
+/* ---------- Pages 2-3 · Expression & Study: natural stacks that scroll (< lg) ---------- */
+@media (max-width: 1023.98px) {
+    #view-expression,
+    #view-study {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: auto;
+    }
+
+    /* Expression: single scrolling column, composer first */
+    #view-expression > div.grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        height: auto;
+        min-height: 0;
+    }
+
+    /* Release the rigid h-full locks on the stacked panels */
+    #view-expression > div.grid > div {
+        height: auto;
+        min-height: 0;
+    }
+
+    #shorthand-input {
+        min-height: 10rem;
+    }
+
+    #spoken-log {
+        min-height: 8rem;
+        max-height: 24rem;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Let soundboard breathe without trapped inner scroll on mobile */
+    #soundboard-grid {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    /* Study: let the panes and notes grow naturally with page scroll */
+    #study-notes-pane,
+    #study-quiz-pane,
+    #study-flashcards-pane {
+        flex: 0 0 auto;
+        height: auto;
+        min-height: 0;
+    }
+
+    #study-notes-pane > div {
+        height: auto;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+}
+
+/* ---------- Phones (< 640px): touch ergonomics & compact chrome ---------- */
+@media (max-width: 639.98px) {
+    /* Tighter page gutter — more pixels for content */
+    main {
+        padding: 0.5rem !important;
+    }
+
+    /* Diagram canvas breathes closer to its panel edges */
+    #diagram-container {
+        padding: 0.625rem;
+    }
+
+    /* Caption card headers wrap into tidy rows instead of clipping */
+    #caption-column > div:first-child {
+        height: auto;
+        min-height: 3rem;
+        flex-wrap: wrap;
+        row-gap: 0.375rem;
+    }
+
+    #caption-column > div:nth-child(2) {
+        height: auto;
+        min-height: 2.75rem;
+        flex-wrap: wrap;
+        row-gap: 0.375rem;
+    }
+
+    /* Session header wraps when in-room controls + Start Class collide */
+    body > header:nth-of-type(2) {
+        height: auto;
+        min-height: 2.75rem;
+        flex-wrap: wrap;
+        row-gap: 0.25rem;
+    }
+
+    /* Tutor header: controls slide below the title instead of overflowing */
+    #view-tutor > div:first-child {
+        flex-wrap: wrap;
+        row-gap: 0.5rem;
+    }
+
+    /* Finger-friendly minimum hit areas on dense control rows */
+    #caption-column > div:first-child button,
+    #caption-column > div:nth-child(2) button,
+    #visual-column > div:first-child button,
+    #room-controls button,
+    #chat-chips button,
+    #soundboard-grid button,
+    .tone-badge,
+    .prompt-chip {
+        min-height: 2.25rem;
+    }
+
+    /* Primary actions get an extra bump */
+    #start-class-btn,
+    #manual-generate-btn {
+        min-height: 2.5rem;
+    }
+
+    /* Quiz answers are the main interaction — size them for thumbs */
+    button.quiz-option {
+        padding-top: 0.7rem;
+        padding-bottom: 0.7rem;
+    }
+
+    /* Study Hub quick link fills its bar height */
+    #visual-column > div:last-child a {
+        min-height: 2.25rem;
+    }
+
+    /* Center icon-only toolbar buttons inside their taller touch boxes */
+    #caption-column > div:first-child button,
+    #caption-column > div:nth-child(2) button,
+    #visual-column > div:first-child button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Bigger, grabbable diagram history slider */
+    .history-slider {
+        height: 8px;
+    }
+    .history-slider::-webkit-slider-thumb {
+        width: 18px;
+        height: 18px;
+    }
+    .history-slider::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* 16px controls stop iOS Safari from zoom-jumping on focus */
+    #shorthand-input,
+    #chat-input,
+    #custom-preset-input,
+    #hub-name-input,
+    #hub-create-topic-input,
+    #hub-create-name-input,
+    #mic-lang-select,
+    #caption-lang-select {
+        font-size: 16px !important;
+    }
+
+    /* Fullscreen diagram modal: reclaim the padding */
+    #fullscreen-modal {
+        padding: 0.75rem;
+    }
+    #fullscreen-modal > div:first-child {
+        padding-bottom: 0.75rem;
+    }
+    #fullscreen-diagram-body {
+        padding: 0.5rem;
+    }
+
+    /* Rooms hub: denser cards for thumb scrolling */
+    #view-rooms {
+        padding: 0.75rem;
+    }
+    #view-rooms .max-w-4xl > * + * {
+        margin-top: 1rem;
+    }
+    #view-rooms .p-6 {
+        padding: 1.25rem;
+    }
+    #view-rooms .p-5 {
+        padding: 1rem;
+    }
+    #hub-active-session-card {
+        flex-wrap: wrap;
+        row-gap: 0.75rem;
+    }
+
+    /* Mobile Flashcards: expandable height so explanations never truncate */
+    .flashcard {
+        height: auto !important;
+        min-height: 175px !important;
+    }
+    .flashcard-inner {
+        min-height: 175px;
+    }
+    .flashcard-front, .flashcard-back {
+        min-height: 175px;
+    }
+    .flashcard-back p {
+        max-height: 110px;
+        overflow-y: auto;
+    }
+
+    /* Mobile On-Canvas Zoom HUD */
+    #mobile-canvas-zoom-hud {
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Tactile tap scale feedback on touch buttons */
+    button:active:not(:disabled),
+    .quiz-option:active,
+    .preset-btn:active,
+    .prompt-chip:active,
+    .tone-badge:active,
+    .chat-chip:active {
+        transform: scale(0.96);
+    }
 }
