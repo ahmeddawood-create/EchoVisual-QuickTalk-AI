@@ -498,7 +498,7 @@
         <!-- ===================================================================== -->
         <!-- PAGE 2: STUDENT EXPRESSION & VOICE BOARD                             -->
         <!-- ===================================================================== -->
-        <section id="view-expression" class="page-view flex-1 min-h-0 h-full w-full flex-col gap-3 md:gap-4">
+        <section id="view-expression" class="page-view flex-1 min-h-0 h-full w-full flex-col gap-3 md:gap-4 overflow-y-auto slim-scroll pb-4 md:pb-6">
             <!-- Header Banner (shrink-0) -->
             <div class="bg-panel border border-edge rounded-2xl p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl shrink-0 backdrop-blur-md">
                 <div>
@@ -544,9 +544,9 @@
             </div>
 
             <!-- Two-Column Expression Layout -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0 h-full w-full">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0 h-auto w-full">
                 <!-- Left: Shorthand Composer Studio (col-span-6) -->
-                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-xl gap-3">
+                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-[380px] lg:min-h-[460px] h-auto bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-xl gap-3">
                     <div class="flex items-center justify-between shrink-0">
                         <div class="flex items-center gap-2">
                             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-300 font-bold">Voice Composer</h3>
@@ -607,7 +607,7 @@
                 </div>
 
                 <!-- Right: Pakistani Presets & Spoken Log (col-span-6) -->
-                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-0 h-full gap-3 md:gap-4">
+                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-0 h-auto gap-3 md:gap-4">
                     <!-- Quick Presets Soundboard -->
                     <div class="bg-panel border border-edge rounded-2xl p-4 shadow-xl shrink-0 flex flex-col">
                         <div class="flex items-center justify-between mb-2.5 shrink-0">
@@ -673,7 +673,7 @@
                     </div>
 
                     <!-- Spoken Log with replay -->
-                    <div class="flex-1 min-h-0 overflow-hidden flex flex-col bg-panel border border-edge rounded-2xl p-4 shadow-xl">
+                    <div class="flex-1 min-h-[200px] overflow-hidden flex flex-col bg-panel border border-edge rounded-2xl p-4 shadow-xl">
                         <div class="flex items-center justify-between mb-2 shrink-0">
                             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-300 font-bold">Spoken Questions History</h3>
                             <button id="clear-spoken-log-btn" class="text-[10px] font-mono text-slate-500 hover:text-red-400 transition-colors">Clear History</button>

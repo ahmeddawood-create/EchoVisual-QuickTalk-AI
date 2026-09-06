@@ -761,6 +761,28 @@ html.light #diagram-container svg text {
     }
 }
 
+/* ---------- Page 2 · Expression Board: Natural vertical scroll on all viewports ---------- */
+#view-expression {
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+
+#view-expression > div.grid {
+    height: auto;
+    min-height: min-content;
+}
+
+#view-expression > div.grid > div {
+    height: auto;
+    min-height: min-content;
+}
+
+#view-expression #spoken-log {
+    min-height: 8rem;
+}
+
 /* ---------- Pages 2-3 · Expression & Study: natural stacks that scroll (< lg) ---------- */
 @media (max-width: 1023.98px) {
     #view-expression,
