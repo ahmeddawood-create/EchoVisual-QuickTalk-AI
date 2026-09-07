@@ -52,6 +52,7 @@ let isGeneratingNotes = false;
 let isGeneratingQuiz = false;
 let isGeneratingFlashcards = false;
 let captionSpeechUtterance = null;
+let captionAudioEl = null;
 let mermaidSeq = 0;
 // True when the current session has content that is not yet archived.
 let hasUnsavedSessionChanges = false;
@@ -2245,20 +2246,27 @@ async function sendFlashcardsRequest(transcript) {
 // ------------------------------------------------------------------
 // Read Aloud Live Captions
 // ------------------------------------------------------------------
-function toggleSpeakCaptions() {
-    if (!('speechSynthesis' in window)) {
-        showToast('Speech synthesis not supported in this browser');
-        return;
+function stopCaptionReadAloud() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (captionAudioEl) {
+        captionAudioEl.onended = captionAudioEl.onerror = null;
+        captionAudioEl.pause();
+        if (captionAudioEl.src && captionAudioEl.src.startsWith('blob:')) {
+            URL.revokeObjectURL(captionAudioEl.src);
+        }
+        captionAudioEl = null;
     }
-
+    isReadingAloud = false;
     const speakBtn = $('speak-caption-btn');
     const label = $('speak-caption-label');
+    if (speakBtn) speakBtn.classList.remove('speaking-active');
+    if (label) label.textContent = 'Read Aloud';
+}
 
-    if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        isReadingAloud = false;
-        if (speakBtn) speakBtn.classList.remove('speaking-active');
-        if (label) label.textContent = 'Read Aloud';
+async function toggleSpeakCaptions() {
+    // Toggle off: stop whichever read-aloud engine is running (Edge-TTS or browser voice)
+    if (isReadingAloud || (window.speechSynthesis && window.speechSynthesis.speaking)) {
+        stopCaptionReadAloud();
         showToast('⏹️ Caption read-aloud stopped');
         return;
     }
@@ -2266,6 +2274,40 @@ function toggleSpeakCaptions() {
     const fullText = (interimBuffer + ($('caption-interim')?.textContent || '')).trim();
     if (!fullText) {
         showToast('No caption text to speak aloud yet');
+        return;
+    }
+
+    const speakBtn = $('speak-caption-btn');
+    const label = $('speak-caption-label');
+
+    // Prefer the human-quality Edge neural voice (same voice QuickTalk uses)
+    try {
+        const res = await fetch(`${API_BASE}/api/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: fullText }),
+        });
+        if (!res.ok) throw new Error(`TTS request failed (${res.status})`);
+        const blob = await res.blob();
+        if (!blob.size) throw new Error('Empty audio stream');
+
+        captionAudioEl = new Audio(URL.createObjectURL(blob));
+        captionAudioEl.onended = stopCaptionReadAloud;
+        captionAudioEl.onerror = stopCaptionReadAloud;
+        await captionAudioEl.play();
+        isReadingAloud = true;
+        if (speakBtn) speakBtn.classList.add('speaking-active');
+        if (label) label.textContent = 'Stop Audio';
+        showToast('🔊 Reading captions with neural voice...');
+        return;
+    } catch (err) {
+        console.warn('Edge-TTS read-aloud unavailable, using browser voice:', err.message);
+        stopCaptionReadAloud();
+    }
+
+    // Last-resort fallback: browser speech synthesis
+    if (!('speechSynthesis' in window)) {
+        showToast('Speech synthesis not supported in this browser');
         return;
     }
 
@@ -2710,6 +2752,39 @@ function initStudentExpressionBoard() {
     }
 }
 
+async function speakWithEdgeTts(text) {
+    // Human-quality neural speech via the backend Edge-TTS endpoint (free, no key).
+    // Streams into the same low-latency player the WebSocket path uses; returns
+    // false on failure so callers can fall back to browser speechSynthesis.
+    try {
+        const res = await fetch(`${API_BASE}/api/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+        });
+        if (!res.ok || !res.body) throw new Error(`TTS request failed (${res.status})`);
+        streamAudioPlayer.ensureContext();
+        streamAudioPlayer.reset();
+        const reader = res.body.getReader();
+        let received = 0;
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value && value.byteLength) {
+                received += value.byteLength;
+                streamAudioPlayer.enqueueChunk(
+                    value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength)
+                );
+            }
+        }
+        if (!received) throw new Error('Empty audio stream');
+        return true;
+    } catch (err) {
+        console.warn('Edge-TTS unavailable, falling back to browser voice:', err.message);
+        return false;
+    }
+}
+
 async function refineAndSpeak(payload) {
     const rawShorthand = typeof payload === 'string' ? payload : (payload.shorthand || '');
     const tone = (typeof payload === 'object' && payload.tone) ? payload.tone : 'polite';
@@ -2761,7 +2836,12 @@ async function refineAndSpeak(payload) {
         }
     }
 
-    speak(refinedText, rawShorthand);
+    if (await speakWithEdgeTts(refinedText)) {
+        showToast('🔊 Speaking with Edge neural voice');
+        logSpoken(refinedText, rawShorthand);
+    } else {
+        speak(refinedText, rawShorthand);
+    }
 }
 
 function speak(text, rawShorthand = '') {

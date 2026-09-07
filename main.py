@@ -28,7 +28,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -85,6 +85,13 @@ GROQ_RATE_LIMIT_MAX_REQUESTS = 18
 GROQ_RATE_LIMIT_WINDOW_SECONDS = 60
 
 groq_client = GroqClient(api_key=GROQ_API_KEY) if HAS_GROQ_SDK and GROQ_API_KEY else None
+
+# Edge-TTS neural voices — free, human-quality speech, no API key needed.
+# Shared by the WebSocket QuickTalk stream and the REST /api/tts endpoint so
+# every speech path sounds the same. Override in .env with
+# EDGE_TTS_VOICE_EN / EDGE_TTS_VOICE_UR.
+EDGE_TTS_VOICE_EN = os.getenv("EDGE_TTS_VOICE_EN", "en-US-JennyNeural").strip() or "en-US-JennyNeural"
+EDGE_TTS_VOICE_UR = os.getenv("EDGE_TTS_VOICE_UR", "ur-PK-UzmaNeural").strip() or "ur-PK-UzmaNeural"
 
 # Configure the SDK once at startup. Tests may run without a key; that is
 # handled gracefully per request instead of crashing at import time.
@@ -158,6 +165,11 @@ class ShorthandInput(BaseModel):
 
 class SpeechOutput(BaseModel):
     refined_text: str
+
+
+class TTSInput(BaseModel):
+    text: str = Field(..., min_length=1, max_length=MAX_TRANSCRIPT_CHARS)
+    voice: str = Field(default="", max_length=60)
 
 
 class ChatMessage(BaseModel):
@@ -486,8 +498,25 @@ async def generate_graph_delta(transcript: str, graph_state: GraphState) -> dict
     }
 
 
+_URDU_SCRIPT_RE = re.compile(r"[\u0600-\u06FF]")
+_URDU_MARKERS = (
+    "kya", "hai", "hain", "kr", "karein", "sir", "bhai",
+    "samjh", "shukriya", "mein", "ko", "se",
+)
+
+
+def pick_edge_tts_voice(text: str) -> str:
+    """Pick the Urdu or English neural voice by script/marker detection."""
+    if _URDU_SCRIPT_RE.search(text):
+        return EDGE_TTS_VOICE_UR
+    padded = f" {text.lower()} "
+    if any(f" {marker} " in padded for marker in _URDU_MARKERS):
+        return EDGE_TTS_VOICE_UR
+    return EDGE_TTS_VOICE_EN
+
+
 async def generate_edge_tts_stream(
-    text: str, voice: str = "en-US-JennyNeural"
+    text: str, voice: str = EDGE_TTS_VOICE_EN
 ) -> AsyncGenerator[bytes, None]:
     """Stream audio chunks using Microsoft Edge Neural TTS."""
     if not HAS_EDGE_TTS or not text.strip():
@@ -721,6 +750,28 @@ async def translate_text(payload: TranslateInput) -> TranslateOutput:
         ) from exc
 
 
+@app.post("/api/tts")
+async def text_to_speech(payload: TTSInput) -> StreamingResponse:
+    """Synthesize human-quality neural speech with Edge-TTS (free, no key).
+
+    Returns an audio/mpeg stream. The Urdu vs English voice is auto-detected
+    from the text; pass an explicit Edge voice name to override.
+    """
+    if not HAS_EDGE_TTS:
+        raise HTTPException(
+            status_code=503,
+            detail="Edge-TTS is not installed. Run: pip install edge-tts",
+        )
+    text = payload.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is empty.")
+    voice = payload.voice.strip() or pick_edge_tts_voice(text)
+    return StreamingResponse(
+        generate_edge_tts_stream(text, voice),
+        media_type="audio/mpeg",
+    )
+
+
 @app.post("/api/speech-to-text")
 async def speech_to_text(request: Request) -> JSONResponse:
     """Transcribe audio via Groq Whisper (free Urdu speech-to-text).
@@ -942,26 +993,8 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
                         except Exception as e:
                             print(f"[WARN] Shorthand refinement fallback: {e}")
 
-                    # Detect language for neural voice
-                    urdu_markers = [
-                        "kya",
-                        "hai",
-                        "hain",
-                        "kr",
-                        "karein",
-                        "sir",
-                        "bhai",
-                        "samjh",
-                        "shukriya",
-                        "mein",
-                        "ko",
-                        "se",
-                    ]
-                    lower_text = refined_text.lower()
-                    is_urdu = any(
-                        f" {w} " in f" {lower_text} " for w in urdu_markers
-                    ) or any("\u0600" <= c <= "\u06FF" for c in refined_text)
-                    voice = "ur-PK-UzmaNeural" if is_urdu else "en-US-JennyNeural"
+                    # Detect language and pick the configured neural voice
+                    voice = pick_edge_tts_voice(refined_text)
 
                     await websocket.send_json({
                         "type": "tts_start",

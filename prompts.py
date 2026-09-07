@@ -93,16 +93,16 @@ Return ONLY a valid JSON object with this exact structure:
   ]
 }}
 
-Provide 3 to 5 clear, high-yield notes. If transcript is insufficient, return:
+Provide 3 to 6 clear, high-yield notes. If transcript is insufficient, return:
 {{"short_notes": []}}
 """
 
 QUIZ_SYSTEM_INSTRUCTIONS = (
     "You are an expert educational assessment creator. You generate multiple-choice quiz questions to test student comprehension "
-    "of classroom lecture concepts in English and Roman Urdu."
+    "of classroom lecture concepts in English and Roman Urdu. Generate unique questions each time"
 )
 
-QUIZ_PROMPT_TEMPLATE = """Create 2 to 3 multiple-choice comprehension questions based on this classroom lecture transcript.
+QUIZ_PROMPT_TEMPLATE = """Create 3 to 5 multiple-choice comprehension questions based on this classroom lecture transcript.
 
 TRANSCRIPT:
 \"\"\"{transcript}\"\"\"
@@ -127,7 +127,7 @@ FLASHCARDS_SYSTEM_INSTRUCTIONS = (
     "You are an active-recall study coach. You create 3D concept flashcards for students from lecture transcripts."
 )
 
-FLASHCARDS_PROMPT_TEMPLATE = """Generate 3 to 4 concept revision flashcards from this classroom lecture transcript.
+FLASHCARDS_PROMPT_TEMPLATE = """Generate 4 to 6 concept revision flashcards from this classroom lecture transcript.
 
 TRANSCRIPT:
 \"\"\"{transcript}\"\"\"

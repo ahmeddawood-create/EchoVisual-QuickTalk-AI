@@ -424,6 +424,55 @@ class TestWebSocketLiveSession(unittest.TestCase):
                 self.assertEqual(last_msg["type"], "tts_end")
 
 
+class TestTextToSpeechEndpoint(unittest.TestCase):
+    """POST /api/tts — Edge-TTS synthesis for the REST fallback speech path."""
+
+    def test_english_text_streams_audio(self):
+        with patch.object(main, "HAS_EDGE_TTS", True), \
+             patch.object(main, "generate_edge_tts_stream", fake_edge_tts_stream):
+            res = client.post("/api/tts", json={"text": "Hello class, welcome back."})
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.headers["content-type"].startswith("audio/mpeg"))
+        self.assertEqual(res.content, b"\xff\xfb\x90\x00\x00fake-mp3-frame")
+
+    def test_urdu_text_picks_urdu_voice(self):
+        captured = {}
+
+        async def recording_stream(text, voice=None):
+            captured["voice"] = voice
+            yield b"\xff\xfb\x90\x00\x00fake-mp3-frame"
+
+        with patch.object(main, "HAS_EDGE_TTS", True), \
+             patch.object(main, "generate_edge_tts_stream", recording_stream):
+            res = client.post("/api/tts", json={"text": "یہ ایک اردو جملہ ہے۔"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(captured["voice"], main.EDGE_TTS_VOICE_UR)
+
+    def test_explicit_voice_overrides_autodetection(self):
+        captured = {}
+
+        async def recording_stream(text, voice=None):
+            captured["voice"] = voice
+            yield b"\xff\xfb\x90\x00\x00fake-mp3-frame"
+
+        with patch.object(main, "HAS_EDGE_TTS", True), \
+             patch.object(main, "generate_edge_tts_stream", recording_stream):
+            res = client.post(
+                "/api/tts",
+                json={"text": "Hello class", "voice": "en-US-GuyNeural"},
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(captured["voice"], "en-US-GuyNeural")
+
+    def test_empty_text_rejected(self):
+        res = client.post("/api/tts", json={"text": ""})
+        self.assertEqual(res.status_code, 422)
+
+    def test_oversized_text_rejected(self):
+        res = client.post("/api/tts", json={"text": "x" * (main.MAX_TRANSCRIPT_CHARS + 1)})
+        self.assertEqual(res.status_code, 422)
+
+
 class TestRoomManagement(unittest.TestCase):
     def test_create_room_returns_valid_id(self):
         resp = client.post("/api/rooms/create")
