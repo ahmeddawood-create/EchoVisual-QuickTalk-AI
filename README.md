@@ -65,7 +65,6 @@ A lightweight, browser-based **dual-directional accessibility bridge for real-ti
 | **Visual Rendering**| **Mermaid.js (v10.9.1 CDN)** |
 | **Design System** | Outfit, IBM Plex Mono, and Noto Nastaliq Urdu fonts; 5 curated themes + Dark/Light modes |
 
-*No Node.js, no bundlers, zero local GPU required — 100% zero-infrastructure cost within free tiers.*
 
 ---
 
@@ -196,12 +195,6 @@ python test_smoke.py
   - Backend independently enforces a 15 req/min sliding window with `HTTP 429`.
 * **Mermaid Resilience:** Malformed diagram syntax is caught cleanly; the previous diagram stays on screen and a notice toast appears.
 * **Stack Trace Protection:** Global exception handler ensures stack traces are never exposed to clients.
-
----
-
-## Presentation & Technical Deep Dive
-
-For an exhaustive technical breakdown, architectural flowcharts, and a slide-by-slide blueprint for presentations, refer to [**`DETAILS.md`**](file:///c:/qoder%20proj/EchoVisual%20&%20QuickTalk%20AI/DETAILS.md).
 
 ---
 
