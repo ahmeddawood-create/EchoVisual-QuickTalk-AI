@@ -39,14 +39,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet" />
-    <!-- Mermaid.js via CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <!-- Vis.js Network (Local standalone UMD bundle with CDN fallback) -->
+    <script src="/static/vis-network.min.js"></script>
+    <script>
+        if (typeof vis === 'undefined') {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"><\/script>');
+        }
+    </script>
     <!-- Favicon & Touch Icons -->
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="shortcut icon" href="/static/favicon.ico" />
     <link rel="apple-touch-icon" href="/static/favicon.png" />
     <!-- App styles -->
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.2" />
 </head>
 <body class="bg-ink text-slate-200 h-screen h-[100dvh] max-h-screen overflow-hidden flex flex-col font-sans antialiased selection:bg-accent/30 selection:text-white pb-14 lg:pb-0">
 
@@ -383,8 +388,34 @@
                             <button id="zoom-reset-btn" title="Fit diagram to canvas" class="px-1.5 py-0.5 text-[10px] text-accent hover:text-white rounded-md hover:bg-edge font-mono font-medium">fit</button>
                         </div>
 
+                        <!-- Layout Mode (Mind Map vs Flowchart) -->
+                        <button id="toggle-layout-btn" title="Toggle Layout: Mind Map (Force) vs Flowchart (Tree)"
+                                class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-accent border border-edge text-xs font-mono transition-all">
+                            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="6" cy="6" r="3"/>
+                                <circle cx="18" cy="18" r="3"/>
+                                <line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/>
+                            </svg>
+                            <span id="layout-mode-label">Mind Map</span>
+                        </button>
+
+                        <!-- Physics Toggle (Freeze / Live simulation) -->
+                        <button id="toggle-physics-btn" title="Toggle automatic physics forces (Freeze/Live)"
+                                class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
+                            <span id="physics-status-icon">⚡</span>
+                            <span id="physics-btn-label">Physics</span>
+                        </button>
+
+                        <!-- Realign & Center Graph -->
+                        <button id="realign-graph-btn" title="Re-arrange and center concept graph"
+                                class="p-2 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all flex items-center justify-center">
+                            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                            </svg>
+                        </button>
+
                         <!-- Copy Mermaid Code -->
-                        <button id="copy-diagram-btn" title="Copy Mermaid diagram syntax"
+                        <button id="copy-diagram-btn" title="Copy graph JSON data"
                                 class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
                             <span>Code</span>
                         </button>
@@ -445,7 +476,8 @@
                         <button type="button" id="mobile-zoom-fit" aria-label="Fit diagram" class="px-2 h-7 flex items-center justify-center rounded-lg bg-raised hover:bg-edge active:bg-accent text-[10px] font-mono text-slate-300 active:text-white font-medium transition-all">fit</button>
                     </div>
 
-                    <div id="diagram-svg-wrapper" class="w-full h-full min-h-0 min-w-0 flex items-center justify-center">
+                    <div id="vis-network-container" class="w-full h-full min-h-0 min-w-0 relative"></div>
+                    <div id="diagram-empty-placeholder" class="absolute inset-0 flex items-center justify-center z-10 pointer-events-auto">
                         <div class="text-center max-w-md p-6 rounded-2xl bg-raised/30 border border-edge/60 backdrop-blur-sm shadow-xl select-none">
                             <div class="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-accent/15 border border-accent/30 flex items-center justify-center shadow-lg shadow-accent/10">
                                 <svg viewBox="0 0 24 24" class="w-7 h-7 text-accent" fill="none"
@@ -473,6 +505,47 @@
                                     <span>⚛️ Newton's Laws</span>
                                 </button>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Floating Concept Inspector Card (appears when clicking any concept node) -->
+                    <div id="concept-inspector-hud" class="hidden absolute top-3 left-3 z-20 w-72 sm:w-80 bg-panel/95 backdrop-blur-md border border-edge rounded-2xl p-4 shadow-2xl transition-all duration-200 pointer-events-auto">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+                                <span class="text-[10px] font-mono uppercase tracking-wider text-accent font-semibold">Concept Detail</span>
+                            </div>
+                            <button id="close-inspector-btn" title="Close" class="w-5 h-5 rounded-lg bg-raised hover:bg-edge flex items-center justify-center text-slate-400 hover:text-white transition-all text-[11px]">✕</button>
+                        </div>
+                        <div class="flex items-center gap-2 mb-2.5">
+                            <div id="inspector-node-badge" class="w-7 h-7 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center text-xs text-accent shrink-0">📌</div>
+                            <h4 id="inspector-node-title" class="text-sm font-bold text-white tracking-tight truncate">Concept Title</h4>
+                        </div>
+                        
+                        <!-- Connected Relationships list -->
+                        <div class="mb-3">
+                            <div class="font-mono text-[10px] text-slate-500 mb-1 flex items-center justify-between">
+                                <span>RELATIONSHIPS</span>
+                                <span id="inspector-rel-count" class="text-accent font-semibold">0</span>
+                            </div>
+                            <div id="inspector-relationships-list" class="flex flex-col gap-1 max-h-28 overflow-y-auto slim-scroll pr-1">
+                            </div>
+                        </div>
+
+                        <!-- Quick Action Buttons -->
+                        <div class="flex items-center gap-1.5 pt-2 border-t border-edge/60">
+                            <button id="inspector-ask-tutor-btn" title="Ask AI tutor about this concept" class="flex-1 px-2.5 py-1.5 rounded-xl bg-accent hover:opacity-90 text-white text-[11px] font-semibold flex items-center justify-center gap-1 shadow-sm transition-all">
+                                <span>🤖 Ask AI Tutor</span>
+                            </button>
+                            <button id="inspector-focus-btn" title="Center camera on concept" class="px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white text-[11px] font-mono border border-edge transition-all">
+                                <span>🔍 Center</span>
+                            </button>
+                            <button id="inspector-speak-btn" title="Read concept aloud" class="p-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all">
+                                <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                                </svg>
+                            </button>
                         </div>
                     </div>
 
@@ -851,7 +924,7 @@
                 <div class="chat-msg chat-msg-bot flex gap-3 items-start">
                     <div class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center shrink-0 text-sm mt-0.5">🤖</div>
                     <div class="bg-raised border border-edge rounded-2xl p-4 text-xs md:text-sm text-slate-200 max-w-[80%] leading-relaxed shadow-sm">
-                        Hello! I am your AI classroom tutor. I have full context of today's lecture speech, Mermaid diagrams, notes, and terms. You can ask me to explain concepts, quiz you in Roman Urdu, or clarify any topic!
+                        Hello! I am your AI classroom tutor. I have full context of today's lecture speech, concept graphs, notes, and terms. You can ask me to explain concepts, quiz you in Roman Urdu, or clarify any topic!
                     </div>
                 </div>
             </div>
@@ -949,7 +1022,7 @@
                             </svg>
                         </div>
                         <div class="text-sm font-semibold text-white">Study Guide (.md)</div>
-                        <div class="text-xs text-slate-400 mt-1">Full Markdown with transcripts, Mermaid diagrams &amp; quizzes</div>
+                        <div class="text-xs text-slate-400 mt-1">Full Markdown with transcripts, concept graphs &amp; quizzes</div>
                     </button>
 
                     <button id="download-html-report-btn"
@@ -1233,6 +1306,6 @@
     <div id="toast-container" class="fixed bottom-16 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"></div>
 
     <!-- App logic -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3.5"></script>
 </body>
 </html>

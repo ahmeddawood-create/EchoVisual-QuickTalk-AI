@@ -19,7 +19,13 @@ import main  # noqa: E402
 client = TestClient(main.app)
 
 VALID_DIAGRAM_JSON = json.dumps({
-    "diagram_code": "flowchart TD\nA[Photosynthesis] --> B[Sunlight]",
+    "nodes": [
+        {"id": "Photosynthesis", "label": "Photosynthesis", "shape": "box"},
+        {"id": "Sunlight", "label": "Sunlight", "shape": "box"},
+    ],
+    "edges": [
+        {"from": "Photosynthesis", "to": "Sunlight", "label": "requires", "arrows": "to"},
+    ],
     "summary_bullets": ["Plants use sunlight", "CO2 becomes sugar"],
     "key_terms": ["Photosynthesis", "Chlorophyll"],
 })
@@ -94,7 +100,10 @@ class TestTranscribeToDiagram(unittest.TestCase):
             )
         self.assertEqual(res.status_code, 200)
         body = res.json()
+        self.assertIn("nodes", body)
+        self.assertIn("edges", body)
         self.assertIn("diagram_code", body)
+        self.assertIsInstance(body["diagram_code"], str)
         self.assertIsInstance(body["summary_bullets"], list)
         self.assertIsInstance(body["key_terms"], list)
         self.assertEqual(len(body["summary_bullets"]), 2)
@@ -121,6 +130,29 @@ class TestTranscribeToDiagram(unittest.TestCase):
             json={"transcript": "x" * (main.MAX_TRANSCRIPT_CHARS + 1)},
         )
         self.assertEqual(res.status_code, 422)
+
+    def test_legacy_mermaid_response_is_converted_to_nodes_and_edges(self):
+        async def mermaid_gemini(prompt, system, mime, max_output_tokens=600):
+            return json.dumps({
+                "diagram_code": 'flowchart TD\n    A["Photosynthesis"] -->|requires| B["Sunlight"]',
+                "summary_bullets": ["Plants use sunlight"],
+                "key_terms": ["Photosynthesis"],
+            })
+
+        with patch.object(main, "_call_gemini", mermaid_gemini):
+            res = client.post(
+                "/api/transcribe-to-diagram",
+                json={"transcript": "Photosynthesis requires sunlight"},
+            )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIn("nodes", body)
+        self.assertIn("edges", body)
+        self.assertIn("diagram_code", body)
+        self.assertTrue(len(body["nodes"]) >= 2)
+        self.assertEqual(len(body["edges"]), 1)
+        self.assertEqual(body["edges"][0]["from"], "A")
+        self.assertEqual(body["edges"][0]["to"], "B")
 
     def test_malformed_gemini_response_returns_502(self):
         async def broken_gemini(prompt, system, mime, max_output_tokens=600):
@@ -316,12 +348,12 @@ class TestGraphState(unittest.TestCase):
     def setUp(self):
         self.graph = main.GraphState()
 
-    def test_add_node_and_to_mermaid(self):
+    def test_add_node_and_to_visjs(self):
         self.graph.apply_delta("ADD_NODE", {"id": "A", "label": "Photosynthesis"})
         self.assertIn("A", self.graph.nodes)
         self.assertEqual(self.graph.nodes["A"]["label"], "Photosynthesis")
-        mermaid = self.graph.to_mermaid()
-        self.assertIn('A["Photosynthesis"]', mermaid)
+        graph_dict = self.graph.to_dict()
+        self.assertTrue(any(n["id"] == "A" and n["label"] == "Photosynthesis" for n in graph_dict["nodes"]))
 
     def test_update_node(self):
         self.graph.apply_delta("ADD_NODE", {"id": "A", "label": "Initial"})
@@ -333,8 +365,8 @@ class TestGraphState(unittest.TestCase):
         self.graph.apply_delta("ADD_NODE", {"id": "B", "label": "Chlorophyll"})
         self.graph.apply_delta("CONNECT", {"from": "A", "to": "B", "relation": "absorbed by"})
         self.assertEqual(len(self.graph.edges), 1)
-        mermaid = self.graph.to_mermaid()
-        self.assertIn("A -->|absorbed by| B", mermaid)
+        graph_dict = self.graph.to_dict()
+        self.assertTrue(any(e["from"] == "A" and e["to"] == "B" and e.get("label") == "absorbed by" for e in graph_dict["edges"]))
 
     def test_remove_node(self):
         self.graph.apply_delta("ADD_NODE", {"id": "A", "label": "A"})
@@ -348,7 +380,7 @@ class TestGraphState(unittest.TestCase):
         self.graph.apply_delta("ADD_NODE", {"id": "A", "label": "A"})
         self.graph.reset()
         self.assertEqual(len(self.graph.nodes), 0)
-        self.assertIn("Waiting for lecture speech", self.graph.to_mermaid())
+        self.assertEqual(len(self.graph.to_dict()["nodes"]), 0)
 
 
 class TestWebSocketLiveSession(unittest.TestCase):
@@ -362,7 +394,7 @@ class TestWebSocketLiveSession(unittest.TestCase):
             data = ws.receive_json()
             self.assertEqual(data["type"], "ready")
             self.assertIn("WebSocket streaming pipeline connected", data["message"])
-            self.assertIn("mermaid_code", data)
+            self.assertIn("graph_state", data)
 
     def test_websocket_ping_pong(self):
         with client.websocket_connect(self.ws_url) as ws:

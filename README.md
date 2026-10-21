@@ -10,7 +10,7 @@ Built with FastAPI, Google Gemini, Microsoft Edge Neural TTS, and a lightweight 
   - live speech capture
   - large-text captioning
   - multilingual lecture translation
-  - Mermaid-based concept graph generation
+  - Vis.js-based concept graph generation
   - study summaries, notes, quizzes, and flashcards
 
 - Student-to-classroom communication:
@@ -32,9 +32,9 @@ Built with FastAPI, Google Gemini, Microsoft Edge Neural TTS, and a lightweight 
 - Continuous classroom speech capture from the browser microphone
 - Large caption panel with interim/final transcript handling
 - Live translation across multiple languages, including Urdu and Roman Urdu
-- Dynamic knowledge graph rendering with Mermaid diagrams
+- Dynamic knowledge graph rendering with Vis.js Network
 - Snapshot timeline navigation and diagram history
-- Export capabilities for Mermaid, SVG, PNG, and Markdown study packs
+- Export capabilities for JSON graph data, PNG, and Markdown study packs
 
 ### QuickTalk AI
 - Converts shorthand or fragmented student text into polished spoken language
@@ -67,7 +67,7 @@ Built with FastAPI, Google Gemini, Microsoft Edge Neural TTS, and a lightweight 
 | Speech-to-text | Groq Whisper (`whisper-large-v3-turbo`) |
 | Real-time communication | WebSockets and WebRTC |
 | Frontend | HTML5, vanilla JavaScript, Tailwind CSS via CDN |
-| Visual rendering | Mermaid.js |
+| Visual rendering | Vis.js Network |
 | Design | Outfit, IBM Plex Mono, Noto Nastaliq Urdu fonts |
 
 ---
@@ -194,7 +194,7 @@ python test_smoke.py
 
 - Gemini requests are guarded by a backend sliding-window limiter to avoid quota exhaustion.
 - The interface also throttles repeated generation requests to reduce unnecessary API load.
-- Mermaid rendering errors are handled gracefully so the previous diagram remains visible.
+- Vis.js delta updates smoothly reconcile new concept nodes and edges with zero layout jitter.
 - Sensitive stack traces are kept out of client responses.
 
 ---

@@ -53,7 +53,7 @@ let isGeneratingQuiz = false;
 let isGeneratingFlashcards = false;
 let captionSpeechUtterance = null;
 let captionAudioEl = null;
-let mermaidSeq = 0;
+let graphSeq = 0;
 // True when the current session has content that is not yet archived.
 let hasUnsavedSessionChanges = false;
 
@@ -257,8 +257,8 @@ function handleWsEvent(msg) {
     switch (msg.type) {
         case 'ready':
             console.log('[WS] Ready handshake received:', msg.message);
-            if (msg.mermaid_code) {
-                renderDiagramDirect(msg.mermaid_code, msg.summary_bullets, msg.key_terms);
+            if (msg.graph_state) {
+                renderDiagramDirect(msg.graph_state, msg.summary_bullets, msg.key_terms);
             }
             if (msg.peers) {
                 msg.peers.forEach((peerId) => {
@@ -275,7 +275,7 @@ function handleWsEvent(msg) {
             break;
 
         case 'diagram_delta':
-            applyLiveDiagramDelta(msg.deltas, msg.mermaid_code, msg.summary_bullets, msg.key_terms);
+            applyLiveDiagramDelta(msg.deltas, msg.graph_state, msg.summary_bullets, msg.key_terms);
             break;
 
         case 'tts_start':
@@ -300,7 +300,7 @@ function handleWsEvent(msg) {
             console.log('[WS] Session reset');
             interimBuffer = '';
             renderCaption('');
-            renderDiagramDirect('', [], []);
+            renderDiagramDirect({ nodes: [], edges: [] }, [], []);
             break;
 
         case 'peer_joined':
@@ -571,6 +571,10 @@ function applyThemeAndMode() {
     } catch (e) {
         console.warn('LocalStorage error:', e);
     }
+
+    if (visNetwork && typeof getVisNetworkOptions === 'function') {
+        visNetwork.setOptions(getVisNetworkOptions());
+    }
 }
 
 function initThemesAndModes() {
@@ -622,56 +626,631 @@ function initThemesAndModes() {
 }
 
 // ------------------------------------------------------------------
-// Mermaid Engine & Interactive Study Materials
+// Vis.js Network Engine (Interactive Physics-Based Concept Graphs)
 // ------------------------------------------------------------------
-try {
-    if (typeof mermaid !== 'undefined') {
-        mermaid.initialize({ startOnLoad: false, theme: 'dark', suppressErrors: true });
-    }
-} catch (e) {
-    console.warn('Mermaid initialization warning:', e);
+let visNetwork = null;
+let visNodes = null;
+let visEdges = null;
+let currentLayoutMode = 'network'; // 'network' | 'hierarchical'
+let isPhysicsEnabled = true;
+let selectedConceptNodeId = null;
+let currentGraphRaw = { nodes: [], edges: [] };
+
+function formatConceptNodesAndEdges(rawNodes, rawEdges) {
+    const isDark = document.documentElement.classList.contains('dark');
+    const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-primary').trim() || '#6366f1';
+    const accentSoft = getComputedStyle(document.documentElement).getPropertyValue('--accent-soft').trim() || '#818cf8';
+
+    // 1. Calculate degree for each node to identify core concepts
+    const degrees = {};
+    rawNodes.forEach(n => { degrees[String(n.id)] = 0; });
+    rawEdges.forEach(e => {
+        const fromId = String(e.from);
+        const toId = String(e.to);
+        degrees[fromId] = (degrees[fromId] || 0) + 1;
+        degrees[toId] = (degrees[toId] || 0) + 1;
+    });
+
+    const maxDegree = Math.max(1, ...Object.values(degrees));
+
+    // Curated educational palettes with high readability and contrast
+    const palettes = isDark ? [
+        { bg: 'rgba(16, 185, 129, 0.16)', border: '#10b981', text: '#ecfdf5', glow: 'rgba(16, 185, 129, 0.25)' }, // Emerald
+        { bg: 'rgba(6, 182, 212, 0.16)',  border: '#06b6d4', text: '#f0f9ff', glow: 'rgba(6, 182, 212, 0.25)' },  // Cyan
+        { bg: 'rgba(245, 158, 11, 0.16)', border: '#f59e0b', text: '#fffbeb', glow: 'rgba(245, 158, 11, 0.25)' }, // Amber
+        { bg: 'rgba(244, 63, 94, 0.16)',  border: '#f43f5e', text: '#fff1f2', glow: 'rgba(244, 63, 94, 0.25)' },  // Rose
+    ] : [
+        { bg: '#d1fae5', border: '#059669', text: '#064e3b', glow: 'rgba(5, 150, 105, 0.15)' },
+        { bg: '#e0f2fe', border: '#0284c7', text: '#0c4a6e', glow: 'rgba(2, 132, 199, 0.15)' },
+        { bg: '#fef3c7', border: '#d97706', text: '#78350f', glow: 'rgba(217, 119, 6, 0.15)' },
+        { bg: '#ffe4e6', border: '#e11d48', text: '#881337', glow: 'rgba(225, 29, 72, 0.15)' },
+    ];
+
+    const formattedNodes = rawNodes.map((n, idx) => {
+        const nid = String(n.id);
+        const deg = degrees[nid] || 0;
+        const isCore = deg >= Math.max(3, maxDegree) && deg > 1;
+        const pal = palettes[idx % palettes.length];
+
+        const nodeBg = isCore
+            ? (isDark ? 'rgba(99, 102, 241, 0.25)' : '#e0e7ff')
+            : pal.bg;
+        const nodeBorder = isCore ? accentColor : pal.border;
+        const nodeText = isCore ? (isDark ? '#ffffff' : '#1e1b4b') : pal.text;
+
+        return {
+            id: nid,
+            label: n.label || nid,
+            shape: n.shape || 'box',
+            shapeProperties: { borderRadius: 10 },
+            margin: { top: 10, bottom: 10, left: 16, right: 16 },
+            widthConstraint: { maximum: 165 },
+            font: {
+                color: nodeText,
+                size: isCore ? 14 : 12.5,
+                face: 'Outfit, system-ui, sans-serif',
+                bold: isCore ? { color: nodeText } : undefined,
+            },
+            color: {
+                background: nodeBg,
+                border: nodeBorder,
+                highlight: {
+                    background: isDark ? '#1e293b' : '#e0e7ff',
+                    border: accentSoft,
+                },
+                hover: {
+                    background: isDark ? '#1e2a40' : '#f1f5f9',
+                    border: accentSoft,
+                },
+            },
+            borderWidth: isCore ? 2.5 : 2,
+            borderWidthSelected: 3.5,
+            shadow: {
+                enabled: true,
+                color: isDark ? (isCore ? 'rgba(99, 102, 241, 0.35)' : 'rgba(0,0,0,0.35)') : 'rgba(0,0,0,0.12)',
+                size: isCore ? 12 : 8,
+                x: 0,
+                y: 3,
+            },
+            title: `${n.label || nid}\nConnections: ${deg}\n(Click to inspect relationships)`,
+            _origColor: { background: nodeBg, border: nodeBorder, text: nodeText },
+            _isCore: isCore,
+        };
+    });
+
+    const formattedEdges = rawEdges.map((e, idx) => {
+        const edgeLabel = e.label || e.relation || '';
+        return {
+            id: e.id || `${e.from}_to_${e.to}_${idx}`,
+            from: String(e.from),
+            to: String(e.to),
+            label: edgeLabel,
+            arrows: { to: { enabled: true, scaleFactor: 0.85, type: 'arrow' } },
+            color: {
+                color: isDark ? '#475569' : '#94a3b8',
+                highlight: accentSoft,
+                hover: accentColor,
+            },
+            font: {
+                color: isDark ? '#cbd5e1' : '#475569',
+                size: 10.5,
+                face: 'IBM Plex Mono, monospace',
+                strokeWidth: 0,
+                background: isDark ? '#0f172a' : '#ffffff',
+            },
+            width: 1.75,
+            smooth: {
+                type: 'cubicBezier',
+                forceDirection: currentLayoutMode === 'hierarchical' ? 'vertical' : 'none',
+                roundness: 0.35,
+            },
+            _origColor: isDark ? '#475569' : '#94a3b8',
+        };
+    });
+
+    return { formattedNodes, formattedEdges };
 }
 
-async function renderDiagram(code, recordHistory = true, customSummary = null, customTerms = null, customNotes = null, customQuiz = null, customFlashcards = null) {
-    try {
-        let clean = (code || '').trim().replace(/^```(mermaid)?\s*/i, '').replace(/```$/, '').trim();
-        if (!clean) return false;
+function getVisNetworkOptions() {
+    const isDark = document.documentElement.classList.contains('dark');
+    const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-primary').trim() || '#6366f1';
+    const accentSoft = getComputedStyle(document.documentElement).getPropertyValue('--accent-soft').trim() || '#818cf8';
+    const isHierarchical = currentLayoutMode === 'hierarchical';
 
-        if (!clean.includes('flowchart') && !clean.includes('graph')) {
-            clean = 'flowchart TD\n' + clean;
+    return {
+        nodes: {
+            shape: 'box',
+            shapeProperties: { borderRadius: 10 },
+            margin: { top: 10, bottom: 10, left: 16, right: 16 },
+            widthConstraint: { maximum: 165 },
+            borderWidth: 2,
+            borderWidthSelected: 3.5,
+            shadow: {
+                enabled: true,
+                color: 'rgba(0,0,0,0.3)',
+                size: 8,
+                x: 0,
+                y: 3,
+            },
+        },
+        edges: {
+            arrows: { to: { enabled: true, scaleFactor: 0.85 } },
+            width: 1.75,
+            smooth: {
+                type: 'cubicBezier',
+                forceDirection: isHierarchical ? 'vertical' : 'none',
+                roundness: 0.35,
+            },
+        },
+        layout: isHierarchical ? {
+            hierarchical: {
+                enabled: true,
+                direction: 'UD',
+                sortMethod: 'directed',
+                levelSeparation: 120,
+                nodeSpacing: 180,
+                treeSpacing: 200,
+                blockShifting: true,
+                edgeMinimization: true,
+                parentCentralization: true,
+            },
+        } : {
+            hierarchical: { enabled: false },
+            improvedLayout: true,
+        },
+        physics: isHierarchical ? {
+            enabled: isPhysicsEnabled,
+            solver: 'hierarchicalRepulsion',
+            hierarchicalRepulsion: {
+                nodeDistance: 160,
+                centralGravity: 0.0,
+                springLength: 110,
+                springConstant: 0.015,
+                damping: 0.35,
+                avoidOverlap: 0.9,
+            },
+        } : {
+            enabled: isPhysicsEnabled,
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: {
+                gravitationalConstant: -38,
+                centralGravity: 0.008,
+                springLength: 125,
+                springConstant: 0.06,
+                damping: 0.45,
+                avoidOverlap: 0.9,
+            },
+            stabilization: {
+                enabled: true,
+                iterations: 140,
+                updateInterval: 25,
+                fit: true,
+            },
+        },
+        interaction: {
+            hover: true,
+            tooltipDelay: 150,
+            zoomView: true,
+            dragView: true,
+            dragNodes: true,
+            navigationButtons: false,
+            keyboard: false,
+            multiselect: false,
+            selectConnectedEdges: true,
+        },
+    };
+}
+
+function highlightNeighborhood(selectedId) {
+    if (!visNetwork || !visNodes || !visEdges) return;
+    selectedConceptNodeId = selectedId;
+
+    const connectedNodes = new Set(visNetwork.getConnectedNodes(selectedId).map(String));
+    connectedNodes.add(String(selectedId));
+
+    const connectedEdges = new Set(visNetwork.getConnectedEdges(selectedId).map(String));
+
+    const isDark = document.documentElement.classList.contains('dark');
+    const accentSoft = getComputedStyle(document.documentElement).getPropertyValue('--accent-soft').trim() || '#818cf8';
+
+    visNodes.forEach((node) => {
+        const nid = String(node.id);
+        if (connectedNodes.has(nid)) {
+            visNodes.update({
+                id: node.id,
+                borderWidth: nid === String(selectedId) ? 4 : 2.5,
+                font: { color: node._origColor ? node._origColor.text : (isDark ? '#f8fafc' : '#0f172a') },
+                color: {
+                    background: node._origColor ? node._origColor.background : (isDark ? '#141c2c' : '#f8fafc'),
+                    border: nid === String(selectedId) ? accentSoft : (node._origColor ? node._origColor.border : accentSoft),
+                },
+            });
+        } else {
+            visNodes.update({
+                id: node.id,
+                borderWidth: 1,
+                font: { color: isDark ? '#475569' : '#94a3b8' },
+                color: {
+                    background: isDark ? 'rgba(20, 28, 44, 0.35)' : 'rgba(241, 245, 249, 0.4)',
+                    border: isDark ? 'rgba(71, 85, 105, 0.25)' : 'rgba(203, 213, 225, 0.4)',
+                },
+            });
         }
+    });
 
-        let svg = '';
-        if (typeof mermaid !== 'undefined') {
-            try {
-                await mermaid.parse(clean);
-                const id = `mermaid-graph-${++mermaidSeq}`;
-                const result = await mermaid.render(id, clean);
-                svg = result.svg;
-            } catch (renderErr) {
-                console.warn('[Mermaid] Syntax recovery active:', renderErr);
-                document.querySelectorAll('[id^="dmermaid"], [id^="mermaid-"]').forEach((el) => {
-                    if (el.classList.contains('error-icon') || (el.textContent && el.textContent.includes('Syntax error'))) {
-                        el.remove();
-                    }
-                });
+    visEdges.forEach((edge) => {
+        const eid = String(edge.id);
+        if (connectedEdges.has(eid)) {
+            visEdges.update({
+                id: edge.id,
+                width: 3,
+                color: { color: accentSoft, highlight: accentSoft },
+            });
+        } else {
+            visEdges.update({
+                id: edge.id,
+                width: 1,
+                color: { color: isDark ? 'rgba(71, 85, 105, 0.15)' : 'rgba(203, 213, 225, 0.25)' },
+            });
+        }
+    });
 
-                const safeClean = 'flowchart TD\n    A["Live Classroom Concept Map"] --> B["Listening for Lecture..."]';
-                const id = `mermaid-graph-${++mermaidSeq}`;
-                const result = await mermaid.render(id, safeClean);
-                svg = result.svg;
-                clean = safeClean;
+    openConceptInspector(selectedId);
+}
+
+function resetNeighborhoodHighlight() {
+    selectedConceptNodeId = null;
+    closeConceptInspector();
+
+    if (!visNodes || !visEdges) return;
+    const isDark = document.documentElement.classList.contains('dark');
+
+    visNodes.forEach((node) => {
+        if (node._origColor) {
+            visNodes.update({
+                id: node.id,
+                borderWidth: node._isCore ? 2.5 : 2,
+                font: { color: node._origColor.text },
+                color: {
+                    background: node._origColor.background,
+                    border: node._origColor.border,
+                },
+            });
+        }
+    });
+
+    visEdges.forEach((edge) => {
+        visEdges.update({
+            id: edge.id,
+            width: 1.75,
+            color: { color: edge._origColor || (isDark ? '#475569' : '#94a3b8') },
+        });
+    });
+}
+
+function openConceptInspector(nodeId) {
+    const hud = $('concept-inspector-hud');
+    if (!hud) return;
+
+    const node = (currentGraphRaw.nodes || []).find(n => String(n.id) === String(nodeId)) || { id: nodeId, label: nodeId };
+    const titleEl = $('inspector-node-title');
+    if (titleEl) titleEl.textContent = node.label || node.id;
+
+    const relList = $('inspector-relationships-list');
+    const relCount = $('inspector-rel-count');
+    if (relList) relList.innerHTML = '';
+
+    const edges = currentGraphRaw.edges || [];
+    const connectedEdges = edges.filter(e => String(e.from) === String(nodeId) || String(e.to) === String(nodeId));
+
+    if (relCount) relCount.textContent = String(connectedEdges.length);
+
+    const neighborLabels = [];
+
+    connectedEdges.forEach((e) => {
+        const isOutgoing = String(e.from) === String(nodeId);
+        const otherId = isOutgoing ? String(e.to) : String(e.from);
+        const otherNode = (currentGraphRaw.nodes || []).find(n => String(n.id) === otherId) || { id: otherId, label: otherId };
+        neighborLabels.push(otherNode.label || otherId);
+
+        const relItem = document.createElement('button');
+        relItem.className = 'relationship-chip flex items-center justify-between text-left w-full px-2 py-1 rounded-lg bg-raised/80 hover:bg-edge border border-edge text-[11px] text-slate-300 transition-colors';
+        const arrow = isOutgoing ? '──▶' : '◀──';
+        const relText = e.label || e.relation || 'relates to';
+        relItem.innerHTML = `
+            <span class="truncate font-medium text-white">${escapeHtml(otherNode.label || otherId)}</span>
+            <span class="text-[10px] font-mono text-accent shrink-0 ml-1.5">${arrow} [${escapeHtml(relText)}]</span>
+        `;
+        relItem.onclick = () => {
+            if (visNetwork) {
+                visNetwork.selectNodes([otherId]);
+                highlightNeighborhood(otherId);
+                visNetwork.focus(otherId, { scale: 1.25, animation: { duration: 350, easingFunction: 'easeInOutQuad' } });
+            }
+        };
+        relList.appendChild(relItem);
+    });
+
+    if (connectedEdges.length === 0 && relList) {
+        relList.innerHTML = '<span class="text-[11px] text-slate-500 italic">No direct connections</span>';
+    }
+
+    const askTutorBtn = $('inspector-ask-tutor-btn');
+    if (askTutorBtn) {
+        askTutorBtn.onclick = () => {
+            const query = neighborLabels.length > 0
+                ? `Explain the concept of "${node.label || node.id}" and how it connects to ${neighborLabels.slice(0, 3).join(', ')}.`
+                : `Explain the concept of "${node.label || node.id}" clearly in simple terms.`;
+            navigateToPage('tutor');
+            const chatInput = $('chat-input');
+            if (chatInput) {
+                chatInput.value = query;
+                const sendBtn = $('chat-send-btn');
+                if (sendBtn) sendBtn.click();
+            }
+        };
+    }
+
+    const focusBtn = $('inspector-focus-btn');
+    if (focusBtn) {
+        focusBtn.onclick = () => {
+            if (visNetwork) {
+                visNetwork.focus(nodeId, { scale: 1.45, animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+            }
+        };
+    }
+
+    const speakBtn = $('inspector-speak-btn');
+    if (speakBtn) {
+        speakBtn.onclick = () => {
+            const speechText = neighborLabels.length > 0
+                ? `${node.label || node.id}. Related to: ${neighborLabels.slice(0, 4).join(', ')}.`
+                : `${node.label || node.id}.`;
+            speakCaption(speechText);
+        };
+    }
+
+    const closeBtn = $('close-inspector-btn');
+    if (closeBtn) {
+        closeBtn.onclick = () => resetNeighborhoodHighlight();
+    }
+
+    hud.classList.remove('hidden');
+}
+
+function closeConceptInspector() {
+    const hud = $('concept-inspector-hud');
+    if (hud) hud.classList.add('hidden');
+}
+
+function initVisBoardControls() {
+    const layoutBtn = $('toggle-layout-btn');
+    const layoutLabel = $('layout-mode-label');
+    if (layoutBtn) {
+        layoutBtn.addEventListener('click', () => {
+            currentLayoutMode = currentLayoutMode === 'network' ? 'hierarchical' : 'network';
+            if (layoutLabel) {
+                layoutLabel.textContent = currentLayoutMode === 'hierarchical' ? 'Flowchart' : 'Mind Map';
+            }
+            if (visNetwork) {
+                visNetwork.setOptions(getVisNetworkOptions());
+                setTimeout(() => {
+                    visNetwork.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+                }, 100);
+            }
+            showToast(currentLayoutMode === 'hierarchical' ? '🌳 Switched to Flowchart tree view' : '🌐 Switched to Mind Map network view');
+        });
+    }
+
+    const physicsBtn = $('toggle-physics-btn');
+    const physicsLabel = $('physics-btn-label');
+    const physicsIcon = $('physics-status-icon');
+    if (physicsBtn) {
+        physicsBtn.addEventListener('click', () => {
+            isPhysicsEnabled = !isPhysicsEnabled;
+            physicsBtn.classList.toggle('bg-accent/20', !isPhysicsEnabled);
+            physicsBtn.classList.toggle('border-accent/50', !isPhysicsEnabled);
+            if (physicsLabel) physicsLabel.textContent = isPhysicsEnabled ? 'Physics' : 'Frozen';
+            if (physicsIcon) physicsIcon.textContent = isPhysicsEnabled ? '⚡' : '🔒';
+            if (visNetwork) {
+                visNetwork.setOptions({ physics: { enabled: isPhysicsEnabled } });
+            }
+            showToast(isPhysicsEnabled ? '⚡ Automatic physics forces enabled' : '🔒 Layout frozen — arrange nodes freely');
+        });
+    }
+
+    const realignBtn = $('realign-graph-btn');
+    if (realignBtn) {
+        realignBtn.addEventListener('click', () => {
+            if (visNetwork) {
+                visNetwork.stabilize(100);
+                visNetwork.fit({ animation: { duration: 450, easingFunction: 'easeInOutQuad' } });
+                showToast('🎯 Visual concept board re-aligned & centered');
+            }
+        });
+    }
+}
+
+function initVisNetwork() {
+    const container = $('vis-network-container');
+    if (!container || typeof vis === 'undefined' || !vis.Network) return;
+
+    if (!visNodes) visNodes = new vis.DataSet([]);
+    if (!visEdges) visEdges = new vis.DataSet([]);
+
+    if (!visNetwork) {
+        visNetwork = new vis.Network(container, { nodes: visNodes, edges: visEdges }, getVisNetworkOptions());
+
+        visNetwork.on('click', function(params) {
+            if (params.nodes && params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                highlightNeighborhood(nodeId);
+            } else {
+                resetNeighborhoodHighlight();
+            }
+        });
+
+        visNetwork.on('doubleClick', function(params) {
+            if (params.nodes && params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                visNetwork.focus(nodeId, { scale: 1.45, animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+            }
+        });
+
+        visNetwork.on('zoom', function() {
+            if (visNetwork) {
+                const scale = visNetwork.getScale();
+                zoomLevel = scale;
+                if ($('zoom-label')) $('zoom-label').textContent = `${Math.round(scale * 100)}%`;
+                if ($('mobile-zoom-label')) $('mobile-zoom-label').textContent = `${Math.round(scale * 100)}%`;
+            }
+        });
+    }
+}
+
+function parseMermaidSyntax(code) {
+    const nodes = [];
+    const edges = [];
+    const nodeMap = new Map();
+    if (!code || typeof code !== 'string') return { nodes, edges };
+
+    const clean = code.replace(/^```(mermaid)?\s*/i, '').replace(/```$/, '');
+    const lines = clean.split('\n');
+    const edgePattern = /([a-zA-Z0-9_-]+)(?:\s*(?:\(\(|\[|\(|\{\{)(["']?)(.*?)\2(?:\)\)|\]|\)|\}\}))?\s*(?:-->|---|==>)\s*(?:\|([^|]+)\|\s*)?([a-zA-Z0-9_-]+)(?:\s*(?:\(\(|\[|\(|\{\{)(["']?)(.*?)\6(?:\)\)|\]|\)|\}\}))?/;
+    const nodePattern = /([a-zA-Z0-9_-]+)\s*(?:\(\(|\[|\(|\{\{)(["']?)(.*?)\2(?:\)\)|\]|\)|\}\})/;
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith('flowchart') || line.startsWith('graph') || line.startsWith('subgraph') || line === 'end') continue;
+
+        const edgeMatch = line.match(edgePattern);
+        if (edgeMatch) {
+            const srcId = edgeMatch[1];
+            const srcLbl = (edgeMatch[3] || '').trim();
+            const rel = (edgeMatch[4] || '').trim();
+            const dstId = edgeMatch[5];
+            const dstLbl = (edgeMatch[7] || '').trim();
+
+            edges.push({
+                id: `${srcId}_to_${dstId}_${edges.length}`,
+                from: srcId,
+                to: dstId,
+                label: rel,
+                relation: rel,
+                arrows: 'to',
+            });
+
+            if (!nodeMap.has(srcId)) {
+                nodeMap.set(srcId, { id: srcId, label: srcLbl || srcId, shape: 'box' });
+            } else if (srcLbl) {
+                nodeMap.get(srcId).label = srcLbl;
+            }
+
+            if (!nodeMap.has(dstId)) {
+                nodeMap.set(dstId, { id: dstId, label: dstLbl || dstId, shape: 'box' });
+            } else if (dstLbl) {
+                nodeMap.get(dstId).label = dstLbl;
             }
         } else {
-            svg = `<pre class="text-xs font-mono text-slate-300 p-4">${escapeHtml(clean)}</pre>`;
+            const nodeMatch = line.match(nodePattern);
+            if (nodeMatch) {
+                const nid = nodeMatch[1];
+                const lbl = (nodeMatch[3] || '').trim();
+                if (!nodeMap.has(nid)) {
+                    nodeMap.set(nid, { id: nid, label: lbl || nid, shape: 'box' });
+                } else if (lbl) {
+                    nodeMap.get(nid).label = lbl;
+                }
+            }
+        }
+    }
+    return { nodes: Array.from(nodeMap.values()), edges };
+}
+
+function normalizeGraphData(graphData) {
+    if (!graphData) return { nodes: [], edges: [] };
+    if (typeof graphData === 'object' && graphData !== null) {
+        if (Array.isArray(graphData.nodes) && graphData.nodes.length > 0) {
+            return {
+                nodes: graphData.nodes,
+                edges: Array.isArray(graphData.edges) ? graphData.edges : [],
+            };
+        }
+        if (typeof graphData.diagram_code === 'string' && graphData.diagram_code.trim()) {
+            return normalizeGraphData(graphData.diagram_code);
+        }
+        return {
+            nodes: Array.isArray(graphData.nodes) ? graphData.nodes : [],
+            edges: Array.isArray(graphData.edges) ? graphData.edges : [],
+        };
+    }
+    if (typeof graphData === 'string') {
+        const trimmed = graphData.trim();
+        if (trimmed.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                return normalizeGraphData(parsed);
+            } catch (e) {
+                console.warn('Failed to parse graphData as JSON:', e);
+            }
+        }
+        return parseMermaidSyntax(trimmed);
+    }
+    return { nodes: [], edges: [] };
+}
+
+async function renderDiagram(graphData, recordHistory = true, customSummary = null, customTerms = null, customNotes = null, customQuiz = null, customFlashcards = null) {
+    try {
+        const { nodes, edges } = normalizeGraphData(graphData);
+        if (nodes.length === 0) {
+            const placeholder = $('diagram-empty-placeholder');
+            if (placeholder) placeholder.classList.remove('hidden');
+            closeConceptInspector();
+            return false;
         }
 
-        document.querySelectorAll('.error-icon, [id*="dmermaid"]').forEach((el) => el.remove());
+        const placeholder = $('diagram-empty-placeholder');
+        if (placeholder) placeholder.classList.add('hidden');
+
+        currentGraphRaw = { nodes, edges };
+        initVisNetwork();
+
+        if (visNodes && visEdges) {
+            const { formattedNodes, formattedEdges } = formatConceptNodesAndEdges(nodes, edges);
+
+            const currentIds = new Set(formattedNodes.map(n => String(n.id)));
+            const existingIds = visNodes.getIds();
+            const toRemoveNodes = existingIds.filter(id => !currentIds.has(String(id)));
+            if (toRemoveNodes.length > 0) visNodes.remove(toRemoveNodes);
+            visNodes.update(formattedNodes);
+
+            const currentEdgeIds = new Set(formattedEdges.map(e => String(e.id)));
+            const existingEdgeIds = visEdges.getIds();
+            const toRemoveEdges = existingEdgeIds.filter(id => !currentEdgeIds.has(String(id)));
+            if (toRemoveEdges.length > 0) visEdges.remove(toRemoveEdges);
+            visEdges.update(formattedEdges);
+
+            if (selectedConceptNodeId && currentIds.has(String(selectedConceptNodeId))) {
+                highlightNeighborhood(selectedConceptNodeId);
+            } else {
+                closeConceptInspector();
+            }
+
+            if (visNetwork) {
+                visNetwork.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+            }
+        }
+
+        // Update Node Count HUD
+        const nodeHud = $('diagram-node-hud');
+        if (nodeHud) {
+            nodeHud.textContent = `📊 ${nodes.length} Concepts • ${edges.length} Relationships`;
+        }
 
         const snapshot = {
-            id: mermaidSeq,
-            diagram_code: clean,
-            svg: svg,
+            id: ++graphSeq,
+            diagram_code: JSON.stringify({ nodes, edges }, null, 2),
+            graph_data: { nodes, edges },
             summary_bullets: customSummary || [],
             key_terms: customTerms || [],
             short_notes: customNotes || [],
@@ -691,7 +1270,14 @@ async function renderDiagram(code, recordHistory = true, customSummary = null, c
         const targetIndex = recordHistory ? sessionDiagrams.length - 1 : currentDiagramIndex;
         const liveFollow = $('live-follow-toggle');
         if (!liveFollow || liveFollow.checked || !recordHistory) {
-            displayDiagramSnapshot(targetIndex);
+            currentDiagramIndex = targetIndex;
+            renderSummaryAndNotes(snapshot.summary_bullets, snapshot.short_notes, snapshot.key_terms);
+            renderQuiz(snapshot.quiz);
+            renderFlashcards(snapshot.flashcards);
+            if ($('quiz-badge')) $('quiz-badge').textContent = String((snapshot.quiz || []).length);
+            if ($('flashcard-badge')) $('flashcard-badge').textContent = String((snapshot.flashcards || []).length);
+            if ($('nav-study-badge')) $('nav-study-badge').textContent = String(sessionDiagrams.length);
+            updateTimelineControls();
         } else {
             updateTimelineControls();
         }
@@ -699,19 +1285,18 @@ async function renderDiagram(code, recordHistory = true, customSummary = null, c
         clearError();
         return true;
     } catch (err) {
-        console.error('Mermaid render error:', err);
-        document.querySelectorAll('.error-icon, [id*="dmermaid"]').forEach((el) => el.remove());
+        console.error('Vis.js render error:', err);
         return false;
     }
 }
 
-function renderDiagramDirect(code, summaryBullets = [], keyTerms = []) {
-    return renderDiagram(code, true, summaryBullets, keyTerms);
+function renderDiagramDirect(graphData, summaryBullets = [], keyTerms = []) {
+    return renderDiagram(graphData, true, summaryBullets, keyTerms);
 }
 
-function applyLiveDiagramDelta(deltas, mermaidCode, summaryBullets = [], keyTerms = []) {
-    if (mermaidCode) {
-        return renderDiagram(mermaidCode, true, summaryBullets, keyTerms);
+function applyLiveDiagramDelta(deltas, graphState, summaryBullets = [], keyTerms = []) {
+    if (graphState) {
+        return renderDiagram(graphState, true, summaryBullets, keyTerms);
     }
 }
 
@@ -724,14 +1309,43 @@ async function displayDiagramSnapshot(index) {
     currentDiagramIndex = index;
     const snap = sessionDiagrams[index];
 
-    const wrapper = $('diagram-svg-wrapper');
-    if (wrapper) {
-        if (snap.svg) {
-            wrapper.innerHTML = `<div class="rise-in w-full h-full min-h-0 min-w-0 flex items-center justify-center">${snap.svg}</div>`;
-        } else {
-            // Restored snapshots skip the heavy SVG; re-render from Mermaid code.
-            await restoreSnapshotSvg(snap, wrapper);
+    const placeholder = $('diagram-empty-placeholder');
+    const graphData = snap.graph_data || normalizeGraphData(snap.diagram_code);
+
+    if (graphData.nodes && graphData.nodes.length > 0) {
+        if (placeholder) placeholder.classList.add('hidden');
+        currentGraphRaw = graphData;
+        initVisNetwork();
+        if (visNodes && visEdges) {
+            const { formattedNodes, formattedEdges } = formatConceptNodesAndEdges(graphData.nodes, graphData.edges);
+
+            const currentIds = new Set(formattedNodes.map(n => String(n.id)));
+            const existingIds = visNodes.getIds();
+            const toRemoveNodes = existingIds.filter(id => !currentIds.has(String(id)));
+            if (toRemoveNodes.length > 0) visNodes.remove(toRemoveNodes);
+            visNodes.update(formattedNodes);
+
+            const currentEdgeIds = new Set(formattedEdges.map(e => String(e.id)));
+            const existingEdgeIds = visEdges.getIds();
+            const toRemoveEdges = existingEdgeIds.filter(id => !currentEdgeIds.has(String(id)));
+            if (toRemoveEdges.length > 0) visEdges.remove(toRemoveEdges);
+            visEdges.update(formattedEdges);
+
+            closeConceptInspector();
+
+            if (visNetwork) {
+                visNetwork.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+            }
         }
+        const nodeHud = $('diagram-node-hud');
+        if (nodeHud) {
+            nodeHud.textContent = `📊 ${graphData.nodes.length} Concepts • ${graphData.edges.length} Relationships`;
+        }
+    } else {
+        if (placeholder) placeholder.classList.remove('hidden');
+        closeConceptInspector();
+        if (visNodes) visNodes.clear();
+        if (visEdges) visEdges.clear();
     }
 
     const lastUp = $('last-update');
@@ -746,19 +1360,6 @@ async function displayDiagramSnapshot(index) {
     if ($('nav-study-badge')) $('nav-study-badge').textContent = String(sessionDiagrams.length);
 
     updateTimelineControls();
-}
-
-async function restoreSnapshotSvg(snap, wrapper) {
-    if (!window.mermaid || !snap.diagram_code) return;
-    try {
-        const { svg } = await window.mermaid.render(`mermaid-restore-${++mermaidSeq}`, snap.diagram_code);
-        snap.svg = svg;
-        if (sessionDiagrams[currentDiagramIndex] === snap && wrapper) {
-            wrapper.innerHTML = `<div class="rise-in w-full h-full min-h-0 min-w-0 flex items-center justify-center">${svg}</div>`;
-        }
-    } catch (e) {
-        console.warn('Snapshot re-render failed:', e);
-    }
 }
 
 function updateTimelineControls() {
@@ -1057,9 +1658,13 @@ function initStudyTabs() {
 // Zoom & Fullscreen Controls & Downloads
 // ------------------------------------------------------------------
 function setZoom(factor) {
-    zoomLevel = Math.max(0.5, Math.min(2.5, factor));
-    const wrapper = $('diagram-svg-wrapper');
-    if (wrapper) wrapper.style.transform = `scale(${zoomLevel})`;
+    zoomLevel = Math.max(0.4, Math.min(2.5, factor));
+    if (visNetwork) {
+        visNetwork.moveTo({
+            scale: zoomLevel,
+            animation: { duration: 250, easingFunction: 'easeInOutQuad' },
+        });
+    }
     const label = $('zoom-label');
     if (label) label.textContent = `${Math.round(zoomLevel * 100)}%`;
     const mobileLabel = $('mobile-zoom-label');
@@ -1071,55 +1676,33 @@ function adjustZoom(delta) {
 }
 
 function resetZoom() {
-    setZoom(1.0);
-}
-
-function downloadDiagramSvg() {
-    const svgEl = $('diagram-svg-wrapper')?.querySelector('svg');
-    if (!svgEl) {
-        showToast('No diagram SVG to download yet', true);
-        return;
+    zoomLevel = 1.0;
+    if (visNetwork) {
+        visNetwork.fit({ animation: { duration: 350, easingFunction: 'easeInOutQuad' } });
     }
-    const svgData = new XMLSerializer().serializeToString(svgEl);
-    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `lecture_diagram_${Date.now()}.svg`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('💾 Diagram SVG downloaded!');
+    const label = $('zoom-label');
+    if (label) label.textContent = '100%';
+    const mobileLabel = $('mobile-zoom-label');
+    if (mobileLabel) mobileLabel.textContent = '100%';
 }
 
 function downloadDiagramPng() {
-    const svgEl = $('diagram-svg-wrapper')?.querySelector('svg');
-    if (!svgEl) {
-        showToast('No diagram to download yet', true);
+    const canvas = document.querySelector('#vis-network-container canvas');
+    if (!canvas) {
+        showToast('No diagram to download yet');
         return;
     }
-    const svgData = new XMLSerializer().serializeToString(svgEl);
-    const canvas = document.createElement('canvas');
-    const bbox = svgEl.getBoundingClientRect();
-    canvas.width = Math.max(bbox.width * 2, 800);
-    canvas.height = Math.max(bbox.height * 2, 600);
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const pngUrl = canvas.toDataURL('image/png');
-        const a = document.createElement('a');
-        a.href = pngUrl;
-        a.download = `lecture_diagram_${Date.now()}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        showToast('💾 Diagram PNG downloaded!');
-    };
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `lecture_diagram_${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('💾 Diagram PNG downloaded!');
+}
+
+function downloadDiagramSvg() {
+    downloadDiagramPng();
 }
 
 function initZoomAndFullscreen() {
@@ -1245,7 +1828,7 @@ function initZoomAndFullscreen() {
     if (copyCodeBtn) {
         copyCodeBtn.addEventListener('click', () => {
             if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
-                copyToClipboard(sessionDiagrams[currentDiagramIndex].diagram_code, '📋 Mermaid syntax copied!');
+                copyToClipboard(sessionDiagrams[currentDiagramIndex].diagram_code, '📋 Graph JSON data copied!');
             } else {
                 showToast('No diagram to copy yet');
             }
@@ -1256,12 +1839,34 @@ function initZoomAndFullscreen() {
     if (dlPngBtn) dlPngBtn.addEventListener('click', downloadDiagramPng);
 
     if (fsBtn && fsModal) {
+        let fsNetwork = null;
         fsBtn.addEventListener('click', () => {
-            const currentSvg = $('diagram-svg-wrapper')?.innerHTML;
             const fsContent = $('fullscreen-diagram-body');
-            if (currentSvg && fsContent) {
-                fsContent.innerHTML = currentSvg;
+            const snap = sessionDiagrams[currentDiagramIndex];
+            const graphData = snap?.graph_data || normalizeGraphData(snap?.diagram_code);
+            if (fsContent && graphData.nodes && graphData.nodes.length > 0) {
+                fsContent.innerHTML = '<div id="fs-network-canvas" style="width:100%;height:100%;min-height:500px;"></div>';
                 fsModal.classList.remove('hidden');
+                setTimeout(() => {
+                    const fsContainer = $('fs-network-canvas');
+                    if (fsContainer) {
+                        const fsNodes = new vis.DataSet(graphData.nodes.map(n => ({
+                            id: String(n.id),
+                            label: n.label || String(n.id),
+                            shape: n.shape || 'box',
+                        })));
+                        const fsEdges = new vis.DataSet(graphData.edges.map(e => ({
+                            from: String(e.from),
+                            to: String(e.to),
+                            label: e.label || e.relation || '',
+                            arrows: 'to',
+                        })));
+                        fsNetwork = new vis.Network(fsContainer, { nodes: fsNodes, edges: fsEdges }, getVisNetworkOptions());
+                        fsNetwork.fit();
+                    }
+                }, 50);
+            } else {
+                showToast('No diagram to expand');
             }
         });
     }
@@ -1318,19 +1923,15 @@ function initLiveSpeechRecognition() {
     const micWarning = $('mic-warning');
 
     if (startBtn) {
-        startBtn.addEventListener('click', () => {
-            if (!SpeechRecognition) {
-                showToast('🎙️ Live speech recognition requires Chrome or Edge. You can also use the Prompt chips or Expression board!', true);
-                if (micWarning) micWarning.classList.remove('hidden');
-                return;
-            }
+        startBtn.onclick = (e) => {
+            if (e) e.preventDefault();
             isListening ? stopListening() : startListening();
-        });
+        };
     }
 
     if (!SpeechRecognition) {
         if (micWarning) micWarning.classList.remove('hidden');
-        console.warn('SpeechRecognition API not available in this browser');
+        console.warn('SpeechRecognition API not available in this browser; fallback audio modes active.');
         return;
     }
 
@@ -1382,11 +1983,10 @@ function initLiveSpeechRecognition() {
             if (event.error === 'no-speech' || event.error === 'aborted') {
                 return;
             }
-            console.error('Speech recognition error:', event.error);
+            console.warn('Speech recognition warning:', event.error);
             if (event.error === 'not-allowed') {
-                setStatus('mic blocked', 'bg-red-950 text-red-300 border-red-900');
-                stopListening();
-                showToast('Microphone permission denied.', true);
+                setStatus('mic blocked', 'bg-amber-950 text-amber-300 border-amber-800');
+                showToast('🎙️ Microphone access blocked. You can still use Prompt Chips & Expression Board!', true);
             }
         };
 
@@ -1756,21 +2356,10 @@ function resetClassroomForNewClass() {
     if (transActions) transActions.classList.add('hidden');
 
     // 4. Clear Diagram UI
-    const diagWrapper = $('diagram-svg-wrapper');
-    if (diagWrapper) {
-        diagWrapper.innerHTML = `
-            <div class="text-center max-w-sm select-none">
-                <svg viewBox="0 0 24 24" class="w-8 h-8 md:w-9 md:h-9 mx-auto mb-2 text-slate-700" fill="none"
-                     stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
-                    <path d="M10 6.5h7a2 2 0 0 1 2 2V14M14 17.5H7a2 2 0 0 1-2-2V10" />
-                </svg>
-                <p class="text-xs md:text-sm text-slate-400 font-medium">Start Class to generate visual diagrams live from speech.</p>
-                <p class="font-mono text-[10px] md:text-[11px] text-slate-600 mt-1">speech recorded -> diagrams auto-update -> on-demand study materials</p>
-            </div>
-        `;
-    }
+    if (visNodes) visNodes.clear();
+    if (visEdges) visEdges.clear();
+    const placeholder = $('diagram-empty-placeholder');
+    if (placeholder) placeholder.classList.remove('hidden');
     const lastUp = $('last-update');
     if (lastUp) lastUp.textContent = 'auto-updates from speech';
     updateTimelineControls();
@@ -1792,45 +2381,21 @@ function resetClassroomForNewClass() {
 }
 
 function startListening() {
-    if (!recognition) {
-        showToast('🎙️ Live speech recognition requires Chrome or Edge.', true);
-        return;
-    }
-
     resetClassroomForNewClass();
     isListening = true;
+
+    const startBtn = $('start-class-btn');
+    if (startBtn) {
+        startBtn.classList.replace('bg-accent', 'bg-red-600');
+        const label = $('start-btn-text') || startBtn.querySelector('span:last-child');
+        if (label) label.textContent = 'Stop Class';
+        else startBtn.textContent = 'Stop Class';
+    }
 
     const dot = $('caption-dot');
     if (dot) {
         dot.classList.replace('bg-slate-600', 'bg-emerald-400');
         dot.classList.add('animate-pulse');
-    }
-
-    try { recognition.start(); } catch (e) {}
-
-    // Start Groq Whisper recorder when Urdu mode is selected for accurate
-    // Urdu/English transcription. Web Speech stays active for live interim
-    // feedback; Groq results override the buffer for final accuracy.
-    const micLang = $('mic-lang-select');
-    if (micLang && micLang.value === 'ur-PK') {
-        startGroqRecorder();
-        if (groqIsActive) {
-            showToast('🎙️ Urdu class started! Groq Whisper STT active for accurate transcription.');
-        } else {
-            showToast('🎙️ Urdu class started (Groq STT unavailable — using browser recognition).');
-        }
-    } else {
-        showToast('🎙️ Live lecture started! Transcribing speech into visual diagrams...');
-    }
-
-    const startBtn = $('start-class-btn');
-    if (startBtn) {
-        startBtn.classList.replace('bg-accent', 'bg-red-600');
-        // Target the label span specifically — the button also contains a
-        // pulse-dot span that querySelector('span') would wrongly grab.
-        const label = $('start-btn-text') || startBtn.querySelector('span:last-child');
-        if (label) label.textContent = 'Stop Class';
-        else startBtn.textContent = 'Stop Class';
     }
 
     const meter = $('audio-meter');
@@ -1840,6 +2405,26 @@ function startListening() {
     autoDiagramInterval = setInterval(() => checkAndTriggerAutoDiagram(), AUTO_DIAGRAM_INTERVAL_MS);
 
     setStatus('listening', 'bg-emerald-950 text-emerald-300 border-emerald-800');
+
+    let speechStarted = false;
+    if (recognition) {
+        try {
+            recognition.start();
+            speechStarted = true;
+        } catch (e) {
+            console.warn('Recognition start exception:', e);
+        }
+    }
+
+    const micLang = $('mic-lang-select');
+    if (micLang && micLang.value === 'ur-PK') {
+        startGroqRecorder();
+        showToast('🎙️ Urdu class started! (Groq Whisper STT active)');
+    } else if (speechStarted) {
+        showToast('🎙️ Live lecture started! Transcribing speech into Vis.js diagrams...');
+    } else {
+        showToast('🎙️ Class session started! Live transcript active (speak, click Prompt chips, or use Expression Board).');
+    }
 }
 
 function stopListening() {
@@ -2140,13 +2725,15 @@ async function sendTranscriptChunk(transcript) {
     }
 
     const data = await res.json();
-    if (typeof data.diagram_code !== 'string') {
-        throw new Error('Invalid response shape from backend');
-    }
+    const graphData = normalizeGraphData(
+        (data && Array.isArray(data.nodes) && data.nodes.length > 0)
+            ? data
+            : (data.graph_data || data.diagram_code || data)
+    );
 
     // Auto-generate ONLY diagram, summary, and key terms; notes, quiz, and flashcards remain on-demand
     await renderDiagram(
-        data.diagram_code,
+        graphData,
         true,
         data.summary_bullets || [],
         data.key_terms || [],
@@ -3040,7 +3627,7 @@ function initChatbot() {
             const recentSpeech = (interimBuffer + ($('caption-interim')?.textContent || '')).slice(-1000).trim();
             contextString = `Recent Classroom Speech:\n${recentSpeech || 'None'}\n\n`;
             if (currentDiag) {
-                contextString += `Current Diagram Mermaid Code:\n${currentDiag.diagram_code}\n\nSummary Points:\n${currentDiag.summary_bullets.join(', ')}\n\nKey Terms: ${currentDiag.key_terms.join(', ')}`;
+                contextString += `Current Diagram Graph Data:\n${currentDiag.diagram_code}\n\nSummary Points:\n${currentDiag.summary_bullets.join(', ')}\n\nKey Terms: ${currentDiag.key_terms.join(', ')}`;
             }
         }
 
@@ -3408,7 +3995,7 @@ function exportMarkdownStudyGuide() {
     } else {
         sessionDiagrams.forEach((snap, idx) => {
             md += `### Diagram ${idx + 1} (${snap.timeString})\n\n`;
-            md += `\`\`\`mermaid
+            md += `\`\`\`json
 ${snap.diagram_code}
 \`\`\`
 
@@ -3455,7 +4042,10 @@ function exportHtmlStudyReport() {
     const diagramsHtml = sessionDiagrams.map((snap, idx) => `
         <div style="background:#10141b; border:1px solid #212836; border-radius:12px; padding:20px; margin-bottom:24px;">
             <div style="font-family:monospace; color:#818cf8; font-size:12px; margin-bottom:8px;">DIAGRAM ${idx + 1} • ${snap.timeString}</div>
-            <div class="mermaid" style="display:flex; justify-content:center; margin:16px 0;">${escapeHtml(snap.diagram_code)}</div>
+            <div style="background:#07090e; border:1px solid #1e2a40; border-radius:8px; padding:12px; margin:12px 0;">
+                <div style="font-size:11px; font-family:monospace; color:#818cf8; margin-bottom:6px;">CONCEPT GRAPH DATA</div>
+                <pre style="font-family:monospace; font-size:12px; color:#cbd5e1; white-space:pre-wrap; margin:0;">${escapeHtml(snap.diagram_code)}</pre>
+            </div>
             <h4 style="color:#ffffff; margin:12px 0 6px 0;">Summary Points</h4>
             <ul style="color:#cbd5e1; font-size:14px; line-height:1.6;">
                 ${(snap.summary_bullets || []).map((b) => `<li>${escapeHtml(b)}</li>`).join('')}
@@ -3501,8 +4091,7 @@ function exportHtmlStudyReport() {
 <head>
     <meta charset="UTF-8">
     <title>EchoVisual Classroom Report - ${new Date().toLocaleDateString()}</title>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
-    <script>mermaid.initialize({startOnLoad:true, theme:'dark'});</script>
+    <!-- Standalone Report Viewer -->
     <style>
         body { background:#07090e; color:#f1f5f9; font-family:system-ui,-apple-system,sans-serif; margin:0; padding:32px 20px; }
         .container { max-width:900px; margin:0 auto; }
@@ -3798,6 +4387,8 @@ document.addEventListener('DOMContentLoaded', () => {
     safeInit('OnCommandGenerator', initOnCommandGenerator);
     safeInit('StudyGenerators', initStudyGenerators);
     safeInit('StudyTabs', initStudyTabs);
+    safeInit('VisNetwork', initVisNetwork);
+    safeInit('VisBoardControls', initVisBoardControls);
     safeInit('ZoomAndFullscreen', initZoomAndFullscreen);
     safeInit('ClassroomMobileSwitcher', initClassroomMobileSwitcher);
     safeInit('CaptionToolbar', initCaptionToolbar);

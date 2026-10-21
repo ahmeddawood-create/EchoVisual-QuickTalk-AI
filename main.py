@@ -116,6 +116,16 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+@app.middleware("http")
+async def add_no_cache_header(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models (input validation + Gemini structured output schema)
@@ -153,7 +163,10 @@ class FlashcardsOutput(BaseModel):
 class DiagramOutput(BaseModel):
     """Strict schema for what Gemini must return for the diagram pipeline."""
 
-    diagram_code: str
+    nodes: list[dict] = Field(default_factory=list)
+    edges: list[dict] = Field(default_factory=list)
+    graph_state: dict = Field(default_factory=dict)
+    diagram_code: str = ""
     summary_bullets: list[str] = Field(default_factory=list)
     key_terms: list[str] = Field(default_factory=list)
 
@@ -316,6 +329,25 @@ async def _call_gemini(
 # ---------------------------------------------------------------------------
 # GraphState Manager & Delta-Based Visual Pipeline
 # ---------------------------------------------------------------------------
+def _extract_nodes_edges_from_mermaid(code: str) -> tuple[list[dict], list[dict]]:
+    """Defensive parser in case Gemini returns legacy diagram_code instead of nodes/edges JSON."""
+    nodes = {}
+    edges = []
+    if not code or not isinstance(code, str):
+        return [], []
+    for m in re.finditer(r'([a-zA-Z0-9_]+)\s*\[["\']?([^"\'\]]+)["\']?\]', code):
+        nid, lbl = m.group(1), m.group(2).strip()
+        if nid.lower() not in ("flowchart", "graph", "subgraph", "end"):
+            nodes[nid] = {"id": nid, "label": lbl, "shape": "box"}
+    for m in re.finditer(r'([a-zA-Z0-9_]+)(?:\s*\[[^\]]*\])?\s*--+>(?:\|([^|]+)\|)?\s*([a-zA-Z0-9_]+)', code):
+        src, rel, dst = m.group(1), (m.group(2) or "").strip(), m.group(3)
+        if src not in nodes:
+            nodes[src] = {"id": src, "label": src, "shape": "box"}
+        if dst not in nodes:
+            nodes[dst] = {"id": dst, "label": dst, "shape": "box"}
+        edges.append({"from": src, "to": dst, "label": rel, "arrows": "to"})
+    return list(nodes.values()), edges
+
 class GraphState:
     """Maintains the server-side accumulated graph nodes and edges to support
     delta mutations without layout jitter."""
@@ -399,28 +431,39 @@ class GraphState:
 
         return False
 
-    def to_mermaid(self) -> str:
-        if not self.nodes:
-            return 'flowchart TD\n    A["Waiting for lecture speech..."]'
-        lines = ["flowchart TD"]
-        for node in self.nodes.values():
-            n_id = self._sanitize_id(node["id"])
-            lbl = self._sanitize_text(node["label"])
-            lines.append(f'    {n_id}["{lbl}"]')
-        for edge in self.edges:
-            src = self._sanitize_id(edge["from"])
-            dst = self._sanitize_id(edge["to"])
-            rel = self._sanitize_text(edge.get("relation", ""))
-            if rel:
-                lines.append(f"    {src} -->|{rel}| {dst}")
-            else:
-                lines.append(f"    {src} --> {dst}")
-        return "\n".join(lines)
-
     def to_dict(self) -> dict:
+        vis_nodes = []
+        shape_map = {
+            "box": "box",
+            "circle": "circle",
+            "ellipse": "ellipse",
+            "diamond": "diamond",
+            "database": "database",
+            "text": "text",
+        }
+        for node in self.nodes.values():
+            vis_nodes.append({
+                "id": str(node["id"]),
+                "label": str(node.get("label", node["id"])),
+                "shape": shape_map.get(node.get("shape", "box"), "box"),
+            })
+
+        vis_edges = []
+        for edge in self.edges:
+            e = {
+                "from": str(edge["from"]),
+                "to": str(edge["to"]),
+                "arrows": "to",
+            }
+            rel = str(edge.get("relation") or edge.get("label") or "").strip()
+            if rel:
+                e["label"] = rel
+                e["relation"] = rel
+            vis_edges.append(e)
+
         return {
-            "nodes": list(self.nodes.values()),
-            "edges": self.edges,
+            "nodes": vis_nodes,
+            "edges": vis_edges,
             "summary_bullets": self.summary_bullets,
             "key_terms": self.key_terms,
         }
@@ -492,7 +535,8 @@ async def generate_graph_delta(transcript: str, graph_state: GraphState) -> dict
     return {
         "deltas": deltas,
         "graph_state": graph_state.to_dict(),
-        "mermaid_code": graph_state.to_mermaid(),
+        "nodes": graph_state.to_dict()["nodes"],
+        "edges": graph_state.to_dict()["edges"],
         "summary_bullets": graph_state.summary_bullets,
         "key_terms": graph_state.key_terms,
     }
@@ -571,8 +615,67 @@ async def transcribe_to_diagram(payload: TranscriptInput) -> DiagramOutput:
             MAX_TOKENS_DIAGRAM,
         )
         data = _extract_json(raw)
-        # Pydantic validates the schema before anything reaches the frontend.
-        return DiagramOutput.model_validate(data)
+        if not isinstance(data, dict):
+            data = {}
+
+        raw_nodes = data.get("nodes") or []
+        raw_edges = data.get("edges") or []
+
+        # If data arrived as string or nested
+        if isinstance(raw_nodes, dict):
+            raw_nodes = list(raw_nodes.values())
+        if not isinstance(raw_nodes, list):
+            raw_nodes = []
+        if not isinstance(raw_edges, list):
+            raw_edges = []
+
+        vis_nodes = []
+        for n in raw_nodes:
+            if isinstance(n, dict):
+                n_id = str(n.get("id") or n.get("label") or len(vis_nodes) + 1)
+                vis_nodes.append({
+                    "id": n_id,
+                    "label": str(n.get("label") or n_id),
+                    "shape": str(n.get("shape") or "box"),
+                })
+
+        vis_edges = []
+        for e in raw_edges:
+            if isinstance(e, dict) and e.get("from") and e.get("to"):
+                vis_edges.append({
+                    "from": str(e["from"]),
+                    "to": str(e["to"]),
+                    "label": str(e.get("label") or e.get("relation") or ""),
+                    "arrows": "to",
+                })
+
+        if not vis_nodes and data.get("diagram_code"):
+            parsed_nodes, parsed_edges = _extract_nodes_edges_from_mermaid(str(data["diagram_code"]))
+            vis_nodes.extend(parsed_nodes)
+            vis_edges.extend(parsed_edges)
+
+        summary_bullets = data.get("summary_bullets") or []
+        if not isinstance(summary_bullets, list):
+            summary_bullets = [str(summary_bullets)]
+        key_terms = data.get("key_terms") or []
+        if not isinstance(key_terms, list):
+            key_terms = [str(key_terms)]
+
+        graph_state = {
+            "nodes": vis_nodes,
+            "edges": vis_edges,
+            "summary_bullets": summary_bullets,
+            "key_terms": key_terms,
+        }
+
+        return DiagramOutput(
+            nodes=vis_nodes,
+            edges=vis_edges,
+            graph_state=graph_state,
+            diagram_code=json.dumps({"nodes": vis_nodes, "edges": vis_edges}),
+            summary_bullets=summary_bullets,
+            key_terms=key_terms,
+        )
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001 - report upstream failures cleanly
@@ -863,9 +966,8 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
             "message": "WebSocket streaming pipeline connected.",
             "client_id": client_id,
             "room_id": room_id,
-            "mermaid_code": room.graph_state.to_mermaid(),
             "graph_state": room.graph_state.to_dict(),
-            "peers": [cid for cid in room.clients if cid != client_id]
+                        "peers": [cid for cid in room.clients if cid != client_id]
         })
 
         while True:
@@ -901,9 +1003,8 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
                         await client.send_json({
                             "type": "session_reset",
                             "status": "ok",
-                            "mermaid_code": room.graph_state.to_mermaid(),
                             "graph_state": room.graph_state.to_dict(),
-                        })
+                                                    })
                     except Exception:
                         pass
 
@@ -952,8 +1053,7 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
                             "type": "diagram_delta",
                             "deltas": delta_result["deltas"],
                             "graph_state": delta_result["graph_state"],
-                            "mermaid_code": delta_result["mermaid_code"],
-                            "summary_bullets": delta_result["summary_bullets"],
+                                                        "summary_bullets": delta_result["summary_bullets"],
                             "key_terms": delta_result["key_terms"],
                         }
                         for client in room.clients.values():

@@ -7,24 +7,29 @@ Kept separate from main.py so routing stays clean (AGENTS.md §4).
 DIAGRAM_SYSTEM_INSTRUCTIONS = (
     "You are an expert classroom accessibility assistant tailored for Pakistani students and educators. "
     "You convert live teacher transcripts (which may be spoken in English, Roman Urdu like 'aaj hum binary search parhein gy', "
-    "or code-switched bilingual speech) into clear visual learning aids for deaf/hard-of-hearing students."
+    "or code-switched bilingual speech) into clear visual concept graph learning aids for deaf/hard-of-hearing students."
 )
 
-DIAGRAM_PROMPT_TEMPLATE = """Turn this classroom transcript into a visual study aid with key summary points.
+DIAGRAM_PROMPT_TEMPLATE = """Turn this classroom transcript into a visual concept graph study aid with key summary points.
 NOTE: The speech may contain English, Roman Urdu (Urdu written in Latin script), Urdu script, or mixed bilingual speech. Understand all seamlessly.
 
 TRANSCRIPT:
 \"\"\"{transcript}\"\"\"
 
 Return ONLY a valid JSON object with these exact keys:
-1. "diagram_code": a valid Mermaid.js diagram of the concept or flow. Raw syntax only
-   (start with "flowchart TD" or "graph LR"), no markdown fences, no explanation.
-   Maximum 8 nodes with short labels. Use clear English or bilingual terms for nodes.
-2. "summary_bullets": 2 to 3 short plain-language strings summarizing key lecture points.
-3. "key_terms": 2 to 4 important technical or conceptual terms.
+1. "nodes": an array of concept node objects (maximum 8 nodes), each with:
+   - "id": a unique short alphanumeric identifier (e.g. "photosynthesis", "sunlight", "chloroplast")
+   - "label": a short clear display label (English or Roman Urdu, max 4 words)
+   - "shape": "box" (or "ellipse", "circle", "diamond")
+2. "edges": an array of directed edge connection objects between nodes, each with:
+   - "from": source node id
+   - "to": target node id
+   - "label": short relationship phrase (e.g. "requires", "produces", "converts to")
+3. "summary_bullets": 2 to 3 short plain-language strings summarizing key lecture points.
+4. "key_terms": 2 to 4 important technical or conceptual terms.
 
 If the transcript is too short or unclear, return:
-{{"diagram_code": "flowchart TD\\nA[Waiting for more context]", "summary_bullets": [], "key_terms": []}}
+{{"nodes": [], "edges": [], "summary_bullets": [], "key_terms": []}}
 """
 
 DIAGRAM_DELTA_SYSTEM_INSTRUCTIONS = (
