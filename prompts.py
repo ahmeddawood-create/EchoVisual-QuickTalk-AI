@@ -151,6 +151,86 @@ If transcript is insufficient, return:
 {{"flashcards": []}}
 """
 
+MINDMAP_SYSTEM_INSTRUCTIONS = (
+    "You are an expert cognitive learning and visual education specialist. "
+    "You synthesize live classroom lectures, transcripts, and blackboard context into clear, "
+    "hierarchical concept mindmaps for students. "
+    "You structure knowledge logically: Central Core Topic -> Primary Themes/Branches -> Subtopics -> Key Details/Formulas/Examples. "
+    "You seamlessly understand English, Roman Urdu, and bilingual classroom speech."
+)
+
+MINDMAP_PROMPT_TEMPLATE = """Generate a structured, hierarchical concept mindmap based on this classroom lecture content and session context.
+The speech may contain English, Roman Urdu, or bilingual code-switching.
+
+CLASSROOM CONTEXT (Existing Diagram, Summary & Terms):
+\"\"\"{context}\"\"\"
+
+LECTURE CONTENT & RECENT TRANSCRIPT:
+\"\"\"{transcript}\"\"\"
+
+Construct a comprehensive mindmap that visualizes the conceptual breakdown of the lecture.
+Requirements:
+1. "title": The central subject or core concept of the lecture (e.g. "Photosynthesis & Cellular Respiration").
+2. "root": A nested tree representing the mindmap hierarchy:
+   - "id": "root"
+   - "label": Central topic title
+   - "notes": 1-2 sentence core definition or high-level summary.
+   - "children": Array of 2 to 4 primary branch category objects, each having:
+       - "id": unique alphanumeric identifier (e.g. "light_reaction")
+       - "label": category or main theme name (max 4 words)
+       - "notes": short explanation of this branch
+       - "children": Array of 1 to 3 subtopic objects (id, label, notes, and optional leaf children)
+3. "nodes": A flat array of all mindmap nodes (8 to 15 total nodes) for graph visualization:
+   - "id": unique alphanumeric string
+   - "label": short display label (max 4 words)
+   - "level": integer (0 for central root, 1 for main category/branch, 2 for subtopic, 3 for concrete detail/example)
+   - "category": name of the primary branch it belongs to
+   - "notes": clear 1-2 sentence explanation or key takeaway
+4. "edges": Directed connections from parent nodes to child nodes:
+   - "from": parent node id
+   - "to": child node id
+   - "label": short relationship verb or preposition (e.g. "consists of", "requires", "produces", "leads to")
+5. "summary": A concise 1-sentence overview of the mindmap structure.
+
+Return ONLY a valid JSON object matching this exact structure:
+{{
+  "title": "Central Topic",
+  "summary": "High-level overview of the concept structure",
+  "root": {{
+    "id": "root",
+    "label": "Central Topic",
+    "notes": "Core explanation",
+    "children": [
+      {{
+        "id": "branch_1",
+        "label": "Main Branch 1",
+        "notes": "Branch explanation",
+        "children": [
+          {{
+            "id": "sub_1",
+            "label": "Subconcept 1",
+            "notes": "Subconcept detail",
+            "children": []
+          }}
+        ]
+      }}
+    ]
+  }},
+  "nodes": [
+    {{"id": "root", "label": "Central Topic", "level": 0, "category": "Core", "notes": "Core explanation"}},
+    {{"id": "branch_1", "label": "Main Branch 1", "level": 1, "category": "Branch 1", "notes": "Branch explanation"}},
+    {{"id": "sub_1", "label": "Subconcept 1", "level": 2, "category": "Branch 1", "notes": "Subconcept detail"}}
+  ],
+  "edges": [
+    {{"from": "root", "to": "branch_1", "label": "consists of"}},
+    {{"from": "branch_1", "to": "sub_1", "label": "involves"}}
+  ]
+}}
+
+If the lecture content and context are insufficient, return:
+{{"title": "", "summary": "", "root": null, "nodes": [], "edges": []}}
+"""
+
 SHORTHAND_SYSTEM_INSTRUCTIONS = (
     "You are a speech-refinement assistant for students who communicate in shorthand, slang, English, "
     "or Roman Urdu (e.g. 'sir q abt gravity?? fast smjhaen', 'ye repeat kr den pls'). "

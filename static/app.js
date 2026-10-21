@@ -51,6 +51,13 @@ let isGeneratingDiagram = false;
 let isGeneratingNotes = false;
 let isGeneratingQuiz = false;
 let isGeneratingFlashcards = false;
+let isGeneratingMindmap = false;
+let mindmapNetwork = null;
+let mindmapNodesDataSet = null;
+let mindmapEdgesDataSet = null;
+let currentMindmapData = null;
+let mindmapLayoutMode = 'hierarchical'; // 'hierarchical' or 'radial'
+let mindmapViewMode = 'graph'; // 'graph' or 'tree'
 let captionSpeechUtterance = null;
 let captionAudioEl = null;
 let graphSeq = 0;
@@ -1199,7 +1206,7 @@ function normalizeGraphData(graphData) {
     return { nodes: [], edges: [] };
 }
 
-async function renderDiagram(graphData, recordHistory = true, customSummary = null, customTerms = null, customNotes = null, customQuiz = null, customFlashcards = null) {
+async function renderDiagram(graphData, recordHistory = true, customSummary = null, customTerms = null, customNotes = null, customQuiz = null, customFlashcards = null, customMindmap = null) {
     try {
         const { nodes, edges } = normalizeGraphData(graphData);
         if (nodes.length === 0) {
@@ -1256,6 +1263,7 @@ async function renderDiagram(graphData, recordHistory = true, customSummary = nu
             short_notes: customNotes || [],
             quiz: customQuiz || [],
             flashcards: customFlashcards || [],
+            mindmap: customMindmap || null,
             timestamp: new Date().toISOString(),
             timeString: stamp(),
         };
@@ -1274,8 +1282,10 @@ async function renderDiagram(graphData, recordHistory = true, customSummary = nu
             renderSummaryAndNotes(snapshot.summary_bullets, snapshot.short_notes, snapshot.key_terms);
             renderQuiz(snapshot.quiz);
             renderFlashcards(snapshot.flashcards);
+            renderMindmap(snapshot.mindmap);
             if ($('quiz-badge')) $('quiz-badge').textContent = String((snapshot.quiz || []).length);
             if ($('flashcard-badge')) $('flashcard-badge').textContent = String((snapshot.flashcards || []).length);
+            if ($('mindmap-badge')) $('mindmap-badge').textContent = String((snapshot.mindmap?.nodes || []).length);
             if ($('nav-study-badge')) $('nav-study-badge').textContent = String(sessionDiagrams.length);
             updateTimelineControls();
         } else {
@@ -1354,9 +1364,11 @@ async function displayDiagramSnapshot(index) {
     renderSummaryAndNotes(snap.summary_bullets, snap.short_notes, snap.key_terms);
     renderQuiz(snap.quiz);
     renderFlashcards(snap.flashcards);
+    renderMindmap(snap.mindmap);
 
     if ($('quiz-badge')) $('quiz-badge').textContent = String((snap.quiz || []).length);
     if ($('flashcard-badge')) $('flashcard-badge').textContent = String((snap.flashcards || []).length);
+    if ($('mindmap-badge')) $('mindmap-badge').textContent = String((snap.mindmap?.nodes || []).length);
     if ($('nav-study-badge')) $('nav-study-badge').textContent = String(sessionDiagrams.length);
 
     updateTimelineControls();
@@ -1607,9 +1619,11 @@ function initStudyTabs() {
     const tabNotesBtn = $('tab-study-notes-btn');
     const tabQuizBtn = $('tab-study-quiz-btn');
     const tabFlashcardsBtn = $('tab-study-flashcards-btn');
+    const tabMindmapBtn = $('tab-study-mindmap-btn');
     const notesPane = $('study-notes-pane');
     const quizPane = $('study-quiz-pane');
     const flashcardsPane = $('study-flashcards-pane');
+    const mindmapPane = $('study-mindmap-pane');
 
     if (!tabNotesBtn || !tabQuizBtn || !tabFlashcardsBtn) return;
 
@@ -1617,9 +1631,11 @@ function initStudyTabs() {
         tabNotesBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
         tabQuizBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
         tabFlashcardsBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+        if (tabMindmapBtn) tabMindmapBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
         if (notesPane) { notesPane.classList.add('hidden'); notesPane.classList.remove('grid'); }
         if (quizPane) { quizPane.classList.add('hidden'); quizPane.classList.remove('flex'); }
         if (flashcardsPane) { flashcardsPane.classList.add('hidden'); flashcardsPane.classList.remove('flex'); }
+        if (mindmapPane) { mindmapPane.classList.add('hidden'); mindmapPane.classList.remove('flex'); }
     }
 
     tabNotesBtn.addEventListener('click', () => {
@@ -1640,6 +1656,22 @@ function initStudyTabs() {
         if (flashcardsPane) { flashcardsPane.classList.remove('hidden'); flashcardsPane.classList.add('flex'); }
     });
 
+    if (tabMindmapBtn) {
+        tabMindmapBtn.addEventListener('click', () => {
+            resetTabs();
+            tabMindmapBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-raised text-white transition-all shadow-sm flex items-center gap-1.5';
+            if (mindmapPane) {
+                mindmapPane.classList.remove('hidden');
+                mindmapPane.classList.add('flex');
+            }
+            if (mindmapNetwork) {
+                setTimeout(() => {
+                    mindmapNetwork.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+                }, 80);
+            }
+        });
+    }
+
     const copyBtn = $('copy-study-pack-btn');
     if (copyBtn) {
         copyBtn.addEventListener('click', () => {
@@ -1648,8 +1680,520 @@ function initStudyTabs() {
                 return;
             }
             const snap = sessionDiagrams[currentDiagramIndex];
-            const text = `Classroom Study Pack (${snap.timeString})\n\nSummary:\n${snap.summary_bullets.map((b) => `- ${b}`).join('\n')}\n\nNotes:\n${(snap.short_notes || []).map((n) => `- ${n}`).join('\n')}\n\nKey Terms: ${snap.key_terms.join(', ')}`;
-            copyToClipboard(text, '📋 Study notes copied!');
+            const mmInfo = (snap.mindmap && snap.mindmap.nodes && snap.mindmap.nodes.length)
+                ? `\n\nMindmap Topic: ${snap.mindmap.title || 'Overview'} (${snap.mindmap.nodes.length} nodes)`
+                : '';
+            const text = `Classroom Study Pack (${snap.timeString})\n\nSummary:\n${snap.summary_bullets.map((b) => `- ${b}`).join('\n')}\n\nNotes:\n${(snap.short_notes || []).map((n) => `- ${n}`).join('\n')}\n\nKey Terms: ${snap.key_terms.join(', ')}${mmInfo}`;
+            copyToClipboard(text, 'Study notes copied!');
+        });
+    }
+}
+
+// ------------------------------------------------------------------
+// Study Hub Submodule: Interactive Concept Mindmap Studio
+// ------------------------------------------------------------------
+function renderMindmap(mindmapData) {
+    currentMindmapData = mindmapData;
+    const emptyState = $('mindmap-empty-state');
+    const badge = $('mindmap-badge');
+    const topicBadge = $('mindmap-topic-badge');
+    const container = $('study-mindmap-vis');
+
+    if (!mindmapData || !Array.isArray(mindmapData.nodes) || mindmapData.nodes.length === 0) {
+        if (emptyState) emptyState.classList.remove('hidden');
+        if (badge) badge.textContent = '0';
+        if (topicBadge) topicBadge.classList.add('hidden');
+        if (mindmapNodesDataSet) mindmapNodesDataSet.clear();
+        if (mindmapEdgesDataSet) mindmapEdgesDataSet.clear();
+        closeMindmapInspector();
+        renderMindmapTree(null);
+        return;
+    }
+
+    if (emptyState) emptyState.classList.add('hidden');
+    if (badge) badge.textContent = String(mindmapData.nodes.length);
+    if (topicBadge) {
+        topicBadge.textContent = mindmapData.title ? `Topic: ${mindmapData.title}` : 'Topic: Lecture Overview';
+        topicBadge.classList.remove('hidden');
+    }
+
+    renderMindmapTree(mindmapData);
+
+    if (!container || typeof vis === 'undefined') return;
+
+    const isDark = document.documentElement.classList.contains('dark');
+    const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-primary').trim() || '#6366f1';
+    const accentSoft = getComputedStyle(document.documentElement).getPropertyValue('--accent-soft').trim() || '#818cf8';
+
+    const branchPalette = [
+        { bg: isDark ? '#083344' : '#cffafe', border: '#06b6d4', text: isDark ? '#67e8f9' : '#0e7490' },
+        { bg: isDark ? '#064e3b' : '#d1fae5', border: '#10b981', text: isDark ? '#6ee7b7' : '#047857' },
+        { bg: isDark ? '#451a03' : '#fef3c7', border: '#f59e0b', text: isDark ? '#fcd34d' : '#b45309' },
+        { bg: isDark ? '#2e1065' : '#ede9fe', border: '#8b5cf6', text: isDark ? '#c4b5fd' : '#6d28d9' },
+        { bg: isDark ? '#0c4a6e' : '#e0f2fe', border: '#0284c7', text: isDark ? '#7dd3fc' : '#0369a1' },
+        { bg: isDark ? '#500724' : '#fce7f3', border: '#f43f5e', text: isDark ? '#fda4af' : '#be123c' },
+    ];
+
+    const categoryColorMap = {};
+    let catIdx = 0;
+
+    const formattedNodes = mindmapData.nodes.map((node) => {
+        const level = Number(node.level || 0);
+        const cat = node.category || 'General';
+        if (!categoryColorMap[cat]) {
+            categoryColorMap[cat] = branchPalette[catIdx % branchPalette.length];
+            catIdx++;
+        }
+        const catStyle = categoryColorMap[cat];
+
+        if (level === 0) {
+            return {
+                id: String(node.id),
+                label: node.label || mindmapData.title || 'Central Topic',
+                level: 0,
+                shape: 'box',
+                margin: { top: 12, bottom: 12, left: 18, right: 18 },
+                borderWidth: 2.5,
+                color: {
+                    background: accentColor,
+                    border: '#ffffff',
+                    highlight: { background: accentSoft, border: '#ffffff' },
+                },
+                font: {
+                    size: 15,
+                    color: '#ffffff',
+                    face: 'Outfit',
+                    bold: true,
+                },
+                shadow: { enabled: true, color: 'rgba(0,0,0,0.4)', size: 12, x: 0, y: 4 },
+                mindmapMeta: node,
+            };
+        } else if (level === 1) {
+            return {
+                id: String(node.id),
+                label: node.label,
+                level: 1,
+                shape: 'box',
+                margin: { top: 10, bottom: 10, left: 14, right: 14 },
+                borderWidth: 2,
+                color: {
+                    background: catStyle.bg,
+                    border: catStyle.border,
+                    highlight: { background: catStyle.bg, border: '#ffffff' },
+                },
+                font: {
+                    size: 13,
+                    color: catStyle.text,
+                    face: 'Outfit',
+                    bold: true,
+                },
+                shadow: { enabled: true, color: 'rgba(0,0,0,0.25)', size: 8, x: 0, y: 2 },
+                mindmapMeta: node,
+            };
+        } else if (level === 2) {
+            return {
+                id: String(node.id),
+                label: node.label,
+                level: 2,
+                shape: 'box',
+                margin: { top: 7, bottom: 7, left: 12, right: 12 },
+                borderWidth: 1.5,
+                color: {
+                    background: isDark ? '#141c2c' : '#ffffff',
+                    border: isDark ? '#2a3b5c' : '#cbd5e1',
+                    highlight: { background: isDark ? '#1e2a40' : '#f1f5f9', border: catStyle.border },
+                },
+                font: {
+                    size: 12,
+                    color: isDark ? '#f1f5f9' : '#0f172a',
+                    face: 'Outfit',
+                },
+                shadow: { enabled: true, color: 'rgba(0,0,0,0.18)', size: 6, x: 0, y: 2 },
+                mindmapMeta: node,
+            };
+        } else {
+            return {
+                id: String(node.id),
+                label: node.label,
+                level: 3,
+                shape: 'ellipse',
+                margin: { top: 5, bottom: 5, left: 10, right: 10 },
+                borderWidth: 1,
+                color: {
+                    background: isDark ? '#0f1523' : '#f8fafc',
+                    border: isDark ? '#1e293b' : '#e2e8f0',
+                    highlight: { background: isDark ? '#1e293b' : '#ffffff', border: accentColor },
+                },
+                font: {
+                    size: 11,
+                    color: isDark ? '#cbd5e1' : '#334155',
+                    face: 'Outfit',
+                },
+                mindmapMeta: node,
+            };
+        }
+    });
+
+    const formattedEdges = (mindmapData.edges || []).map((edge, idx) => ({
+        id: `me_${idx}_${edge.from}_${edge.to}`,
+        from: String(edge.from),
+        to: String(edge.to),
+        label: edge.label || '',
+        arrows: { to: { enabled: true, scaleFactor: 0.7 } },
+        color: {
+            color: isDark ? 'rgba(148, 163, 184, 0.45)' : 'rgba(100, 116, 139, 0.45)',
+            highlight: accentSoft,
+        },
+        font: {
+            size: 10,
+            color: isDark ? '#94a3b8' : '#64748b',
+            align: 'middle',
+            face: '"IBM Plex Mono", monospace',
+            background: isDark ? '#07090e' : '#ffffff',
+            strokeWidth: 0,
+        },
+        smooth: {
+            enabled: true,
+            type: 'cubicBezier',
+            roundness: 0.5,
+        },
+        width: 1.5,
+    }));
+
+    if (!mindmapNodesDataSet) {
+        mindmapNodesDataSet = new vis.DataSet(formattedNodes);
+        mindmapEdgesDataSet = new vis.DataSet(formattedEdges);
+    } else {
+        mindmapNodesDataSet.clear();
+        mindmapNodesDataSet.add(formattedNodes);
+        mindmapEdgesDataSet.clear();
+        mindmapEdgesDataSet.add(formattedEdges);
+    }
+
+    const options = getMindmapVisOptions(mindmapLayoutMode);
+
+    if (!mindmapNetwork) {
+        mindmapNetwork = new vis.Network(container, { nodes: mindmapNodesDataSet, edges: mindmapEdgesDataSet }, options);
+
+        mindmapNetwork.on('click', (params) => {
+            if (params.nodes && params.nodes.length > 0) {
+                const selectedNodeId = params.nodes[0];
+                const foundNode = formattedNodes.find(n => n.id === selectedNodeId);
+                if (foundNode && foundNode.mindmapMeta) {
+                    showMindmapInspector(foundNode.mindmapMeta);
+                }
+            } else {
+                closeMindmapInspector();
+            }
+        });
+
+        mindmapNetwork.on('doubleClick', (params) => {
+            if (params.nodes && params.nodes.length > 0) {
+                mindmapNetwork.focus(params.nodes[0], {
+                    scale: 1.3,
+                    animation: { duration: 400, easingFunction: 'easeInOutQuad' },
+                });
+            }
+        });
+    } else {
+        mindmapNetwork.setOptions(options);
+        mindmapNetwork.setData({ nodes: mindmapNodesDataSet, edges: mindmapEdgesDataSet });
+    }
+
+    setTimeout(() => {
+        if (mindmapNetwork) {
+            mindmapNetwork.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+        }
+    }, 100);
+}
+
+function getMindmapVisOptions(layoutMode = 'hierarchical') {
+    if (layoutMode === 'hierarchical') {
+        return {
+            layout: {
+                hierarchical: {
+                    enabled: true,
+                    direction: 'LR',
+                    sortMethod: 'directed',
+                    levelSeparation: 170,
+                    nodeSpacing: 90,
+                    treeSpacing: 110,
+                },
+            },
+            physics: {
+                hierarchicalRepulsion: {
+                    nodeDistance: 120,
+                    centralGravity: 0.0,
+                    springLength: 100,
+                    springConstant: 0.01,
+                    damping: 0.09,
+                },
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 150,
+                zoomView: true,
+                dragView: true,
+            },
+        };
+    } else {
+        return {
+            layout: { hierarchical: { enabled: false } },
+            physics: {
+                solver: 'forceAtlas2Based',
+                forceAtlas2Based: {
+                    gravitationalConstant: -40,
+                    centralGravity: 0.01,
+                    springLength: 90,
+                    springConstant: 0.08,
+                    damping: 0.4,
+                },
+                maxVelocity: 50,
+                minVelocity: 0.1,
+                stabilization: { iterations: 120 },
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 150,
+                zoomView: true,
+                dragView: true,
+            },
+        };
+    }
+}
+
+function showMindmapInspector(nodeMeta) {
+    const inspector = $('mindmap-inspector');
+    if (!inspector) return;
+
+    const levelNames = ['Central Core', 'Main Category', 'Subtopic', 'Key Detail'];
+    const levelBadge = $('inspector-level-badge');
+    const titleEl = $('inspector-node-title');
+    const notesEl = $('inspector-node-notes');
+    const catEl = $('inspector-node-cat');
+    const tutorBtn = $('inspector-ask-tutor-btn');
+
+    if (levelBadge) levelBadge.textContent = levelNames[nodeMeta.level] || 'Concept';
+    if (titleEl) titleEl.textContent = nodeMeta.label || 'Concept';
+    if (notesEl) notesEl.textContent = nodeMeta.notes || 'No extra notes recorded for this concept.';
+    if (catEl) catEl.textContent = `Category: ${nodeMeta.category || 'General'}`;
+
+    if (tutorBtn) {
+        tutorBtn.onclick = () => {
+            const prompt = `Can you explain the lecture concept "${nodeMeta.label}" in simple terms? Context: ${nodeMeta.notes || ''}`;
+            navigateToPage('tutor');
+            const chatInput = $('chat-input');
+            if (chatInput) {
+                chatInput.value = prompt;
+                $('chat-send-btn')?.click();
+            }
+        };
+    }
+
+    inspector.classList.remove('hidden');
+}
+
+function closeMindmapInspector() {
+    const inspector = $('mindmap-inspector');
+    if (inspector) inspector.classList.add('hidden');
+}
+
+function renderMindmapTree(mindmapData) {
+    const content = $('mindmap-tree-content');
+    if (!content) return;
+
+    if (!mindmapData || !mindmapData.nodes || !mindmapData.nodes.length) {
+        content.innerHTML = '<p class="text-xs text-slate-500 italic">No mindmap generated yet.</p>';
+        return;
+    }
+
+    const rootNode = mindmapData.nodes.find(n => n.level === 0) || mindmapData.nodes[0];
+    const branches = mindmapData.nodes.filter(n => n.level === 1);
+
+    let html = `
+        <div class="bg-panel border border-accent/40 rounded-xl p-4 shadow-sm mb-3">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-accent/20 text-accent font-semibold uppercase">Core Root Topic</span>
+            </div>
+            <h4 class="text-base font-bold text-white">${escapeHtml(rootNode?.label || mindmapData.title || 'Central Topic')}</h4>
+            ${rootNode?.notes ? `<p class="text-xs text-slate-300 mt-1 leading-relaxed">${escapeHtml(rootNode.notes)}</p>` : ''}
+            ${mindmapData.summary ? `<div class="mt-2 text-xs text-slate-400 font-mono italic border-t border-edge/60 pt-2">Summary: ${escapeHtml(mindmapData.summary)}</div>` : ''}
+        </div>
+    `;
+
+    if (branches.length > 0) {
+        html += `<div class="space-y-2.5">`;
+        branches.forEach((b) => {
+            const subtopics = mindmapData.nodes.filter(n => n.level === 2 && (n.category === b.label || n.category === b.category));
+            html += `
+                <details open class="mindmap-branch bg-raised border border-edge rounded-xl overflow-hidden shadow-sm transition-all hover:border-accent/40">
+                    <summary class="p-3.5 flex items-center justify-between gap-3 text-xs bg-raised/80 hover:bg-raised transition-colors">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="branch-caret text-accent font-bold text-xs">▶</span>
+                            <span class="font-semibold text-white text-sm">${escapeHtml(b.label)}</span>
+                            ${b.notes ? `<span class="text-slate-400 truncate max-w-sm text-xs hidden sm:inline">- ${escapeHtml(b.notes)}</span>` : ''}
+                        </div>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-accent/15 text-accent">${subtopics.length} Subconcepts</span>
+                    </summary>
+                    <div class="p-3.5 pt-1 space-y-2.5 bg-ink/50 border-t border-edge/50">
+                        ${b.notes ? `<p class="text-xs text-slate-300 sm:hidden pb-1 leading-relaxed">${escapeHtml(b.notes)}</p>` : ''}
+                        ${subtopics.length > 0 ? subtopics.map(sub => `
+                            <div class="p-3 rounded-lg bg-panel border border-edge/80 space-y-1 mindmap-tree-item">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="font-semibold text-xs text-slate-200">${escapeHtml(sub.label)}</span>
+                                    <button class="mindmap-ask-tutor-btn text-[10px] text-accent hover:underline font-mono"
+                                            data-label="${escapeHtml(sub.label)}" data-notes="${escapeHtml(sub.notes || '')}">
+                                        Ask Tutor ↗
+                                    </button>
+                                </div>
+                                ${sub.notes ? `<p class="text-xs text-slate-400 leading-relaxed">${escapeHtml(sub.notes)}</p>` : ''}
+                            </div>
+                        `).join('') : '<p class="text-xs text-slate-500 italic">No subtopics under this branch.</p>'}
+                    </div>
+                </details>
+            `;
+        });
+        html += `</div>`;
+    } else {
+        html += `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                ${mindmapData.nodes.filter(n => n.level > 0).map(n => `
+                    <div class="p-3 bg-raised border border-edge rounded-xl space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-semibold text-xs text-white">${escapeHtml(n.label)}</span>
+                            <span class="text-[10px] font-mono text-accent">L${n.level}</span>
+                        </div>
+                        ${n.notes ? `<p class="text-xs text-slate-400">${escapeHtml(n.notes)}</p>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    content.innerHTML = html;
+
+    content.querySelectorAll('.mindmap-ask-tutor-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const label = btn.getAttribute('data-label') || '';
+            const notes = btn.getAttribute('data-notes') || '';
+            const prompt = `Can you explain the lecture concept "${label}" in simple terms? Context: ${notes}`;
+            navigateToPage('tutor');
+            const chatInput = $('chat-input');
+            if (chatInput) {
+                chatInput.value = prompt;
+                $('chat-send-btn')?.click();
+            }
+        });
+    });
+}
+
+function initMindmapControls() {
+    const viewGraphBtn = $('mindmap-view-graph-btn');
+    const viewTreeBtn = $('mindmap-view-tree-btn');
+    const graphContainer = $('mindmap-graph-container');
+    const treeContainer = $('mindmap-tree-container');
+    const layoutToggleBtn = $('mindmap-layout-toggle-btn');
+    const fitBtn = $('mindmap-fit-btn');
+    const copyBtn = $('mindmap-copy-btn');
+    const exportPngBtn = $('mindmap-export-png-btn');
+    const inspectorClose = $('inspector-close-btn');
+    const expandAllBtn = $('mindmap-tree-expand-all');
+    const collapseAllBtn = $('mindmap-tree-collapse-all');
+
+    if (viewGraphBtn && viewTreeBtn && graphContainer && treeContainer) {
+        viewGraphBtn.addEventListener('click', () => {
+            mindmapViewMode = 'graph';
+            viewGraphBtn.className = 'px-2.5 py-1 rounded-lg bg-raised text-white font-medium flex items-center gap-1 transition-all';
+            viewTreeBtn.className = 'px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1 transition-all';
+            graphContainer.classList.remove('hidden');
+            treeContainer.classList.add('hidden');
+            if (mindmapNetwork) {
+                setTimeout(() => {
+                    mindmapNetwork.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+                }, 60);
+            }
+        });
+
+        viewTreeBtn.addEventListener('click', () => {
+            mindmapViewMode = 'tree';
+            viewTreeBtn.className = 'px-2.5 py-1 rounded-lg bg-raised text-white font-medium flex items-center gap-1 transition-all';
+            viewGraphBtn.className = 'px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1 transition-all';
+            treeContainer.classList.remove('hidden');
+            graphContainer.classList.add('hidden');
+        });
+    }
+
+    if (layoutToggleBtn) {
+        layoutToggleBtn.addEventListener('click', () => {
+            mindmapLayoutMode = mindmapLayoutMode === 'hierarchical' ? 'radial' : 'hierarchical';
+            showToast(`Mindmap layout: ${mindmapLayoutMode === 'hierarchical' ? 'Tree (Hierarchical)' : 'Radial Physics'}`);
+            if (currentMindmapData) {
+                renderMindmap(currentMindmapData);
+            }
+        });
+    }
+
+    if (fitBtn) {
+        fitBtn.addEventListener('click', () => {
+            if (mindmapNetwork) {
+                mindmapNetwork.fit({ animation: { duration: 350, easingFunction: 'easeInOutQuad' } });
+                showToast('Mindmap fit to view');
+            }
+        });
+    }
+
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            if (!currentMindmapData || !currentMindmapData.nodes || !currentMindmapData.nodes.length) {
+                showToast('No mindmap generated to copy');
+                return;
+            }
+            let md = `# Concept Mindmap: ${currentMindmapData.title || 'Lecture Overview'}\n\n`;
+            if (currentMindmapData.summary) md += `*${currentMindmapData.summary}*\n\n`;
+            const root = currentMindmapData.nodes.find(n => n.level === 0);
+            if (root) md += `- **${root.label}** ${root.notes ? `(${root.notes})` : ''}\n`;
+            const branches = currentMindmapData.nodes.filter(n => n.level === 1);
+            branches.forEach(b => {
+                md += `  - **${b.label}**: ${b.notes || ''}\n`;
+                const subs = currentMindmapData.nodes.filter(n => n.level === 2 && (n.category === b.label || n.category === b.category));
+                subs.forEach(s => {
+                    md += `    - ${s.label}: ${s.notes || ''}\n`;
+                });
+            });
+            copyToClipboard(md, 'Mindmap outline copied!');
+        });
+    }
+
+    if (exportPngBtn) {
+        exportPngBtn.addEventListener('click', () => {
+            const canvas = document.querySelector('#study-mindmap-vis canvas');
+            if (!canvas) {
+                showToast('No mindmap canvas to download');
+                return;
+            }
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            a.download = `lecture_mindmap_${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast('Mindmap PNG downloaded!');
+        });
+    }
+
+    if (inspectorClose) {
+        inspectorClose.addEventListener('click', closeMindmapInspector);
+    }
+
+    if (expandAllBtn) {
+        expandAllBtn.addEventListener('click', () => {
+            document.querySelectorAll('#mindmap-tree-content details').forEach(d => { d.open = true; });
+        });
+    }
+
+    if (collapseAllBtn) {
+        collapseAllBtn.addEventListener('click', () => {
+            document.querySelectorAll('#mindmap-tree-content details').forEach(d => { d.open = false; });
         });
     }
 }
@@ -2550,6 +3094,70 @@ function initStudyGenerators() {
             enqueueApiTask('flashcards', chunk.slice(-MAX_TRANSCRIPT_CHARS));
         });
     }
+
+    const triggerMindmapGeneration = () => {
+        if (isGeneratingMindmap) {
+            showToast('⏳ Mindmap generation already in progress...');
+            return;
+        }
+        const chunk = getCurrentLectureTranscript();
+        const currentDiag = (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex])
+            ? sessionDiagrams[currentDiagramIndex]
+            : null;
+
+        let contextStr = '';
+        if (currentDiag) {
+            const concepts = (currentDiag.nodes || []).map(n => n.label).join(', ');
+            const bullets = (currentDiag.summary_bullets || []).join('; ');
+            const terms = (currentDiag.key_terms || []).join(', ');
+            const notes = (currentDiag.short_notes || []).join('; ');
+            contextStr = `Current Concepts: ${concepts}\nSummary Bullets: ${bullets}\nKey Terms: ${terms}\nNotes: ${notes}`;
+        }
+
+        if (chunk.length < 3 && !contextStr) {
+            showToast('🎙️ Please start class and speak some lecture content or generate a diagram first!');
+            return;
+        }
+
+        showToast('⚡ Generating concept mindmap on demand...');
+        const payloadText = chunk.length >= 3 ? chunk.slice(-MAX_TRANSCRIPT_CHARS) : 'Classroom lecture topics and discussion.';
+        enqueueApiTask('mindmap', { transcript: payloadText, context: contextStr });
+    };
+
+    const mindmapBtn = $('generate-mindmap-btn');
+    if (mindmapBtn) mindmapBtn.addEventListener('click', triggerMindmapGeneration);
+
+    const emptyMindmapBtn = $('mindmap-empty-generate-btn');
+    if (emptyMindmapBtn) emptyMindmapBtn.addEventListener('click', triggerMindmapGeneration);
+}
+
+function setGeneratingMindmapButtonState(loading) {
+    isGeneratingMindmap = loading;
+    const btn = $('generate-mindmap-btn');
+    const label = $('generate-mindmap-label');
+    const icon = $('generate-mindmap-icon');
+    const emptyBtn = $('mindmap-empty-generate-btn');
+
+    if (btn) {
+        btn.disabled = loading;
+        if (loading) {
+            btn.classList.add('opacity-75', 'cursor-wait');
+        } else {
+            btn.classList.remove('opacity-75', 'cursor-wait');
+        }
+    }
+    if (emptyBtn) {
+        emptyBtn.disabled = loading;
+        emptyBtn.textContent = loading ? 'Generating Mindmap...' : 'Generate Mindmap on Demand';
+    }
+    if (label) {
+        label.textContent = loading ? 'Generating Mindmap...' : 'Generate Mindmap';
+    }
+    if (icon) {
+        icon.innerHTML = loading
+            ? '<circle cx="12" cy="12" r="10" stroke-width="2" stroke-dasharray="32" stroke-dashoffset="16" class="animate-spin"/>'
+            : '<circle cx="12" cy="12" r="3"/><path d="M3 12h6m6 0h6M12 3v6m0 6v6"/>';
+    }
 }
 
 function setGeneratingButtonState(loading) {
@@ -2688,6 +3296,9 @@ async function processApiQueue() {
             } else if (task.kind === 'flashcards') {
                 setGeneratingFlashcardsButtonState(true);
                 await sendFlashcardsRequest(task.payload);
+            } else if (task.kind === 'mindmap') {
+                setGeneratingMindmapButtonState(true);
+                await sendMindmapRequest(task.payload.transcript, task.payload.context);
             }
         } catch (err) {
             console.error(`API task (${task.kind}) failed:`, err);
@@ -2701,6 +3312,8 @@ async function processApiQueue() {
                 setGeneratingQuizButtonState(false);
             } else if (task.kind === 'flashcards') {
                 setGeneratingFlashcardsButtonState(false);
+            } else if (task.kind === 'mindmap') {
+                setGeneratingMindmapButtonState(false);
             }
         }
     }
@@ -2828,6 +3441,31 @@ async function sendFlashcardsRequest(transcript) {
     renderFlashcards(flashcards);
     if ($('flashcard-badge')) $('flashcard-badge').textContent = String(flashcards.length);
     showToast(`🎴 ${flashcards.length} concept flashcards generated!`);
+}
+
+async function sendMindmapRequest(transcript, context = '') {
+    const res = await fetch(`${API_BASE}/api/generate-mindmap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript, context }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Backend responded ${res.status}`);
+    }
+
+    const data = await res.json();
+    hasUnsavedSessionChanges = true;
+
+    if (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex]) {
+        sessionDiagrams[currentDiagramIndex].mindmap = data;
+        saveCurrentSessionToStorage();
+    }
+    renderMindmap(data);
+    const nodeCount = (data.nodes || []).length;
+    if ($('mindmap-badge')) $('mindmap-badge').textContent = String(nodeCount);
+    showToast(`🧠 Concept mindmap generated with ${nodeCount} concept nodes!`);
 }
 
 // ------------------------------------------------------------------
@@ -4025,6 +4663,16 @@ ${snap.diagram_code}
                     md += `- **Front:** ${fc.front} | **Back:** ${fc.back}\n`;
                 });
             }
+            if (snap.mindmap && snap.mindmap.nodes && snap.mindmap.nodes.length) {
+                md += `\n**Concept Mindmap (${snap.mindmap.title || 'Overview'}):**\n`;
+                if (snap.mindmap.summary) md += `*${snap.mindmap.summary}*\n`;
+                const root = snap.mindmap.nodes.find(n => n.level === 0);
+                if (root) md += `- **Root Concept:** ${root.label} ${root.notes ? `(${root.notes})` : ''}\n`;
+                const branches = snap.mindmap.nodes.filter(n => n.level === 1);
+                branches.forEach(b => {
+                    md += `  - **Branch: ${b.label}** ${b.notes ? `(${b.notes})` : ''}\n`;
+                });
+            }
             md += `\n**Key Terms:** ${(snap.key_terms || []).join(', ') || 'None'}\n\n`;
         });
     }
@@ -4078,6 +4726,19 @@ function exportHtmlStudyReport() {
                             <div class="fc-back">${escapeHtml(fc.back)}</div>
                         </div>
                     `).join('')}
+                </div>
+            ` : ''}
+            ${(snap.mindmap && snap.mindmap.nodes && snap.mindmap.nodes.length) ? `
+                <h4 style="color:#6366f1; margin:14px 0 8px 0;">Concept Mindmap: ${escapeHtml(snap.mindmap.title || 'Overview')}</h4>
+                <div style="background:#07090e; border:1px solid #1e2a40; border-radius:8px; padding:12px; margin-bottom:12px; font-size:13px;">
+                    ${snap.mindmap.summary ? `<div style="color:#94a3b8; font-style:italic; margin-bottom:8px;">${escapeHtml(snap.mindmap.summary)}</div>` : ''}
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                        ${snap.mindmap.nodes.map(n => `
+                            <span style="background:${n.level === 0 ? 'rgba(99,102,241,0.25)' : (n.level === 1 ? 'rgba(16,185,129,0.2)' : 'rgba(30,41,59,0.7)')}; border:1px solid ${n.level === 0 ? '#6366f1' : (n.level === 1 ? '#10b981' : '#334155')}; color:#e2e8f0; padding:4px 8px; border-radius:6px; font-size:11px;">
+                                ${escapeHtml(n.label)} ${n.notes ? `<span style="color:#94a3b8;">(${escapeHtml(n.notes)})</span>` : ''}
+                            </span>
+                        `).join('')}
+                    </div>
                 </div>
             ` : ''}
             <div style="margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;">
@@ -4387,6 +5048,7 @@ document.addEventListener('DOMContentLoaded', () => {
     safeInit('OnCommandGenerator', initOnCommandGenerator);
     safeInit('StudyGenerators', initStudyGenerators);
     safeInit('StudyTabs', initStudyTabs);
+    safeInit('MindmapControls', initMindmapControls);
     safeInit('VisNetwork', initVisNetwork);
     safeInit('VisBoardControls', initVisBoardControls);
     safeInit('ZoomAndFullscreen', initZoomAndFullscreen);

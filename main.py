@@ -72,6 +72,7 @@ MAX_TOKENS_DIAGRAM = 600
 MAX_TOKENS_NOTES = 900
 MAX_TOKENS_QUIZ = 1400
 MAX_TOKENS_FLASHCARDS = 900
+MAX_TOKENS_MINDMAP = 1600
 MAX_TOKENS_SHORTHAND = 300
 MAX_TOKENS_CHAT = 1600
 MAX_TOKENS_TRANSLATE = 2048
@@ -158,6 +159,19 @@ class QuizOutput(BaseModel):
 
 class FlashcardsOutput(BaseModel):
     flashcards: list[Flashcard] = Field(default_factory=list)
+
+
+class MindmapInput(BaseModel):
+    transcript: str = Field(..., min_length=1, max_length=MAX_TRANSCRIPT_CHARS)
+    context: str = Field(default="", max_length=MAX_CHAT_CONTEXT_CHARS)
+
+
+class MindmapOutput(BaseModel):
+    title: str = ""
+    summary: str = ""
+    root: dict | None = None
+    nodes: list[dict] = Field(default_factory=list)
+    edges: list[dict] = Field(default_factory=list)
 
 
 class DiagramOutput(BaseModel):
@@ -754,6 +768,71 @@ async def generate_flashcards(payload: TranscriptInput) -> FlashcardsOutput:
         raise HTTPException(
             status_code=502,
             detail=f"Gemini flashcards pipeline failed: {exc}",
+        ) from exc
+
+
+@app.post("/api/generate-mindmap", response_model=MindmapOutput)
+async def generate_mindmap(payload: MindmapInput) -> MindmapOutput:
+    _require_api_key()
+    _check_rate_limit()
+
+    context_str = payload.context.strip() or "No recent classroom diagram or summary available."
+    prompt = prompts.MINDMAP_PROMPT_TEMPLATE.format(
+        transcript=payload.transcript,
+        context=context_str,
+    )
+    try:
+        raw = await _call_gemini(
+            prompt,
+            prompts.MINDMAP_SYSTEM_INSTRUCTIONS,
+            "application/json",
+            MAX_TOKENS_MINDMAP,
+        )
+        data = _extract_json(raw)
+        if not isinstance(data, dict):
+            data = {}
+
+        raw_nodes = data.get("nodes") or []
+        raw_edges = data.get("edges") or []
+        title = str(data.get("title") or "Lecture Mindmap")
+        summary = str(data.get("summary") or "")
+        root = data.get("root") if isinstance(data.get("root"), dict) else None
+
+        vis_nodes = []
+        for n in raw_nodes:
+            if isinstance(n, dict):
+                n_id = str(n.get("id") or n.get("label") or f"m_{len(vis_nodes) + 1}")
+                vis_nodes.append({
+                    "id": n_id,
+                    "label": str(n.get("label") or n_id),
+                    "level": int(n.get("level", 1)) if str(n.get("level", "")).isdigit() else 1,
+                    "category": str(n.get("category") or ""),
+                    "notes": str(n.get("notes") or ""),
+                })
+
+        vis_edges = []
+        for e in raw_edges:
+            if isinstance(e, dict) and e.get("from") and e.get("to"):
+                vis_edges.append({
+                    "from": str(e["from"]),
+                    "to": str(e["to"]),
+                    "label": str(e.get("label") or e.get("relation") or ""),
+                    "arrows": "to",
+                })
+
+        return MindmapOutput(
+            title=title,
+            summary=summary,
+            root=root,
+            nodes=vis_nodes,
+            edges=vis_edges,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini mindmap pipeline failed: {exc}",
         ) from exc
 
 

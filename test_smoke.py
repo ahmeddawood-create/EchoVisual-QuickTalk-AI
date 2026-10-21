@@ -54,8 +54,35 @@ VALID_FLASHCARDS_JSON = json.dumps({
     ]
 })
 
+VALID_MINDMAP_JSON = json.dumps({
+    "title": "Photosynthesis Fundamentals",
+    "summary": "Covers light-dependent reactions, Calvin cycle, and chloroplast structure.",
+    "root": {
+        "id": "root",
+        "label": "Photosynthesis",
+        "notes": "Process converting light into biochemical energy.",
+        "children": [
+            {
+                "id": "light_reactions",
+                "label": "Light Reactions",
+                "notes": "Occurs in thylakoids, produces ATP and NADPH.",
+                "children": []
+            }
+        ]
+    },
+    "nodes": [
+        {"id": "root", "label": "Photosynthesis", "level": 0, "category": "Core", "notes": "Process converting light into biochemical energy."},
+        {"id": "light_reactions", "label": "Light Reactions", "level": 1, "category": "Reactions", "notes": "Occurs in thylakoids, produces ATP and NADPH."}
+    ],
+    "edges": [
+        {"from": "root", "to": "light_reactions", "label": "consists of"}
+    ]
+})
+
 async def fake_call_gemini(prompt, system, response_mime, max_output_tokens=600):
     if response_mime == "application/json":
+        if "mindmap" in prompt.lower() or "mindmap" in system.lower():
+            return VALID_MINDMAP_JSON
         if "flashcard" in prompt.lower() or "flashcard" in system.lower():
             return VALID_FLASHCARDS_JSON
         if "quiz" in prompt.lower() or "quiz" in system.lower():
@@ -228,6 +255,42 @@ class TestGenerateFlashcards(unittest.TestCase):
 
     def test_empty_transcript_rejected(self):
         res = client.post("/api/generate-flashcards", json={"transcript": ""})
+        self.assertEqual(res.status_code, 422)
+
+
+class TestGenerateMindmap(unittest.TestCase):
+    def setUp(self):
+        reset_rate_limiter()
+
+    def test_valid_transcript_and_context_returns_mindmap(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            res = client.post(
+                "/api/generate-mindmap",
+                json={
+                    "transcript": "Photosynthesis consists of light reactions in the thylakoid.",
+                    "context": "Current Concepts: Chloroplast, ATP, NADPH",
+                },
+            )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIn("title", body)
+        self.assertIn("nodes", body)
+        self.assertIn("edges", body)
+        self.assertIn("root", body)
+        self.assertEqual(body["title"], "Photosynthesis Fundamentals")
+        self.assertEqual(len(body["nodes"]), 2)
+        self.assertEqual(len(body["edges"]), 1)
+        self.assertEqual(body["nodes"][0]["id"], "root")
+
+    def test_empty_transcript_rejected(self):
+        res = client.post("/api/generate-mindmap", json={"transcript": ""})
+        self.assertEqual(res.status_code, 422)
+
+    def test_oversized_transcript_rejected(self):
+        res = client.post(
+            "/api/generate-mindmap",
+            json={"transcript": "x" * (main.MAX_TRANSCRIPT_CHARS + 1)},
+        )
         self.assertEqual(res.status_code, 422)
 
 
