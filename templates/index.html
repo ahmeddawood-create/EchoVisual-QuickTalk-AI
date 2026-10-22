@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#07090e" />
+    <meta name="theme-color" content="#0b0f17" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>EchoVisual &amp; QuickTalk AI - Multi-Page Classroom Suite</title>
+    <title>EchoVisual &amp; QuickTalk AI - Classroom Accessibility Suite</title>
     <!-- Tailwind CSS via CDN (no build step per AGENTS.md) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -28,17 +28,17 @@
                         },
                     },
                     fontFamily: {
-                        sans: ['Outfit', 'system-ui', 'sans-serif'],
+                        sans: ['"Plus Jakarta Sans"', 'Outfit', 'system-ui', 'sans-serif'],
                         mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
                     },
                 },
             },
         };
     </script>
-    <!-- Typography: Outfit for UI, IBM Plex Mono for data, Noto Nastaliq Urdu for Urdu translation -->
+    <!-- Typography: Plus Jakarta Sans for clean UI, IBM Plex Mono for data, Noto Nastaliq Urdu for Urdu -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet" />
     <!-- Vis.js Network (Local standalone UMD bundle with CDN fallback) -->
     <script src="/static/vis-network.min.js"></script>
     <script>
@@ -51,21 +51,22 @@
     <link rel="shortcut icon" href="/static/favicon.ico" />
     <link rel="apple-touch-icon" href="/static/favicon.png" />
     <!-- App styles -->
-    <link rel="stylesheet" href="/static/styles.css?v=2.2" />
+    <link rel="stylesheet" href="/static/styles.css?v=3.0" />
 </head>
-<body class="bg-ink text-slate-200 h-screen h-[100dvh] max-h-screen overflow-hidden flex flex-col font-sans antialiased selection:bg-accent/30 selection:text-white pb-14 lg:pb-0">
+<body class="bg-ink text-slate-200 h-screen h-[100dvh] max-h-screen overflow-hidden flex flex-col font-sans antialiased selection:bg-accent/20 selection:text-white pb-14 lg:pb-0">
 
     <!-- ========== Top Global Header 1/2 — Brand & Navigation (48px) ========== -->
     <header class="h-12 shrink-0 flex items-center gap-3 px-3 sm:px-4 lg:px-6 border-b border-edge bg-panel sticky top-0 z-30">
         <!-- Logo & Brand -->
         <div class="flex items-center gap-2.5 shrink-0">
-            <div class="w-9 h-9 shrink-0 rounded-xl bg-white flex items-center justify-center shadow-md shadow-accent/20 border border-edge/30 overflow-hidden p-1">
+            <div class="w-8 h-8 shrink-0 rounded-lg bg-white flex items-center justify-center border border-edge overflow-hidden p-1 shadow-sm">
                 <img src="/static/my-logo.png" alt="EchoVisual &amp; QuickTalk Logo" class="w-full h-full object-contain" />
             </div>
-            <div class="min-w-0">
-                <h1 class="text-sm font-semibold tracking-tight text-white truncate leading-tight flex items-center gap-2">
+            <div class="min-w-0 flex items-center gap-2">
+                <h1 class="text-sm font-semibold tracking-tight text-white truncate leading-tight">
                     EchoVisual &amp; QuickTalk
                 </h1>
+                <span class="hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-raised border border-edge text-slate-400">Classroom Suite</span>
             </div>
         </div>
 
@@ -77,14 +78,14 @@
                 </a>
                 <a href="#rooms" id="nav-rooms" data-kbd="Alt+2" data-kbd-label="Live Room" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>👥 Live Room</span>
-                    <span id="nav-room-badge" class="px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px] font-mono hidden">LIVE</span>
+                    <span id="nav-room-badge" class="px-1.5 py-0.5 rounded-full bg-accent-tint text-accent text-[10px] font-mono hidden">LIVE</span>
                 </a>
                 <a href="#expression" id="nav-expression" data-kbd="Alt+3" data-kbd-label="QuickTalk" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>🗣️ QuickTalk</span>
                 </a>
                 <a href="#study" id="nav-study" data-kbd="Alt+4" data-kbd-label="Study Hub" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>📚 Study Hub</span>
-                    <span id="nav-study-badge" class="px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px] font-mono">0</span>
+                    <span id="nav-study-badge" class="px-1.5 py-0.5 rounded-full bg-accent-tint text-accent text-[10px] font-mono">0</span>
                 </a>
                 <a href="#tutor" id="nav-tutor" data-kbd="Alt+5" data-kbd-label="AI Tutor" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>🤖 AI Tutor</span>
@@ -99,7 +100,7 @@
         <div class="flex items-center gap-2 shrink-0 ml-auto lg:ml-0">
             <!-- Light / Dark Mode Toggle -->
             <button id="color-mode-toggle-btn" aria-label="Toggle Light / Dark mode" data-kbd="Alt+M" data-kbd-label="Toggle Light / Dark mode"
-                    class="p-2 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors flex items-center gap-1 text-xs font-mono">
+                    class="p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors flex items-center gap-1 text-xs font-mono">
                 <span id="mode-icon">🌙</span>
                 <span class="hidden xl:inline text-[11px]" id="mode-text">Dark</span>
             </button>
@@ -107,25 +108,25 @@
             <!-- Theme Switcher -->
             <div class="relative group flex items-center">
                 <button id="theme-btn" aria-label="Cycle color theme" data-kbd="Alt+T" data-kbd-label="Cycle color theme" data-kbd-pos="left"
-                        class="p-2 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors flex items-center gap-1.5 text-xs font-mono">
+                        class="p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors flex items-center gap-1.5 text-xs font-mono">
                     <span class="w-2.5 h-2.5 rounded-full bg-accent inline-block"></span>
                     <span class="hidden xl:inline text-[11px]">Theme</span>
                 </button>
-                <div class="absolute right-0 top-full mt-1.5 hidden group-hover:flex flex-col gap-1 p-2 rounded-xl bg-panel border border-edge shadow-xl z-50 min-w-[130px]">
+                <div class="absolute right-0 top-full mt-1.5 hidden group-hover:flex flex-col gap-1 p-2 rounded-xl bg-panel border border-edge shadow-xl z-50 min-w-[140px]">
                     <button data-theme="theme-indigo" class="theme-select-btn flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-raised text-slate-200">
-                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Indigo Glow
+                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Oxford Indigo
                     </button>
                     <button data-theme="theme-cobalt" class="theme-select-btn flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-raised text-slate-200">
-                        <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Cobalt Tech
+                        <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Cambridge Blue
                     </button>
                     <button data-theme="theme-emerald" class="theme-select-btn flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-raised text-slate-200">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Aurora Emerald
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Campus Sage
                     </button>
                     <button data-theme="theme-violet" class="theme-select-btn flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-raised text-slate-200">
-                        <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Cyber Violet
+                        <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Humanities Plum
                     </button>
                     <button data-theme="theme-cyan" class="theme-select-btn flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-raised text-slate-200">
-                        <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span> Neon Cyan
+                        <span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span> Scholarly Teal
                     </button>
                 </div>
             </div>
@@ -133,10 +134,10 @@
     </header>
 
     <!-- ========== Top Global Header 2/2 — Live Session Status & Controls (44px) ========== -->
-    <header class="h-11 shrink-0 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 border-b border-edge bg-panel shadow-md">
+    <header class="h-11 shrink-0 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 border-b border-edge bg-panel shadow-sm">
         <!-- Left: Live session state indicators (status, mic meter, active room) -->
         <div class="flex items-center gap-2.5 min-w-0">
-            <span id="status-pill" class="font-mono text-[10px] sm:text-[11px] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-raised text-slate-400 border border-edge inline-block">
+            <span id="status-pill" class="font-mono text-[10px] sm:text-[11px] px-2.5 sm:px-3 py-1 rounded-md bg-raised text-slate-400 border border-edge inline-block">
                 idle
             </span>
 
@@ -151,12 +152,12 @@
             <!-- Active Room Controls (visible only when in room) -->
             <div id="room-controls" class="hidden items-center gap-1.5">
                 <button id="copy-room-code-btn" title="Click to copy room code"
-                        class="font-mono text-[11px] px-2.5 py-1.5 rounded-lg bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 transition-all flex items-center gap-1">
+                        class="font-mono text-[11px] px-2.5 py-1.5 rounded-lg bg-accent-tint text-accent border border-accent-soft transition-all flex items-center gap-1">
                     <span id="room-code-display">Room: ...</span>
                     <span class="text-[10px]">📋</span>
                 </button>
                 <span id="room-role-badge" class="font-mono text-[10px] sm:text-[11px] px-2 py-1 rounded-lg bg-raised border border-edge text-slate-300 flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                     <span id="room-role-text">Teacher</span>
                 </span>
                 <span id="room-peer-badge" class="font-mono text-[10px] sm:text-[11px] px-2 py-1 rounded-lg bg-raised border border-edge text-slate-400 flex items-center gap-1" title="Connected Peers">
@@ -180,11 +181,11 @@
                     </svg>
                 </button>
                 <!-- Autoplay unlock button if browser blocked audio -->
-                <button id="audio-unlock-btn" class="hidden font-mono text-[11px] px-2.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-all animate-pulse flex items-center gap-1" title="Click to hear teacher audio">
+                <button id="audio-unlock-btn" class="hidden font-mono text-[11px] px-2.5 py-1.5 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-all flex items-center gap-1" title="Click to hear teacher audio">
                     <span>🔊 Click to Listen</span>
                 </button>
                 <button id="leave-class-btn"
-                        class="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 text-xs font-semibold transition-all border border-red-500/30 flex items-center gap-1">
+                        class="px-3 py-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-400 text-xs font-semibold transition-all border border-red-500/30 flex items-center gap-1">
                     <span>Leave</span>
                 </button>
             </div>
@@ -193,8 +194,8 @@
         <!-- Right: Primary session action -->
         <div class="flex items-center gap-2 shrink-0">
             <button id="start-class-btn" data-kbd="Alt+S" data-kbd-label="Start / Stop Class"
-                    class="px-3.5 sm:px-4 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-xs md:text-sm font-semibold transition-all shadow-md shadow-accent/25 whitespace-nowrap flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                    class="px-3.5 sm:px-4 py-1.5 rounded-lg bg-accent hover:opacity-90 text-white text-xs md:text-sm font-semibold transition-all shadow-sm whitespace-nowrap flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-white opacity-90"></span>
                 <span id="start-btn-text">Start Class</span>
             </button>
         </div>
@@ -236,7 +237,7 @@
             </div>
 
             <!-- Left Column: Live Captioning & Translation Sidebar (5 cols) -->
-            <div id="caption-column" class="lg:col-span-5 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl overflow-hidden shadow-lg transition-all duration-300">
+            <div id="caption-column" class="lg:col-span-5 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-xl overflow-hidden shadow-sm transition-all duration-300">
                 <!-- Caption Header (shrink-0, fixed height) -->
                 <div class="h-12 shrink-0 flex items-center justify-between px-3 md:px-4 border-b border-edge bg-raised/40">
                     <div class="flex items-center gap-2">
@@ -344,20 +345,20 @@
             </div>
 
             <!-- Right Column: Teacher Visual Stream (7 cols / 12 cols in Focus Mode) -->
-            <div id="visual-column" class="lg:col-span-7 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl overflow-hidden shadow-2xl relative transition-all duration-300">
+            <div id="visual-column" class="lg:col-span-7 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-xl overflow-hidden shadow-sm relative transition-all duration-300">
 
                 <!-- Stream Header & Controls Toolbar (shrink-0, rigid height) -->
-                <div class="h-13 shrink-0 flex items-center justify-between px-3 md:px-4 border-b border-edge bg-raised/50 gap-2 overflow-x-auto slim-scroll backdrop-blur-md">
+                <div class="h-12 shrink-0 flex items-center justify-between px-3 md:px-4 border-b border-edge bg-raised/40 gap-2 overflow-x-auto slim-scroll">
                     <div class="flex items-center gap-2 min-w-0 shrink-0">
-                        <div class="w-2.5 h-2.5 rounded-full bg-accent animate-pulse"></div>
+                        <div class="w-2 h-2 rounded-full bg-accent"></div>
                         <h2 class="text-xs md:text-sm font-semibold text-white tracking-tight whitespace-nowrap">Visual Concept Board</h2>
                         <span id="last-update" class="font-mono text-[10px] md:text-[11px] text-slate-400 truncate hidden xl:inline">live auto-sync</span>
                     </div>
 
                     <!-- Diagram Timeline Slider Bar (Forward / Backward navigation) -->
-                    <div class="flex items-center gap-1.5 bg-ink/90 px-2.5 py-1 rounded-xl border border-edge shrink-0 shadow-inner">
+                    <div class="flex items-center gap-1.5 bg-ink/90 px-2.5 py-1 rounded-lg border border-edge shrink-0">
                         <button id="prev-diagram-btn" title="Previous diagram snapshot" disabled
-                                class="p-1 rounded-lg bg-raised hover:bg-edge disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white transition-all">
+                                class="p-1 rounded bg-raised hover:bg-edge disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white transition-all">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="15 18 9 12 15 6"/>
                             </svg>
@@ -367,7 +368,7 @@
                                 class="history-slider w-16 sm:w-20 md:w-28 cursor-pointer" title="Browse session diagram history" />
 
                         <button id="next-diagram-btn" title="Next diagram snapshot" disabled
-                                class="p-1 rounded-lg bg-raised hover:bg-edge disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white transition-all">
+                                class="p-1 rounded bg-raised hover:bg-edge disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white transition-all">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="9 18 15 12 9 6"/>
                             </svg>
@@ -387,7 +388,7 @@
                     <div class="flex items-center gap-1.5 shrink-0">
                         <!-- Manual On-Demand Generate Button -->
                         <button id="manual-generate-btn" title="Generate diagram, notes, quiz & flashcards on command"
-                                class="cmd-pulse-btn flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent hover:opacity-90 text-white border border-accent/40 text-xs font-semibold shadow-md shadow-accent/25 transition-all whitespace-nowrap">
+                                class="cmd-pulse-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:opacity-90 text-white border border-accent/40 text-xs font-semibold shadow-sm transition-all whitespace-nowrap">
                             <svg id="generate-btn-icon" viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
                                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
                             </svg>
@@ -395,16 +396,16 @@
                         </button>
 
                         <!-- Zoom Controls -->
-                        <div class="hidden lg:flex items-center bg-raised/90 rounded-xl border border-edge p-0.5 shadow-inner">
-                            <button id="zoom-out-btn" title="Zoom out" class="px-2 py-1 text-xs text-slate-400 hover:text-white rounded-lg hover:bg-edge transition-colors">-</button>
+                        <div class="hidden lg:flex items-center bg-raised/90 rounded-lg border border-edge p-0.5">
+                            <button id="zoom-out-btn" title="Zoom out" class="px-2 py-1 text-xs text-slate-400 hover:text-white rounded hover:bg-edge transition-colors">-</button>
                             <span id="zoom-label" class="text-[10px] font-mono text-slate-300 px-1.5 select-none font-semibold">100%</span>
-                            <button id="zoom-in-btn" title="Zoom in" class="px-2 py-1 text-xs text-slate-400 hover:text-white rounded-lg hover:bg-edge transition-colors">+</button>
-                            <button id="zoom-reset-btn" title="Fit diagram to canvas" class="px-1.5 py-0.5 text-[10px] text-accent hover:text-white rounded-md hover:bg-edge font-mono font-medium">fit</button>
+                            <button id="zoom-in-btn" title="Zoom in" class="px-2 py-1 text-xs text-slate-400 hover:text-white rounded hover:bg-edge transition-colors">+</button>
+                            <button id="zoom-reset-btn" title="Fit diagram to canvas" class="px-1.5 py-0.5 text-[10px] text-accent hover:text-white rounded hover:bg-edge font-mono font-medium">fit</button>
                         </div>
 
                         <!-- Layout Mode (Mind Map vs Flowchart) -->
                         <button id="toggle-layout-btn" title="Toggle Layout: Mind Map (Force) vs Flowchart (Tree)"
-                                class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-accent border border-edge text-xs font-mono transition-all">
+                                class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-accent border border-edge text-xs font-mono transition-all">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="6" cy="6" r="3"/>
                                 <circle cx="18" cy="18" r="3"/>
@@ -415,14 +416,14 @@
 
                         <!-- Physics Toggle (Freeze / Live simulation) -->
                         <button id="toggle-physics-btn" title="Toggle automatic physics forces (Freeze/Live)"
-                                class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
+                                class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
                             <span id="physics-status-icon">⚡</span>
                             <span id="physics-btn-label">Physics</span>
                         </button>
 
                         <!-- Realign & Center Graph -->
                         <button id="realign-graph-btn" title="Re-arrange and center concept graph"
-                                class="p-2 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all flex items-center justify-center">
+                                class="p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all flex items-center justify-center">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
                             </svg>
@@ -430,25 +431,25 @@
 
                         <!-- Copy Mermaid Code -->
                         <button id="copy-diagram-btn" title="Copy graph JSON data"
-                                class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
+                                class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
                             <span>Code</span>
                         </button>
 
                         <!-- Download SVG -->
                         <button id="download-svg-btn" title="Download diagram as SVG vector"
-                                class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
+                                class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
                             <span>SVG</span>
                         </button>
 
                         <!-- Download PNG -->
                         <button id="download-png-btn" title="Download diagram as PNG image"
-                                class="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
+                                class="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge text-xs font-mono transition-all">
                             <span>PNG</span>
                         </button>
 
                         <!-- Focus Full Whiteboard Toggle -->
                         <button id="toggle-focus-btn" title="Toggle Full Canvas Focus Mode"
-                                class="p-2 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all flex items-center gap-1">
+                                class="p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all flex items-center gap-1">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                                 <line x1="9" y1="3" x2="9" y2="21"/>
@@ -457,7 +458,7 @@
 
                         <!-- Fullscreen Expand -->
                         <button id="diagram-fullscreen-btn" title="Expand diagram to fullscreen"
-                                class="p-2 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all">
+                                class="p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
                             </svg>
@@ -468,13 +469,13 @@
                 <!-- Live Concept Chips Strip -->
                 <div id="diagram-key-terms-strip" class="h-9 shrink-0 px-3 md:px-4 bg-ink/70 border-b border-edge/60 flex items-center justify-between gap-2 overflow-x-auto slim-scroll">
                     <div class="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono shrink-0">
-                        <span class="text-accent font-semibold">🔑 Key Concepts:</span>
+                        <span class="text-accent font-semibold">Key Concepts:</span>
                     </div>
                     <div id="live-terms-chips" class="flex items-center gap-1.5 overflow-x-auto slim-scroll py-0.5">
                         <span class="text-[10px] text-slate-500 italic font-mono">Terms extracted live as teacher speaks...</span>
                     </div>
                     <div class="hidden sm:flex items-center gap-1 text-[10px] font-mono text-slate-500 shrink-0">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                         <span>Auto-Graph Active</span>
                     </div>
                 </div>
@@ -483,18 +484,18 @@
                 <div id="diagram-container" class="flex-1 min-h-0 min-w-0 bg-ink flex items-center justify-center p-3 sm:p-4 md:p-6 border-b border-edge overflow-auto relative">
                     
                     <!-- Floating Mobile Zoom Controls HUD (< lg only) -->
-                    <div id="mobile-canvas-zoom-hud" class="lg:hidden absolute top-2.5 right-2.5 z-10 flex items-center bg-panel/90 backdrop-blur-md border border-edge rounded-xl p-1 shadow-lg gap-1">
-                        <button type="button" id="mobile-zoom-out" aria-label="Zoom out diagram" class="w-7 h-7 flex items-center justify-center rounded-lg bg-raised hover:bg-edge active:bg-accent text-slate-300 active:text-white text-sm font-bold transition-all">-</button>
+                    <div id="mobile-canvas-zoom-hud" class="lg:hidden absolute top-2.5 right-2.5 z-10 flex items-center bg-panel border border-edge rounded-lg p-1 shadow gap-1">
+                        <button type="button" id="mobile-zoom-out" aria-label="Zoom out diagram" class="w-7 h-7 flex items-center justify-center rounded bg-raised hover:bg-edge active:bg-accent text-slate-300 active:text-white text-sm font-bold transition-all">-</button>
                         <span id="mobile-zoom-label" class="text-[11px] font-mono font-semibold text-accent px-1 select-none">100%</span>
-                        <button type="button" id="mobile-zoom-in" aria-label="Zoom in diagram" class="w-7 h-7 flex items-center justify-center rounded-lg bg-raised hover:bg-edge active:bg-accent text-slate-300 active:text-white text-sm font-bold transition-all">+</button>
-                        <button type="button" id="mobile-zoom-fit" aria-label="Fit diagram" class="px-2 h-7 flex items-center justify-center rounded-lg bg-raised hover:bg-edge active:bg-accent text-[10px] font-mono text-slate-300 active:text-white font-medium transition-all">fit</button>
+                        <button type="button" id="mobile-zoom-in" aria-label="Zoom in diagram" class="w-7 h-7 flex items-center justify-center rounded bg-raised hover:bg-edge active:bg-accent text-slate-300 active:text-white text-sm font-bold transition-all">+</button>
+                        <button type="button" id="mobile-zoom-fit" aria-label="Fit diagram" class="px-2 h-7 flex items-center justify-center rounded bg-raised hover:bg-edge active:bg-accent text-[10px] font-mono text-slate-300 active:text-white font-medium transition-all">fit</button>
                     </div>
 
                     <div id="vis-network-container" class="w-full h-full min-h-0 min-w-0 relative"></div>
                     <div id="diagram-empty-placeholder" class="absolute inset-0 flex items-center justify-center z-10 pointer-events-auto">
-                        <div class="text-center max-w-md p-6 rounded-2xl bg-raised/30 border border-edge/60 backdrop-blur-sm shadow-xl select-none">
-                            <div class="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-accent/15 border border-accent/30 flex items-center justify-center shadow-lg shadow-accent/10">
-                                <svg viewBox="0 0 24 24" class="w-7 h-7 text-accent" fill="none"
+                        <div class="text-center max-w-md p-6 rounded-xl bg-panel border border-edge shadow-sm select-none">
+                            <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-accent-tint border border-accent-soft flex items-center justify-center text-accent">
+                                <svg viewBox="0 0 24 24" class="w-6 h-6 text-accent" fill="none"
                                      stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="3" y="3" width="7" height="7" rx="2" />
                                     <rect x="14" y="14" width="7" height="7" rx="2" />
@@ -502,7 +503,7 @@
                                 </svg>
                             </div>
                             <h3 class="text-sm font-semibold text-white tracking-tight mb-1">Live Visual Whiteboard</h3>
-                            <p class="text-xs text-slate-400 leading-relaxed mb-4">Start speaking or click below to simulate topics and generate visual concept maps automatically.</p>
+                            <p class="text-xs text-slate-400 leading-relaxed mb-4">Start speaking or select a topic prompt below to render concept relationships automatically.</p>
                             
                             <!-- Prompt Quick-Start Chips -->
                             <div class="flex flex-wrap gap-1.5 justify-center">
@@ -523,16 +524,16 @@
                     </div>
 
                     <!-- Floating Concept Inspector Card (appears when clicking any concept node) -->
-                    <div id="concept-inspector-hud" class="hidden absolute top-3 left-3 z-20 w-72 sm:w-80 bg-panel/95 backdrop-blur-md border border-edge rounded-2xl p-4 shadow-2xl transition-all duration-200 pointer-events-auto">
+                    <div id="concept-inspector-hud" class="hidden absolute top-3 left-3 z-20 w-72 sm:w-80 bg-panel border border-edge rounded-xl p-4 shadow-xl transition-all duration-200 pointer-events-auto">
                         <div class="flex items-start justify-between gap-2 mb-2">
                             <div class="flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+                                <span class="w-2 h-2 rounded-full bg-accent"></span>
                                 <span class="text-[10px] font-mono uppercase tracking-wider text-accent font-semibold">Concept Detail</span>
                             </div>
-                            <button id="close-inspector-btn" title="Close" class="w-5 h-5 rounded-lg bg-raised hover:bg-edge flex items-center justify-center text-slate-400 hover:text-white transition-all text-[11px]">✕</button>
+                            <button id="close-inspector-btn" title="Close" class="w-5 h-5 rounded bg-raised hover:bg-edge flex items-center justify-center text-slate-400 hover:text-white transition-all text-[11px]">✕</button>
                         </div>
                         <div class="flex items-center gap-2 mb-2.5">
-                            <div id="inspector-node-badge" class="w-7 h-7 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center text-xs text-accent shrink-0">📌</div>
+                            <div id="inspector-node-badge" class="w-7 h-7 rounded-lg bg-accent-tint border border-accent-soft flex items-center justify-center text-xs text-accent shrink-0">📌</div>
                             <h4 id="inspector-node-title" class="text-sm font-bold text-white tracking-tight truncate">Concept Title</h4>
                         </div>
                         
@@ -548,13 +549,13 @@
 
                         <!-- Quick Action Buttons -->
                         <div class="flex items-center gap-1.5 pt-2 border-t border-edge/60">
-                            <button id="inspector-ask-tutor-btn" title="Ask AI tutor about this concept" class="flex-1 px-2.5 py-1.5 rounded-xl bg-accent hover:opacity-90 text-white text-[11px] font-semibold flex items-center justify-center gap-1 shadow-sm transition-all">
-                                <span>🤖 Ask AI Tutor</span>
+                            <button id="inspector-ask-tutor-btn" title="Ask AI tutor about this concept" class="flex-1 px-2.5 py-1.5 rounded-lg bg-accent hover:opacity-90 text-white text-[11px] font-semibold flex items-center justify-center gap-1 shadow-sm transition-all">
+                                <span>Ask AI Tutor</span>
                             </button>
-                            <button id="inspector-focus-btn" title="Center camera on concept" class="px-2.5 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white text-[11px] font-mono border border-edge transition-all">
-                                <span>🔍 Center</span>
+                            <button id="inspector-focus-btn" title="Center camera on concept" class="px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white text-[11px] font-mono border border-edge transition-all">
+                                <span>Center</span>
                             </button>
-                            <button id="inspector-speak-btn" title="Read concept aloud" class="p-1.5 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all">
+                            <button id="inspector-speak-btn" title="Read concept aloud" class="p-1.5 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-all">
                                 <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
                                     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                                     <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -564,18 +565,18 @@
                     </div>
 
                     <!-- Mini Canvas Status Floating Badge -->
-                    <div id="diagram-canvas-hud" class="absolute bottom-3 right-3 bg-panel/85 backdrop-blur-md border border-edge px-2.5 py-1 rounded-lg text-[10px] font-mono text-slate-400 shadow-md flex items-center gap-2 pointer-events-none">
+                    <div id="diagram-canvas-hud" class="absolute bottom-3 right-3 bg-panel/90 border border-edge px-2.5 py-1 rounded-md text-[10px] font-mono text-slate-400 shadow-sm flex items-center gap-2 pointer-events-none">
                         <span id="diagram-node-hud">Live Diagram Engine</span>
                     </div>
                 </div>
 
                 <!-- Quick Study Bar link to Page 3 -->
-                <div class="h-11 shrink-0 px-4 bg-raised/60 border-t border-edge flex items-center justify-between gap-2 backdrop-blur-sm">
+                <div class="h-11 shrink-0 px-4 bg-raised/40 border-t border-edge flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2 text-xs text-slate-300 font-mono truncate">
                         <span class="w-2 h-2 rounded-full bg-accent"></span>
-                        <span class="truncate">Live Study Pack automatically synched with diagram</span>
+                        <span class="truncate">Live Study Pack automatically synchronized</span>
                     </div>
-                    <a href="#study" class="text-xs font-semibold text-accent hover:text-white px-3 py-1 rounded-lg bg-accent/15 hover:bg-accent border border-accent/30 transition-all flex items-center gap-1.5 shrink-0 shadow-sm">
+                    <a href="#study" class="text-xs font-semibold text-accent hover:text-white px-3 py-1 rounded-lg bg-accent-tint hover:bg-accent border border-accent-soft transition-all flex items-center gap-1.5 shrink-0 shadow-sm">
                         <span>Open Study Hub &amp; Quizzes ›</span>
                     </a>
                 </div>
@@ -587,42 +588,42 @@
         <!-- ===================================================================== -->
         <section id="view-expression" class="page-view flex-1 min-h-0 h-full w-full flex-col gap-3 md:gap-4 overflow-y-auto slim-scroll pb-4 md:pb-6">
             <!-- Header Banner (shrink-0) -->
-            <div class="bg-panel border border-edge rounded-2xl p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl shrink-0 backdrop-blur-md">
+            <div class="bg-panel border border-edge rounded-xl p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm shrink-0">
                 <div>
                     <h2 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
-                        <span>QuickTalk Voice Studio</span>
-                        <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-accent-tint text-accent border border-accent-soft font-semibold">QuickTalk AI</span>
+                        <span>QuickTalk Voice Assistant</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-accent-tint text-accent border border-accent-soft font-semibold">Speech Bridge</span>
                     </h2>
-                    <p class="text-xs text-slate-400 mt-0.5">Type fragments, Pakistani classroom phrases, or Roman Urdu to speak aloud with instant AI neural voice.</p>
+                    <p class="text-xs text-slate-400 mt-0.5">Type shorthand phrases, questions, or Roman Urdu to speak aloud with clear spoken pronunciation.</p>
                 </div>
                 <!-- Keyboard Hints -->
                 <div class="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
-                    <span class="px-2.5 py-1 rounded-lg bg-raised border border-edge">⏎ Enter — Speak</span>
-                    <span class="px-2.5 py-1 rounded-lg bg-raised border border-edge">⇧ Shift+Enter — New line</span>
+                    <span class="px-2 py-0.5 rounded-md bg-raised border border-edge">⏎ Enter — Speak</span>
+                    <span class="px-2 py-0.5 rounded-md bg-raised border border-edge">⇧ Shift+Enter — New line</span>
                 </div>
             </div>
 
             <!-- Tone Selector Badges Bar -->
-            <div class="bg-panel border border-edge rounded-2xl p-2 md:p-2.5 shadow-md shrink-0 flex items-center gap-1.5 md:gap-2 overflow-x-auto slim-scroll">
-                <span class="text-[11px] font-mono text-slate-400 px-2 uppercase tracking-wider shrink-0 font-semibold">Persona Tone:</span>
+            <div class="bg-panel border border-edge rounded-xl p-2 md:p-2.5 shadow-sm shrink-0 flex items-center gap-1.5 md:gap-2 overflow-x-auto slim-scroll">
+                <span class="text-[11px] font-mono text-slate-400 px-2 uppercase tracking-wider shrink-0 font-semibold">Tone:</span>
                 <div id="tone-badges-container" class="flex items-center gap-1.5 md:gap-2 overflow-x-auto slim-scroll">
-                    <button class="tone-badge active px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent text-white border border-accent transition-all shrink-0 flex items-center gap-1.5"
+                    <button class="tone-badge active px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent text-white border border-accent transition-all shrink-0 flex items-center gap-1.5"
                             data-tone="polite and respectful academic question">
-                        <span>🎓 Polite Question</span>
+                        <span>🎓 Academic Question</span>
                     </button>
-                    <button class="tone-badge px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 bg-raised hover:bg-edge hover:text-white border border-edge transition-all shrink-0 flex items-center gap-1.5"
+                    <button class="tone-badge px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-raised hover:bg-edge hover:text-white border border-edge transition-all shrink-0 flex items-center gap-1.5"
                             data-tone="clear and detailed concept clarification">
                         <span>💡 Clarification</span>
                     </button>
-                    <button class="tone-badge px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 bg-raised hover:bg-edge hover:text-white border border-edge transition-all shrink-0 flex items-center gap-1.5"
+                    <button class="tone-badge px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-raised hover:bg-edge hover:text-white border border-edge transition-all shrink-0 flex items-center gap-1.5"
                             data-tone="urgent and respectful classroom interruption">
                         <span>🚨 Urgent Doubt</span>
                     </button>
-                    <button class="tone-badge px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 bg-raised hover:bg-edge hover:text-white border border-edge transition-all shrink-0 flex items-center gap-1.5"
+                    <button class="tone-badge px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-raised hover:bg-edge hover:text-white border border-edge transition-all shrink-0 flex items-center gap-1.5"
                             data-tone="natural Roman Urdu and English student question">
                         <span>🇵🇰 Roman Urdu</span>
                     </button>
-                    <button class="tone-badge px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 bg-raised hover:bg-edge hover:text-white border border-edge transition-all shrink-0 flex items-center gap-1.5"
+                    <button class="tone-badge px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-raised hover:bg-edge hover:text-white border border-edge transition-all shrink-0 flex items-center gap-1.5"
                             data-tone="warm and genuine gratitude">
                         <span>🙏 Gratitude</span>
                     </button>
@@ -633,7 +634,7 @@
             <!-- Two-Column Expression Layout -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0 h-auto w-full">
                 <!-- Left: Shorthand Composer Studio (col-span-6) -->
-                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-[380px] lg:min-h-[460px] h-auto bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-xl gap-3">
+                <div class="lg:col-span-6 flex flex-col min-w-0 min-h-[380px] lg:min-h-[460px] h-auto bg-panel border border-edge rounded-xl p-4 md:p-5 shadow-sm gap-3">
                     <div class="flex items-center justify-between shrink-0">
                         <div class="flex items-center gap-2">
                             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-300 font-bold">Voice Composer</h3>
@@ -645,33 +646,33 @@
                                 <span class="meter-bar w-[2.5px] h-full rounded-sm bg-accent"></span>
                             </div>
                         </div>
-                        <span id="voice-engine-badge" class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-raised text-slate-400 border border-edge">Neural TTS Ready</span>
+                        <span id="voice-engine-badge" class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-raised text-slate-400 border border-edge">Neural TTS Ready</span>
                     </div>
 
                     <div class="relative flex-1 min-h-[120px]">
                         <textarea id="shorthand-input" maxlength="1000"
-                                  placeholder="Type fragments or Roman Urdu, e.g. 'sir q abt gravity?? fast smjhaen'&#10;&#10;✨ Enter refines &amp; speaks · Shift+Enter for a new line."
-                                  class="w-full h-full bg-ink border border-edge rounded-xl p-4 pr-20 text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-all leading-relaxed"></textarea>
-                        <span id="char-count" class="absolute bottom-3 right-3 font-mono text-[11px] text-slate-500 bg-panel px-2 py-0.5 rounded-md border border-edge">0/1000</span>
+                                  placeholder="Type shorthand notes or Roman Urdu (e.g. 'sir q abt gravity? please explain')&#10;&#10;Press Enter to refine and speak · Shift+Enter for a new line."
+                                  class="w-full h-full bg-ink border border-edge rounded-lg p-3.5 pr-20 text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent transition-all leading-relaxed"></textarea>
+                        <span id="char-count" class="absolute bottom-3 right-3 font-mono text-[11px] text-slate-500 bg-panel px-2 py-0.5 rounded border border-edge">0/1000</span>
                     </div>
 
                     <!-- Live Refinement Preview -->
-                    <div id="refine-preview-card" class="shrink-0 p-3 rounded-xl bg-ink border border-edge flex items-start gap-2 text-xs">
-                        <span class="text-accent text-sm leading-none mt-0.5">✨</span>
+                    <div id="refine-preview-card" class="shrink-0 p-3 rounded-lg bg-ink border border-edge flex items-start gap-2 text-xs">
+                        <span class="text-accent text-sm leading-none mt-0.5 font-bold">↳</span>
                         <div class="flex-1 min-w-0">
-                            <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-0.5 font-semibold">Gemini Refinement</div>
-                            <div id="refine-preview-text" class="text-slate-300 italic truncate">Refines shorthand into natural spoken classroom dialogue...</div>
+                            <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-0.5 font-semibold">Speech Refinement Preview</div>
+                            <div id="refine-preview-text" class="text-slate-300 italic truncate">Refined spoken speech will appear here...</div>
                         </div>
                     </div>
 
-                    <!-- Delivery Controls (auto-speak & speed live next to the input they affect) -->
+                    <!-- Delivery Controls -->
                     <div class="flex flex-wrap items-center gap-2 shrink-0">
-                        <label class="flex items-center gap-1.5 text-xs text-slate-300 font-mono cursor-pointer select-none bg-ink px-3 py-1.5 rounded-xl border border-edge shadow-sm">
+                        <label class="flex items-center gap-1.5 text-xs text-slate-300 font-mono cursor-pointer select-none bg-ink px-3 py-1.5 rounded-lg border border-edge">
                             <input id="auto-speak-toggle" type="checkbox" checked class="rounded accent-accent cursor-pointer" />
-                            <span>⚡ Auto-speak on Enter</span>
+                            <span>Auto-speak on Enter</span>
                         </label>
 
-                        <div class="flex items-center gap-1.5 bg-ink px-3 py-1.5 rounded-xl border border-edge text-xs font-mono text-slate-300 shadow-sm">
+                        <div class="flex items-center gap-1.5 bg-ink px-3 py-1.5 rounded-lg border border-edge text-xs font-mono text-slate-300">
                             <span>Speed:</span>
                             <input id="tts-speed-slider" type="range" min="0.75" max="1.5" step="0.25" value="1.0" class="w-16 sm:w-20 cursor-pointer accent-accent" title="Voice playback speed" />
                             <span id="tts-speed-label" class="font-semibold text-accent">1.0x</span>
@@ -680,14 +681,14 @@
 
                     <div class="flex gap-2 shrink-0">
                         <button id="speak-btn"
-                                class="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-accent to-accent-dim hover:opacity-95 text-white text-sm font-semibold transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                                class="flex-1 px-5 py-2.5 rounded-lg bg-accent hover:opacity-90 text-white text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
                             <svg viewBox="0 0 24 24" class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2">
                                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
                             </svg>
                             <span>Speak Now</span>
                         </button>
-                        <button id="clear-btn" class="px-4 py-3 rounded-xl bg-raised hover:bg-edge text-slate-300 hover:text-white text-sm transition-colors border border-edge font-medium">
+                        <button id="clear-btn" class="px-4 py-2.5 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white text-sm transition-colors border border-edge font-medium">
                             Clear
                         </button>
                     </div>
@@ -696,7 +697,7 @@
                 <!-- Right: Pakistani Presets & Spoken Log (col-span-6) -->
                 <div class="lg:col-span-6 flex flex-col min-w-0 min-h-0 h-auto gap-3 md:gap-4">
                     <!-- Quick Presets Soundboard -->
-                    <div class="bg-panel border border-edge rounded-2xl p-4 shadow-xl shrink-0 flex flex-col">
+                    <div class="bg-panel border border-edge rounded-xl p-4 shadow-sm shrink-0 flex flex-col">
                         <div class="flex items-center justify-between mb-2.5 shrink-0">
                             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-300 font-bold">Soundboard &amp; Presets</h3>
                             <span class="text-[10px] font-mono text-slate-500">1-click speak</span>
@@ -704,45 +705,45 @@
 
                         <!-- Soundboard Category Filter Chips -->
                         <div class="flex items-center gap-1.5 mb-2.5 overflow-x-auto slim-scroll pb-1 shrink-0">
-                            <button class="soundboard-tab active px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-raised text-white border border-accent shadow-sm shrink-0" data-cat="all">🌟 All</button>
-                            <button class="soundboard-tab px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="urdu">🇵🇰 Urdu Class</button>
-                            <button class="soundboard-tab px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="question">🙋 Questions</button>
-                            <button class="soundboard-tab px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="feedback">🙏 Feedback</button>
+                            <button class="soundboard-tab active px-2.5 py-1 rounded-md text-[11px] font-semibold bg-raised text-white border border-accent shrink-0" data-cat="all">All</button>
+                            <button class="soundboard-tab px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="urdu">🇵🇰 Urdu Class</button>
+                            <button class="soundboard-tab px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="question">Questions</button>
+                            <button class="soundboard-tab px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="feedback">Feedback</button>
                         </div>
 
                         <div id="soundboard-grid" class="flex flex-wrap gap-2 overflow-y-auto slim-scroll p-0.5 max-h-44 min-h-[64px]">
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
-                                    data-cat="urdu" data-text="Sir please yeh point dubara repeat kar dein.">
+                            <button class="preset-btn px-3 py-2 rounded-lg bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                                     data-cat="urdu" data-text="Sir please yeh point dubara repeat kar dein.">
                                 <span>🇵🇰 Sir repeat kar dein</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
-                                    data-cat="urdu" data-text="Sir yeh concept theek se samajh nahi aya, please explain karein.">
+                            <button class="preset-btn px-3 py-2 rounded-lg bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                                     data-cat="urdu" data-text="Sir yeh concept theek se samajh nahi aya, please explain karein.">
                                 <span>🇵🇰 Concept samajh nahi aya</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
-                                    data-cat="urdu" data-text="Sir could you please slow down a little?">
+                            <button class="preset-btn px-3 py-2 rounded-lg bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                                     data-cat="urdu" data-text="Sir could you please slow down a little?">
                                 <span>🇵🇰 Sir thora slow parhaen</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
-                                    data-cat="question" data-text="I have a question about this specific topic.">
+                            <button class="preset-btn px-3 py-2 rounded-lg bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                                     data-cat="question" data-text="I have a question about this specific topic.">
                                 <span>✋ I have a question</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
-                                    data-cat="question" data-text="Could you please explain this with a real-world example?">
+                            <button class="preset-btn px-3 py-2 rounded-lg bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                                     data-cat="question" data-text="Could you please explain this with a real-world example?">
                                 <span>💡 Real-world example please</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
-                                    data-cat="feedback" data-text="Thank you very much for explaining that so clearly.">
-                                <span>🙏 Thank you Sir, crystal clear</span>
+                            <button class="preset-btn px-3 py-2 rounded-lg bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                                     data-cat="feedback" data-text="Thank you very much for explaining that so clearly.">
+                                <span>🙏 Thank you Sir, clear</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
-                            <button class="preset-btn px-3 py-2 rounded-xl bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
-                                    data-cat="urdu" data-text="Sir please white board par diagram bana kar samjha dein.">
+                            <button class="preset-btn px-3 py-2 rounded-lg bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group"
+                                     data-cat="urdu" data-text="Sir please white board par diagram bana kar samjha dein.">
                                 <span>🇵🇰 Board par diagram banaen</span>
                                 <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
                             </button>
@@ -750,9 +751,9 @@
 
                         <!-- Custom Preset Creator -->
                         <div class="flex items-center gap-2 mt-3 pt-2.5 border-t border-edge shrink-0">
-                            <input id="custom-preset-input" type="text" maxlength="150" placeholder="Save your custom voice phrase..."
-                                   class="flex-1 bg-ink border border-edge rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-accent" />
-                            <button id="save-preset-btn" class="px-3.5 py-2 rounded-xl bg-accent-tint hover:bg-accent-tint-strong text-accent border border-accent-soft text-xs font-mono font-semibold transition-all whitespace-nowrap shadow-sm">
+                            <input id="custom-preset-input" type="text" maxlength="150" placeholder="Save custom voice phrase..."
+                                   class="flex-1 bg-ink border border-edge rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-accent" />
+                            <button id="save-preset-btn" class="px-3.5 py-2 rounded-lg bg-accent-tint hover:bg-accent-tint-strong text-accent border border-accent-soft text-xs font-mono font-semibold transition-all whitespace-nowrap">
                                 + Save
                             </button>
                         </div>
@@ -760,7 +761,7 @@
                     </div>
 
                     <!-- Spoken Log with replay -->
-                    <div class="flex-1 min-h-[200px] overflow-hidden flex flex-col bg-panel border border-edge rounded-2xl p-4 shadow-xl">
+                    <div class="flex-1 min-h-[200px] overflow-hidden flex flex-col bg-panel border border-edge rounded-xl p-4 shadow-sm">
                         <div class="flex items-center justify-between mb-2 shrink-0">
                             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-300 font-bold">Spoken Questions History</h3>
                             <button id="clear-spoken-log-btn" class="text-[10px] font-mono text-slate-500 hover:text-red-400 transition-colors">Clear History</button>
@@ -778,13 +779,13 @@
         <!-- ===================================================================== -->
         <section id="view-study" class="page-view flex-1 min-h-0 h-full w-full flex-col gap-3 md:gap-4">
             <!-- Study Hub Header -->
-            <div class="bg-panel border border-edge rounded-2xl p-3 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-md shrink-0">
+            <div class="bg-panel border border-edge rounded-xl p-3 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm shrink-0">
                 <div>
                     <h2 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
-                        <span>Classroom Study Hub &amp; Quiz Arena</span>
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-accent/20 text-accent border border-accent/30">active recall &amp; revision</span>
+                        <span>Classroom Study Hub</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-accent-tint text-accent border border-accent-soft">Active Recall</span>
                     </h2>
-                    <p class="text-xs text-slate-400 mt-0.5">Explore structured study notes, practice interactive quizzes, and flip concept flashcards.</p>
+                    <p class="text-xs text-slate-400 mt-0.5">Explore structured study notes, practice comprehension quizzes, and review concept flashcards.</p>
                 </div>
 
                 <!-- Study Tabs & Export Actions -->
@@ -795,19 +796,19 @@
                         </button>
                         <button id="tab-study-quiz-btn" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5">
                             <span>❓ Quiz Arena</span>
-                            <span id="quiz-badge" class="px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px]">0</span>
+                            <span id="quiz-badge" class="px-1.5 py-0.5 rounded-full bg-accent-tint text-accent text-[10px]">0</span>
                         </button>
                         <button id="tab-study-flashcards-btn" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5">
                             <span>🎴 Flashcards Deck</span>
-                            <span id="flashcard-badge" class="px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px]">0</span>
+                            <span id="flashcard-badge" class="px-1.5 py-0.5 rounded-full bg-accent-tint text-accent text-[10px]">0</span>
                         </button>
                         <button id="tab-study-mindmap-btn" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5">
                             <span>🧠 Concept Mindmap</span>
-                            <span id="mindmap-badge" class="px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px]">0</span>
+                            <span id="mindmap-badge" class="px-1.5 py-0.5 rounded-full bg-accent-tint text-accent text-[10px]">0</span>
                         </button>
                     </div>
 
-                    <button id="copy-study-pack-btn" class="px-3 py-1.5 rounded-xl bg-raised hover:bg-edge text-slate-200 border border-edge text-xs font-mono transition-colors">
+                    <button id="copy-study-pack-btn" class="px-3 py-1.5 rounded-lg bg-raised hover:bg-edge text-slate-200 border border-edge text-xs font-mono transition-colors">
                         📋 Copy Study Pack
                     </button>
                 </div>
@@ -816,11 +817,11 @@
             <!-- Tab 1: Notes & Summary Full Page Pane -->
             <div id="study-notes-pane" class="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 h-full w-full">
                 <!-- Left: Key Summary & Notes (md:col-span-8) -->
-                <div class="md:col-span-8 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-4 overflow-y-auto slim-scroll">
+                <div class="md:col-span-8 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-xl p-4 md:p-5 shadow-sm space-y-4 overflow-y-auto slim-scroll">
                     <div>
                         <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold mb-2">Lecture Key Summary</h3>
                         <ul id="summary-list" class="space-y-2 text-sm text-slate-300">
-                            <li class="text-slate-500 italic">No summary points generated yet. Click "Generate Diagram" on the EchoVisual page to create one.</li>
+                            <li class="text-slate-500 italic">No summary points generated yet. Click "Generate Visual" on the EchoVisual page to create one.</li>
                         </ul>
                     </div>
 
@@ -845,7 +846,7 @@
                 </div>
 
                 <!-- Right: Key Terms Tag Cloud (md:col-span-4) -->
-                <div class="md:col-span-4 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-3 overflow-y-auto slim-scroll">
+                <div class="md:col-span-4 flex flex-col min-w-0 min-h-0 h-full bg-panel border border-edge rounded-xl p-4 md:p-5 shadow-sm space-y-3 overflow-y-auto slim-scroll">
                     <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">Key Terminology Covered</h3>
                     <div id="terms-list" class="flex flex-wrap gap-2">
                         <span class="text-slate-500 italic text-xs">No key terms recorded yet.</span>
@@ -854,12 +855,12 @@
             </div>
 
             <!-- Tab 2: Interactive Quiz Arena Full Page Pane -->
-            <div id="study-quiz-pane" class="hidden flex-1 min-h-0 flex-col bg-panel border border-edge rounded-2xl p-4 md:p-6 shadow-lg overflow-y-auto slim-scroll h-full w-full space-y-4">
+            <div id="study-quiz-pane" class="hidden flex-1 min-h-0 flex-col bg-panel border border-edge rounded-xl p-4 md:p-6 shadow-sm overflow-y-auto slim-scroll h-full w-full space-y-4">
                 <div class="flex items-center justify-between border-b border-edge/60 pb-3 shrink-0 gap-2 flex-wrap">
                     <div>
                         <h3 class="text-sm font-semibold text-white flex items-center gap-2">
                             <span>Interactive Quiz Arena</span>
-                            <span id="quiz-score-badge" class="font-mono text-xs px-2.5 py-0.5 rounded-full bg-accent/20 text-accent font-bold">Score: 0 / 0</span>
+                            <span id="quiz-score-badge" class="font-mono text-xs px-2.5 py-0.5 rounded-full bg-accent-tint text-accent font-bold">Score: 0 / 0</span>
                         </h3>
                         <p class="text-xs text-slate-400 mt-0.5">Test your comprehension with questions automatically synthesized from the lecture.</p>
                     </div>
@@ -884,11 +885,11 @@
             </div>
 
             <!-- Tab 3: Interactive 3D Flashcards Deck Pane -->
-            <div id="study-flashcards-pane" class="hidden flex-1 min-h-0 flex-col bg-panel border border-edge rounded-2xl p-4 md:p-6 shadow-lg overflow-y-auto slim-scroll h-full w-full space-y-4">
+            <div id="study-flashcards-pane" class="hidden flex-1 min-h-0 flex-col bg-panel border border-edge rounded-xl p-4 md:p-6 shadow-sm overflow-y-auto slim-scroll h-full w-full space-y-4">
                 <div class="flex items-center justify-between border-b border-edge/60 pb-2 shrink-0 gap-2 flex-wrap">
                     <div>
                         <h3 class="text-sm font-semibold text-white">Concept Flashcard Revision Deck</h3>
-                        <p class="text-xs text-slate-400 mt-0.5">Click any flashcard to flip and reveal the in-depth explanation.</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Click any flashcard to flip and review key concept definitions.</p>
                     </div>
                     <div class="flex items-center gap-2 sm:gap-3">
                         <span class="text-xs text-slate-400 font-mono hidden sm:inline">↻ Click to Flip</span>
@@ -909,7 +910,7 @@
             </div>
 
             <!-- Tab 4: Interactive Concept Mindmap Studio -->
-            <div id="study-mindmap-pane" class="hidden flex-1 min-h-0 flex-col bg-panel border border-edge rounded-2xl p-3 md:p-4 shadow-lg h-full w-full space-y-3">
+            <div id="study-mindmap-pane" class="hidden flex-1 min-h-0 flex-col bg-panel border border-edge rounded-xl p-3 md:p-4 shadow-sm h-full w-full space-y-3">
                 <!-- Submodule Top Bar -->
                 <div class="flex items-center justify-between border-b border-edge/60 pb-3 shrink-0 gap-3 flex-wrap">
                     <div class="min-w-0">
@@ -917,18 +918,18 @@
                             <h3 class="text-sm font-semibold text-white flex items-center gap-2">
                                 <span>Hierarchical Concept Mindmap</span>
                             </h3>
-                            <span id="mindmap-topic-badge" class="hidden text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/30 font-medium truncate max-w-xs">Topic</span>
+                            <span id="mindmap-topic-badge" class="hidden text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-accent-tint text-accent border border-accent-soft font-medium truncate max-w-xs">Topic</span>
                         </div>
-                        <p class="text-xs text-slate-400 mt-0.5">Synthesizes lecture speech and whiteboard context into an interactive visual topic hierarchy.</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Synthesizes lecture speech and whiteboard context into a clear concept topic hierarchy.</p>
                     </div>
                     <!-- Toolbar Controls -->
                     <div class="flex items-center gap-2 flex-wrap">
                         <!-- View Mode Switcher -->
-                        <div class="flex items-center bg-ink p-1 rounded-xl border border-edge text-xs">
-                            <button id="mindmap-view-graph-btn" class="px-2.5 py-1 rounded-lg bg-raised text-white font-medium flex items-center gap-1 transition-all">
+                        <div class="flex items-center bg-ink p-1 rounded-lg border border-edge text-xs">
+                            <button id="mindmap-view-graph-btn" class="px-2.5 py-1 rounded bg-raised text-white font-medium flex items-center gap-1 transition-all">
                                 <span>Visual Map</span>
                             </button>
-                            <button id="mindmap-view-tree-btn" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1 transition-all">
+                            <button id="mindmap-view-tree-btn" class="px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1 transition-all">
                                 <span>Outline Tree</span>
                             </button>
                         </div>
@@ -966,18 +967,18 @@
                 </div>
 
                 <!-- Submodule Content Body (Full Height) -->
-                <div class="flex-1 min-h-0 relative rounded-xl overflow-hidden border border-edge/60 bg-ink/70">
+                <div class="flex-1 min-h-0 relative rounded-lg overflow-hidden border border-edge bg-ink/70">
                     <!-- Empty State -->
-                    <div id="mindmap-empty-state" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 bg-ink/90 backdrop-blur-sm">
-                        <div class="w-14 h-14 rounded-2xl bg-accent/15 border border-accent/30 text-accent flex items-center justify-center text-2xl mb-3 shadow-lg">
-                            Map
+                    <div id="mindmap-empty-state" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 bg-panel/95">
+                        <div class="w-12 h-12 rounded-xl bg-accent-tint border border-accent-soft text-accent flex items-center justify-center text-xl mb-3">
+                            🗺️
                         </div>
                         <h4 class="text-sm font-semibold text-white mb-1">No Concept Mindmap Generated Yet</h4>
                         <p class="text-xs text-slate-400 max-w-md mb-4 leading-relaxed">
-                            Turn your active lecture speech and whiteboard diagram context into a multi-tiered concept mindmap. 
+                            Organize active lecture speech and whiteboard diagrams into a structured concept mindmap. 
                             Explore root themes, primary branches, and key takeaways visually or via an outline tree.
                         </p>
-                        <button id="mindmap-empty-generate-btn" class="px-4 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-xs font-semibold shadow-md flex items-center gap-2">
+                        <button id="mindmap-empty-generate-btn" class="px-4 py-2 rounded-lg bg-accent hover:opacity-90 text-white text-xs font-semibold shadow-sm flex items-center gap-2">
                             <span>Generate Mindmap on Demand</span>
                         </button>
                     </div>
@@ -987,28 +988,28 @@
                         <div id="study-mindmap-vis" class="w-full h-full"></div>
 
                         <!-- Node Detail Inspector Overlay -->
-                        <div id="mindmap-inspector" class="hidden absolute bottom-3 left-3 right-3 sm:right-auto sm:max-w-md bg-panel/95 backdrop-blur-md border border-accent/40 rounded-xl p-3.5 shadow-2xl z-20 text-xs space-y-2 transition-all">
+                        <div id="mindmap-inspector" class="hidden absolute bottom-3 left-3 right-3 sm:right-auto sm:max-w-md bg-panel border border-border-edge rounded-lg p-3.5 shadow-xl z-20 text-xs space-y-2 transition-all">
                             <div class="flex items-center justify-between gap-2 border-b border-edge/60 pb-2">
                                 <div class="flex items-center gap-2 min-w-0">
-                                    <span id="inspector-level-badge" class="font-mono text-[10px] px-2 py-0.5 rounded-full bg-accent/20 text-accent font-semibold uppercase">Category</span>
+                                    <span id="inspector-level-badge" class="font-mono text-[10px] px-2 py-0.5 rounded-full bg-accent-tint text-accent font-semibold uppercase">Category</span>
                                     <h5 id="inspector-node-title" class="font-semibold text-white truncate text-sm">Node Label</h5>
                                 </div>
-                                <button id="inspector-close-btn" class="text-slate-400 hover:text-white p-1 rounded-lg">X</button>
+                                <button id="inspector-close-btn" class="text-slate-400 hover:text-white p-1 rounded">✕</button>
                             </div>
                             <p id="inspector-node-notes" class="text-slate-300 leading-relaxed">Detailed explanation of this mindmap node.</p>
                             <div class="flex items-center justify-between pt-1">
                                 <span id="inspector-node-cat" class="text-[10px] font-mono text-slate-400">Branch: General</span>
-                                <button id="inspector-ask-tutor-btn" class="px-2.5 py-1 rounded-lg bg-accent/15 hover:bg-accent text-accent hover:text-white border border-accent/30 text-[11px] font-medium transition-colors">
+                                <button id="inspector-ask-tutor-btn" class="px-2.5 py-1 rounded-md bg-accent-tint hover:bg-accent text-accent hover:text-white border border-accent-soft text-[11px] font-medium transition-colors">
                                     Ask EchoBot Tutor
                                 </button>
                             </div>
                         </div>
 
                         <!-- Graph Legend -->
-                        <div class="absolute top-2 right-2 hidden sm:flex items-center gap-2 bg-panel/90 backdrop-blur-sm border border-edge rounded-lg px-2.5 py-1 text-[10px] font-mono text-slate-400 z-10">
+                        <div class="absolute top-2 right-2 hidden sm:flex items-center gap-2 bg-panel/90 border border-edge rounded-md px-2.5 py-1 text-[10px] font-mono text-slate-400 z-10">
                             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-accent"></span> Root</span>
-                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Branches</span>
-                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400"></span> Subtopics</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Branches</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-teal-500"></span> Subtopics</span>
                         </div>
                     </div>
 
@@ -1031,26 +1032,26 @@
         <!-- ===================================================================== -->
         <!-- PAGE 4: AI CLASSROOM TUTOR                                            -->
         <!-- ===================================================================== -->
-        <section id="view-tutor" class="page-view flex-1 min-h-0 h-full w-full flex-col bg-panel border border-edge rounded-2xl overflow-hidden shadow-lg">
+        <section id="view-tutor" class="page-view flex-1 min-h-0 h-full w-full flex-col bg-panel border border-edge rounded-xl overflow-hidden shadow-sm">
             <!-- Tutor Header -->
-            <div class="px-4 md:px-6 py-3 md:py-4 border-b border-edge bg-raised/60 flex items-center justify-between shrink-0">
+            <div class="px-4 md:px-6 py-3 border-b border-edge bg-raised/40 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent">
-                        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <div class="w-8 h-8 rounded-lg bg-accent-tint border border-accent-soft flex items-center justify-center text-accent">
+                        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                         </svg>
                     </div>
                     <div>
-                        <h2 class="text-sm font-semibold text-white">EchoBot AI Classroom Tutor</h2>
-                        <p class="text-xs text-slate-400 font-mono">Bilingual Study Assistant • Roman Urdu &amp; English</p>
+                        <h2 class="text-sm font-semibold text-white">Classroom AI Tutor</h2>
+                        <p class="text-xs text-slate-400 font-mono">Bilingual Study Assistant · Roman Urdu &amp; English</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <label class="flex items-center gap-1.5 text-xs font-mono text-slate-300 cursor-pointer bg-ink/70 px-2.5 py-1.5 rounded-lg border border-edge">
+                    <label class="flex items-center gap-1.5 text-xs font-mono text-slate-300 cursor-pointer bg-ink px-2.5 py-1.5 rounded-md border border-edge">
                         <input id="chat-include-context" type="checkbox" checked class="rounded accent-accent cursor-pointer" />
-                        <span>Lecture Aware Context</span>
+                        <span>Lecture Aware</span>
                     </label>
-                    <button id="clear-chat-btn" title="Clear chat history" class="px-2.5 py-1.5 rounded-lg bg-raised hover:bg-edge text-slate-400 hover:text-white text-xs border border-edge transition-colors">
+                    <button id="clear-chat-btn" title="Clear chat history" class="px-2.5 py-1.5 rounded-md bg-raised hover:bg-edge text-slate-400 hover:text-white text-xs border border-edge transition-colors">
                         Clear History
                     </button>
                 </div>
@@ -1059,39 +1060,39 @@
             <!-- Messages Scroll Stream -->
             <div id="chat-messages" class="flex-1 min-h-0 overflow-y-auto slim-scroll p-4 md:p-6 space-y-4">
                 <div class="chat-msg chat-msg-bot flex gap-3 items-start">
-                    <div class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center shrink-0 text-sm mt-0.5">🤖</div>
-                    <div class="bg-raised border border-edge rounded-2xl p-4 text-xs md:text-sm text-slate-200 max-w-[80%] leading-relaxed shadow-sm">
-                        Hello! I am your AI classroom tutor. I have full context of today's lecture speech, concept graphs, notes, and terms. You can ask me to explain concepts, quiz you in Roman Urdu, or clarify any topic!
+                    <div class="w-7 h-7 rounded-md bg-accent-tint border border-accent-soft text-accent flex items-center justify-center shrink-0 text-xs font-mono mt-0.5 font-bold">AI</div>
+                    <div class="bg-raised border border-edge rounded-xl p-3.5 text-xs md:text-sm text-slate-200 max-w-[80%] leading-relaxed shadow-sm">
+                        Hello! I am your classroom study assistant. I have full context of today's lecture speech, concept diagrams, notes, and terms. Feel free to ask questions, request Roman Urdu clarifications, or ask for a quick practice check!
                     </div>
                 </div>
             </div>
 
             <!-- Quick Prompt Starter Chips -->
-            <div id="chat-chips" class="px-4 py-2 border-t border-edge bg-raised/30 flex gap-2 overflow-x-auto slim-scroll shrink-0">
-                <button class="chat-chip shrink-0 px-3 py-1.5 rounded-full bg-raised hover:bg-edge border border-edge text-xs text-slate-300 transition-colors"
+            <div id="chat-chips" class="px-4 py-2 border-t border-edge bg-raised/20 flex gap-2 overflow-x-auto slim-scroll shrink-0">
+                <button class="chat-chip shrink-0 px-3 py-1.5 rounded-lg bg-raised hover:bg-edge border border-edge text-xs text-slate-300 transition-colors"
                         data-prompt="Can you explain the current diagram in simple terms?">
                     💡 Explain diagram
                 </button>
-                <button class="chat-chip shrink-0 px-3 py-1.5 rounded-full bg-raised hover:bg-edge border border-edge text-xs text-slate-300 transition-colors"
+                <button class="chat-chip shrink-0 px-3 py-1.5 rounded-lg bg-raised hover:bg-edge border border-edge text-xs text-slate-300 transition-colors"
                         data-prompt="Yeh current diagram Roman Urdu me aasan lafzon me samjha dein.">
                     🇵🇰 Roman Urdu me samjhaen
                 </button>
-                <button class="chat-chip shrink-0 px-3 py-1.5 rounded-full bg-raised hover:bg-edge border border-edge text-xs text-slate-300 transition-colors"
+                <button class="chat-chip shrink-0 px-3 py-1.5 rounded-lg bg-raised hover:bg-edge border border-edge text-xs text-slate-300 transition-colors"
                         data-prompt="Please summarize all main points discussed in the lecture so far.">
                     📝 Lecture Summary
                 </button>
-                <button class="chat-chip shrink-0 px-3 py-1.5 rounded-full bg-raised hover:bg-edge border border-edge text-xs text-slate-300 transition-colors"
+                <button class="chat-chip shrink-0 px-3 py-1.5 rounded-lg bg-raised hover:bg-edge border border-edge text-xs text-slate-300 transition-colors"
                         data-prompt="Quiz me with 2 quick questions in Roman Urdu based on today's lecture.">
                     ❓ Quick Quiz in Roman Urdu
                 </button>
             </div>
 
             <!-- Chat Composer Form -->
-            <form id="chat-form" class="p-3 md:p-4 border-t border-edge bg-raised/60 flex items-center gap-2 shrink-0">
+            <form id="chat-form" class="p-3 md:p-4 border-t border-edge bg-raised/40 flex items-center gap-2 shrink-0">
                 <input id="chat-input" type="text" placeholder="Ask anything about the lecture concepts, diagrams, or questions..."
-                       class="flex-1 bg-ink border border-edge rounded-xl px-4 py-2.5 text-xs md:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent" />
+                       class="flex-1 bg-ink border border-edge rounded-lg px-4 py-2 text-xs md:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent" />
                 <button id="send-chat-btn" type="submit"
-                        class="px-4 py-2.5 rounded-xl bg-accent hover:opacity-90 text-white text-xs md:text-sm font-semibold transition-opacity flex items-center gap-1.5 shadow-md shadow-accent/20 shrink-0">
+                        class="px-4 py-2 rounded-lg bg-accent hover:opacity-90 text-white text-xs md:text-sm font-semibold transition-opacity flex items-center gap-1.5 shadow-sm shrink-0">
                     <span>Send</span>
                     <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="22" y1="2" x2="11" y2="13"/>
@@ -1106,52 +1107,52 @@
         <!-- ===================================================================== -->
         <section id="view-storage" class="page-view flex-1 min-h-0 h-full w-full flex-col gap-4 overflow-y-auto slim-scroll">
             <!-- Header Banner -->
-            <div class="bg-panel border border-edge rounded-2xl p-4 md:p-5 flex flex-wrap items-center justify-between gap-3 shadow-md shrink-0">
+            <div class="bg-panel border border-edge rounded-xl p-4 md:p-5 flex flex-wrap items-center justify-between gap-3 shadow-sm shrink-0">
                 <div>
                     <h2 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
-                        <span>Session Storage &amp; Study Notes Export</span>
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-accent/20 text-accent border border-accent/30">backup &amp; downloads</span>
+                        <span>Session Storage &amp; Study Pack Export</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-accent-tint text-accent border border-accent-soft">Archive</span>
                     </h2>
-                    <p class="text-xs text-slate-400 mt-0.5">Archive classroom lectures, restore past sessions, and export study guides in multiple formats.</p>
+                    <p class="text-xs text-slate-400 mt-0.5">Archive classroom lectures, restore past sessions, and export study materials.</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button id="save-current-session-btn" class="px-3.5 py-2 rounded-xl bg-accent/20 hover:bg-accent/30 text-accent border border-accent/40 text-xs font-mono font-semibold transition-colors">
-                        + Save Current Snapshot
+                    <button id="save-current-session-btn" class="px-3.5 py-1.5 rounded-lg bg-accent-tint hover:bg-accent-tint-strong text-accent border border-accent-soft text-xs font-mono font-semibold transition-colors">
+                        + Save Snapshot
                     </button>
-                    <button id="restore-last-session-btn" class="px-3.5 py-2 rounded-xl bg-raised hover:bg-edge border border-edge text-xs font-semibold text-slate-200 hover:text-white transition-colors">
-                        🔄 Restore Last Session
+                    <button id="restore-last-session-btn" class="px-3.5 py-1.5 rounded-lg bg-raised hover:bg-edge border border-edge text-xs font-semibold text-slate-200 hover:text-white transition-colors">
+                        🔄 Restore Session
                     </button>
                 </div>
             </div>
 
             <!-- Current Session Overview Stats -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 shrink-0">
-                <div class="bg-panel border border-edge rounded-2xl p-4 text-center shadow-sm">
+                <div class="bg-panel border border-edge rounded-xl p-4 text-center shadow-sm">
                     <div class="text-xs text-slate-400">Total Diagrams</div>
                     <div id="stat-diagrams" class="text-2xl font-bold text-accent font-mono mt-1">0</div>
                 </div>
-                <div class="bg-panel border border-edge rounded-2xl p-4 text-center shadow-sm">
+                <div class="bg-panel border border-edge rounded-xl p-4 text-center shadow-sm">
                     <div class="text-xs text-slate-400">Captions Captured</div>
                     <div id="stat-captions" class="text-2xl font-bold text-white font-mono mt-1">0 chars</div>
                 </div>
-                <div class="bg-panel border border-edge rounded-2xl p-4 text-center shadow-sm">
+                <div class="bg-panel border border-edge rounded-xl p-4 text-center shadow-sm">
                     <div class="text-xs text-slate-400">Key Terms</div>
                     <div id="stat-terms" class="text-2xl font-bold text-accent-soft font-mono mt-1">0</div>
                 </div>
-                <div class="bg-panel border border-edge rounded-2xl p-4 text-center shadow-sm">
+                <div class="bg-panel border border-edge rounded-xl p-4 text-center shadow-sm">
                     <div class="text-xs text-slate-400">Session Status</div>
-                    <div id="stat-status" class="text-sm font-bold text-emerald-400 font-mono mt-2">Active</div>
+                    <div id="stat-status" class="text-sm font-bold text-emerald-500 font-mono mt-2">Active</div>
                 </div>
             </div>
 
             <!-- Export & Download Formats Grid -->
-            <div class="bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-3 shrink-0">
+            <div class="bg-panel border border-edge rounded-xl p-4 md:p-5 shadow-sm space-y-3 shrink-0">
                 <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">Download &amp; Export Center</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button id="download-study-guide-btn"
                             class="flex flex-col p-4 rounded-xl bg-raised hover:bg-edge border border-edge text-left transition-all group shadow-sm">
-                        <div class="w-9 h-9 rounded-lg bg-accent/15 group-hover:bg-accent/25 text-accent flex items-center justify-center mb-3">
-                            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <div class="w-8 h-8 rounded-lg bg-accent-tint text-accent flex items-center justify-center mb-3">
+                            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                                 <polyline points="14 2 14 8 20 8"/>
                                 <line x1="16" y1="13" x2="8" y2="13"/>
@@ -1159,13 +1160,13 @@
                             </svg>
                         </div>
                         <div class="text-sm font-semibold text-white">Study Guide (.md)</div>
-                        <div class="text-xs text-slate-400 mt-1">Full Markdown with transcripts, concept graphs &amp; quizzes</div>
+                        <div class="text-xs text-slate-400 mt-1">Markdown format with transcripts, graphs &amp; quizzes</div>
                     </button>
 
                     <button id="download-html-report-btn"
                             class="flex flex-col p-4 rounded-xl bg-raised hover:bg-edge border border-edge text-left transition-all group shadow-sm">
-                        <div class="w-9 h-9 rounded-lg bg-accent/15 group-hover:bg-accent/25 text-accent flex items-center justify-center mb-3">
-                            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <div class="w-8 h-8 rounded-lg bg-accent-tint text-accent flex items-center justify-center mb-3">
+                            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75">
                                 <circle cx="12" cy="12" r="10"/>
                                 <line x1="2" y1="12" x2="22" y2="12"/>
                                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
@@ -1177,21 +1178,21 @@
 
                     <button id="download-json-session-btn"
                             class="flex flex-col p-4 rounded-xl bg-raised hover:bg-edge border border-edge text-left transition-all group shadow-sm">
-                        <div class="w-9 h-9 rounded-lg bg-accent/15 group-hover:bg-accent/25 text-accent flex items-center justify-center mb-3">
-                            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <div class="w-8 h-8 rounded-lg bg-accent-tint text-accent flex items-center justify-center mb-3">
+                            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                                 <polyline points="17 8 12 3 7 8"/>
                                 <line x1="12" y1="3" x2="12" y2="15"/>
                             </svg>
                         </div>
                         <div class="text-sm font-semibold text-white">Session JSON (.json)</div>
-                        <div class="text-xs text-slate-400 mt-1">Raw session data snapshot for backup &amp; portability</div>
+                        <div class="text-xs text-slate-400 mt-1">Raw structured data backup for archival</div>
                     </button>
                 </div>
             </div>
 
             <!-- Saved Sessions Storage Archive -->
-            <div class="bg-panel border border-edge rounded-2xl p-4 md:p-5 shadow-lg space-y-3 flex-1 min-h-[200px]">
+            <div class="bg-panel border border-edge rounded-xl p-4 md:p-5 shadow-sm space-y-3 flex-1 min-h-[200px]">
                 <div class="flex items-center justify-between flex-wrap gap-2">
                     <div>
                         <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">Saved Sessions Storage Archive</h3>
@@ -1200,7 +1201,7 @@
                     <div class="flex items-center gap-2">
                         <input type="file" id="import-sessions-input" accept=".json,application/json" class="hidden" />
                         <button id="import-sessions-btn" title="Import session archive from a JSON file"
-                                class="px-3 py-1.5 rounded-xl bg-raised hover:bg-edge border border-edge text-slate-200 font-mono text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm">
+                                class="px-3 py-1.5 rounded-lg bg-raised hover:bg-edge border border-edge text-slate-200 font-mono text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                                 <polyline points="7 10 12 15 17 10"/>
@@ -1210,7 +1211,7 @@
                         </button>
 
                         <button id="export-all-sessions-btn" title="Export all archived sessions as a backup JSON file"
-                                class="px-3 py-1.5 rounded-xl bg-raised hover:bg-edge border border-edge text-slate-200 font-mono text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm">
+                                class="px-3 py-1.5 rounded-lg bg-raised hover:bg-edge border border-edge text-slate-200 font-mono text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm">
                             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                                 <polyline points="17 8 12 3 7 8"/>
@@ -1221,14 +1222,13 @@
                     </div>
                 </div>
                 <div id="saved-sessions-list" class="space-y-2.5 overflow-auto slim-scroll">
-                    <div class="text-xs text-slate-500 italic p-4 bg-raised rounded-xl border border-edge text-center">
+                    <div class="text-xs text-slate-500 italic p-4 bg-raised rounded-lg border border-edge text-center">
                         No previous session stored yet. As you use the app, sessions are saved automatically.
                     </div>
                 </div>
             </div>
         </section>
 
-    
         <!-- ===================================================================== -->
         <!-- PAGE: DEDICATED LIVE ROOM & MEETING HUB (#rooms)                      -->
         <!-- ===================================================================== -->
@@ -1236,20 +1236,20 @@
             <div class="max-w-4xl w-full mx-auto space-y-6 rise-in">
                 <!-- Header Banner -->
                 <div class="text-center space-y-2">
-                    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent/15 border border-accent/30 text-accent text-xs font-mono font-medium shadow-sm">
-                        <span class="w-2 h-2 rounded-full bg-accent animate-ping"></span>
-                        <span>Live Room Audio & Collaboration Hub</span>
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-accent-tint border border-accent-soft text-accent text-xs font-mono font-medium">
+                        <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
+                        <span>Classroom Audio &amp; Collaboration Hub</span>
                     </div>
                     <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight">Interactive Live Rooms</h1>
                     <p class="text-xs md:text-sm text-slate-400 max-w-xl mx-auto">
-                        Connect teacher and students in real time. Streams live microphone audio directly from the host room to student rooms, paired with real-time AI diagrams and speech translation.
+                        Connect teacher and students in real time. Streams live microphone audio directly from the host room to student rooms, paired with real-time concept diagrams and speech translation.
                     </p>
                 </div>
 
                 <!-- Active Session Card (shown if in a room) -->
-                <div id="hub-active-session-card" class="hidden p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-accent/10 border border-emerald-500/30 flex items-center justify-between shadow-xl">
+                <div id="hub-active-session-card" class="hidden p-5 rounded-xl bg-panel border border-edge flex items-center justify-between shadow-sm">
                     <div class="flex items-center gap-3.5">
-                        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl font-bold">
+                        <div class="w-9 h-9 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center text-lg font-bold">
                             🟢
                         </div>
                         <div>
@@ -1261,10 +1261,10 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
-                        <a href="#classroom" class="px-4 py-2 rounded-xl bg-accent text-white text-xs font-semibold hover:opacity-90 shadow-md transition-all">
+                        <a href="#classroom" class="px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:opacity-90 shadow-sm transition-all">
                             Open EchoVisual ➔
                         </a>
-                        <button id="hub-leave-active-btn" class="px-3 py-2 rounded-xl bg-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/30 border border-red-500/30 transition-all">
+                        <button id="hub-leave-active-btn" class="px-3 py-2 rounded-lg bg-red-500/15 text-red-400 text-xs font-semibold hover:bg-red-500/25 border border-red-500/30 transition-all">
                             Leave
                         </button>
                     </div>
@@ -1273,13 +1273,13 @@
                 <!-- Dual Action Columns: Join vs Host -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <!-- Column 1: Join Existing Class -->
-                    <div class="p-6 rounded-3xl bg-panel border border-edge shadow-2xl flex flex-col justify-between hover:border-accent/30 transition-all relative group">
+                    <div class="p-6 rounded-2xl bg-panel border border-edge shadow-sm flex flex-col justify-between hover:border-accent/40 transition-all relative group">
                         <div class="space-y-4">
                             <div class="flex items-center justify-between">
-                                <div class="w-12 h-12 rounded-2xl bg-accent/15 border border-accent/30 text-accent flex items-center justify-center text-2xl shadow-inner">
+                                <div class="w-10 h-10 rounded-xl bg-accent-tint border border-accent-soft text-accent flex items-center justify-center text-xl">
                                     🔑
                                 </div>
-                                <span class="text-[10px] font-mono px-2.5 py-1 rounded-full bg-raised border border-edge text-emerald-400 font-semibold">STUDENT / LISTENER</span>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-raised border border-edge text-emerald-400 font-semibold">STUDENT / LISTENER</span>
                             </div>
 
                             <div>
@@ -1291,32 +1291,32 @@
                                 <div>
                                     <label class="block text-[11px] font-mono text-slate-300 mb-1">6-Digit Room Code</label>
                                     <input id="hub-room-code-input" type="text" placeholder="e.g. ABC123" maxlength="6"
-                                           class="w-full bg-ink border border-edge rounded-xl px-4 py-3 text-white text-base uppercase font-mono tracking-widest font-bold focus:outline-none focus:border-accent transition-all" />
+                                           class="w-full bg-ink border border-edge rounded-lg px-4 py-2.5 text-white text-base uppercase font-mono tracking-widest font-bold focus:outline-none focus:border-accent transition-all" />
                                 </div>
 
                                 <div>
                                     <label class="block text-[11px] font-mono text-slate-300 mb-1">Your Display Name</label>
                                     <input id="hub-name-input" type="text" placeholder="e.g. Student Sarah"
-                                           class="w-full bg-ink border border-edge rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-accent transition-all" />
+                                           class="w-full bg-ink border border-edge rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:border-accent transition-all" />
                                 </div>
                             </div>
                         </div>
 
                         <div class="pt-6">
-                            <button id="hub-join-btn" class="w-full py-3.5 rounded-2xl bg-accent hover:opacity-90 text-white font-semibold text-sm shadow-lg shadow-accent/25 transition-all flex items-center justify-center gap-2">
+                            <button id="hub-join-btn" class="w-full py-2.5 rounded-lg bg-accent hover:opacity-90 text-white font-semibold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
                                 <span>🎧 Join Live Room (Listen Live)</span>
                             </button>
                         </div>
                     </div>
 
                     <!-- Column 2: Host New Class -->
-                    <div class="p-6 rounded-3xl bg-panel border border-edge shadow-2xl flex flex-col justify-between hover:border-accent/30 transition-all relative group">
+                    <div class="p-6 rounded-2xl bg-panel border border-edge shadow-sm flex flex-col justify-between hover:border-accent/40 transition-all relative group">
                         <div class="space-y-4">
                             <div class="flex items-center justify-between">
-                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-accent/20 border border-accent/40 text-accent flex items-center justify-center text-2xl shadow-inner">
+                                <div class="w-10 h-10 rounded-xl bg-accent-tint border border-accent-soft text-accent flex items-center justify-center text-xl">
                                     ➕
                                 </div>
-                                <span class="text-[10px] font-mono px-2.5 py-1 rounded-full bg-raised border border-edge text-accent font-semibold">TEACHER / BROADCASTER</span>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-raised border border-edge text-accent font-semibold">TEACHER / HOST</span>
                             </div>
 
                             <div>
@@ -1328,57 +1328,57 @@
                                 <div>
                                     <label class="block text-[11px] font-mono text-slate-300 mb-1">Class Subject / Topic (Optional)</label>
                                     <input id="hub-create-topic-input" type="text" placeholder="e.g. Biology 101 - Cell Structure"
-                                           class="w-full bg-ink border border-edge rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-accent transition-all" />
+                                           class="w-full bg-ink border border-edge rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:border-accent transition-all" />
                                 </div>
 
                                 <div>
                                     <label class="block text-[11px] font-mono text-slate-300 mb-1">Teacher / Host Name</label>
                                     <input id="hub-create-name-input" type="text" placeholder="e.g. Professor Ali"
-                                           class="w-full bg-ink border border-edge rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-accent transition-all" />
+                                           class="w-full bg-ink border border-edge rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:border-accent transition-all" />
                                 </div>
                             </div>
                         </div>
 
                         <div class="pt-6">
-                            <button id="hub-create-btn" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-accent to-accent-dim hover:opacity-95 text-white font-semibold text-sm shadow-lg shadow-accent/25 transition-all flex items-center justify-center gap-2">
-                                <span>🎙️ Create & Broadcast Audio</span>
+                            <button id="hub-create-btn" class="w-full py-2.5 rounded-lg bg-accent hover:opacity-90 text-white font-semibold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
+                                <span>🎙️ Create &amp; Broadcast Audio</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
                 <!-- 1-Click Quick Demo Rooms Strip -->
-                <div class="p-5 rounded-2xl bg-raised/30 border border-edge/80 space-y-3">
+                <div class="p-4 rounded-xl bg-panel border border-edge space-y-3 shadow-sm">
                     <div class="flex items-center justify-between">
                         <span class="text-xs font-mono font-semibold text-slate-300 flex items-center gap-1.5">
-                            <span>⚡ Quick Test Rooms:</span>
+                            <span>Quick Test Rooms:</span>
                         </span>
                         <span class="text-[10px] text-slate-500 font-mono">1-click instant join for testing</span>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        <button class="quick-room-card p-3 rounded-xl bg-ink hover:bg-edge border border-edge text-left transition-all group flex items-center justify-between"
+                        <button class="quick-room-card p-3 rounded-lg bg-ink hover:bg-edge border border-edge text-left transition-all group flex items-center justify-between"
                                 data-room="MATH01">
                             <div>
-                                <div class="text-xs font-semibold text-white group-hover:text-accent transition-colors">📐 Mathematics & Graphing</div>
+                                <div class="text-xs font-semibold text-white group-hover:text-accent transition-colors">📐 Mathematics &amp; Graphing</div>
                                 <div class="text-[10px] font-mono text-slate-400">Code: MATH01</div>
                             </div>
                             <span class="text-xs text-accent font-mono">Join ➔</span>
                         </button>
 
-                        <button class="quick-room-card p-3 rounded-xl bg-ink hover:bg-edge border border-edge text-left transition-all group flex items-center justify-between"
+                        <button class="quick-room-card p-3 rounded-lg bg-ink hover:bg-edge border border-edge text-left transition-all group flex items-center justify-between"
                                 data-room="BIO101">
                             <div>
-                                <div class="text-xs font-semibold text-white group-hover:text-accent transition-colors">🔬 Biology & Systems</div>
+                                <div class="text-xs font-semibold text-white group-hover:text-accent transition-colors">🔬 Biology &amp; Systems</div>
                                 <div class="text-[10px] font-mono text-slate-400">Code: BIO101</div>
                             </div>
                             <span class="text-xs text-accent font-mono">Join ➔</span>
                         </button>
 
-                        <button class="quick-room-card p-3 rounded-xl bg-ink hover:bg-edge border border-edge text-left transition-all group flex items-center justify-between"
+                        <button class="quick-room-card p-3 rounded-lg bg-ink hover:bg-edge border border-edge text-left transition-all group flex items-center justify-between"
                                 data-room="CS2024">
                             <div>
-                                <div class="text-xs font-semibold text-white group-hover:text-accent transition-colors">💻 Algorithms & Tech</div>
+                                <div class="text-xs font-semibold text-white group-hover:text-accent transition-colors">💻 Algorithms &amp; Tech</div>
                                 <div class="text-[10px] font-mono text-slate-400">Code: CS2024</div>
                             </div>
                             <span class="text-xs text-accent font-mono">Join ➔</span>
@@ -1397,10 +1397,10 @@
     <audio id="remote-class-audio" autoplay playsinline class="hidden"></audio>
 
     <!-- Floating Audio Status Dock (displayed while in an active room) -->
-    <div id="audio-room-dock" class="hidden fixed bottom-16 lg:bottom-6 right-4 z-40 p-3 sm:p-4 rounded-2xl bg-panel/95 backdrop-blur-xl border border-edge/90 shadow-2xl max-w-sm w-[calc(100vw-2rem)] sm:w-80 transition-all">
+    <div id="audio-room-dock" class="hidden fixed bottom-16 lg:bottom-6 right-4 z-40 p-3 sm:p-4 rounded-xl bg-panel border border-edge shadow-xl max-w-sm w-[calc(100vw-2rem)] sm:w-80 transition-all">
         <div class="flex items-center justify-between gap-3 mb-2.5">
             <div class="flex items-center gap-2.5 min-w-0">
-                <div id="dock-role-icon" class="w-8 h-8 rounded-xl bg-accent/20 text-accent flex items-center justify-center text-base font-bold shrink-0">
+                <div id="dock-role-icon" class="w-8 h-8 rounded-lg bg-accent-tint text-accent flex items-center justify-center text-base font-bold shrink-0">
                     🎙️
                 </div>
                 <div class="min-w-0">
@@ -1408,14 +1408,14 @@
                     <div id="dock-room-code" class="text-[10px] font-mono text-slate-400 truncate">Room: ...</div>
                 </div>
             </div>
-            <span id="dock-status-badge" class="font-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 shrink-0">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <span id="dock-status-badge" class="font-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                 <span>LIVE</span>
             </span>
         </div>
 
         <!-- Audio Activity Wave Visualizer -->
-        <div class="flex items-center justify-between gap-2 bg-ink/80 rounded-xl px-3 py-2 border border-edge/60">
+        <div class="flex items-center justify-between gap-2 bg-ink rounded-lg px-3 py-2 border border-edge">
             <div class="flex items-center gap-1 h-4" id="dock-waves-container">
                 <span class="audio-wave-bar w-1 rounded-full bg-emerald-400 transition-all duration-75" style="height: 4px;"></span>
                 <span class="audio-wave-bar w-1 rounded-full bg-emerald-400 transition-all duration-75" style="height: 10px;"></span>
@@ -1436,7 +1436,7 @@
 
         <!-- Autoplay Unlock Prompt Banner (shown if browser blocked audio autoplay) -->
         <div id="dock-unlock-prompt" class="hidden mt-2.5 pt-2 border-t border-edge/50 text-center">
-            <button id="dock-unlock-btn" class="w-full py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5">
+            <button id="dock-unlock-btn" class="w-full py-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition-all flex items-center justify-center gap-1.5">
                 <span>🔊 Click to Hear Teacher Audio</span>
             </button>
         </div>
@@ -1444,8 +1444,7 @@
 
 
     <!-- ======================= Mobile Bottom Navigation Bar ======================= -->
-    <!-- ======================= Mobile Bottom Navigation Bar ======================= -->
-    <nav class="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-panel/95 backdrop-blur-lg border-t border-edge flex items-center justify-around z-30 shadow-2xl safe-pb">
+    <nav class="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-panel border-t border-edge flex items-center justify-around z-30 shadow-md safe-pb">
         <a href="#classroom" class="mobile-nav-link active flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="classroom" data-kbd="Alt+1" data-kbd-label="EchoVisual">
             <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
@@ -1491,7 +1490,7 @@
     </nav>
 
     <!-- ======================= Fullscreen Diagram Modal ======================= -->
-    <div id="fullscreen-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex flex-col p-6 hidden">
+    <div id="fullscreen-modal" class="fixed inset-0 bg-slate-950/95 z-50 flex flex-col p-6 hidden">
         <div class="flex items-center justify-between pb-4 border-b border-edge text-white">
             <h3 class="text-sm font-semibold">Diagram Fullscreen View</h3>
             <button id="close-fullscreen-btn" class="p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white">

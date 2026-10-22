@@ -1,140 +1,163 @@
-/* EchoVisual & QuickTalk AI: Global Modern Design System & Themes */
+/* ==========================================================================
+   EchoVisual & QuickTalk AI: Minimalist Educational Design System
+   Academic, clean, high-legibility theme engine (Dark & Light modes)
+   ========================================================================== */
 
 /* ==========================================================================
-   Dark Mode (Default)
+   Dark Mode Palettes (Calm, low-fatigue slate study environments)
    ========================================================================== */
 :root, html.dark, html.dark.theme-indigo {
-    --bg-ink: #07090e;
-    --bg-panel: #0d121c;
-    --bg-raised: #141c2c;
-    --border-edge: #1e2a40;
-    --border-edge-subtle: #172133;
-    --text-main: #f8fafc;
+    --bg-ink: #0b0f17;
+    --bg-panel: #111722;
+    --bg-raised: #182232;
+    --border-edge: #233147;
+    --border-edge-subtle: #192333;
+    --text-main: #f1f5f9;
     --text-muted: #94a3b8;
     --text-dim: #64748b;
-    --accent-primary: #6366f1;
+    --accent-primary: #4f46e5;
     --accent-soft: #818cf8;
-    --accent-dim: #4338ca;
-    --accent-glow: rgba(99, 102, 241, 0.22);
-    --grid-color: rgba(148, 163, 184, 0.08);
+    --accent-dim: #3730a3;
+    --accent-glow: transparent;
+    --grid-color: rgba(148, 163, 184, 0.07);
 }
 
 html.dark.theme-cobalt {
-    --bg-ink: #080b10;
-    --bg-panel: #0e141e;
-    --bg-raised: #151e2c;
-    --border-edge: #1e2c42;
-    --border-edge-subtle: #162234;
+    --bg-ink: #0a0f18;
+    --bg-panel: #101827;
+    --bg-raised: #172237;
+    --border-edge: #22324e;
+    --border-edge-subtle: #172235;
     --accent-primary: #2563eb;
-    --accent-soft: #3b82f6;
+    --accent-soft: #60a5fa;
     --accent-dim: #1d4ed8;
-    --accent-glow: rgba(37, 99, 235, 0.22);
+    --accent-glow: transparent;
+    --grid-color: rgba(148, 163, 184, 0.07);
 }
 
 html.dark.theme-emerald {
-    --bg-ink: #050a08;
-    --bg-panel: #0a1411;
-    --bg-raised: #10211c;
-    --border-edge: #17332b;
-    --border-edge-subtle: #112822;
-    --accent-primary: #10b981;
+    --bg-ink: #0a110e;
+    --bg-panel: #101c17;
+    --bg-raised: #172821;
+    --border-edge: #223c31;
+    --border-edge-subtle: #172922;
+    --accent-primary: #059669;
     --accent-soft: #34d399;
-    --accent-dim: #059669;
-    --accent-glow: rgba(16, 185, 129, 0.22);
+    --accent-dim: #047857;
+    --accent-glow: transparent;
+    --grid-color: rgba(148, 163, 184, 0.07);
 }
 
 html.dark.theme-violet {
-    --bg-ink: #090611;
-    --bg-panel: #110c20;
-    --bg-raised: #19122e;
-    --border-edge: #281d48;
-    --border-edge-subtle: #1e1637;
-    --accent-primary: #8b5cf6;
+    --bg-ink: #110e17;
+    --bg-panel: #181422;
+    --bg-raised: #211c2e;
+    --border-edge: #332a47;
+    --border-edge-subtle: #241d33;
+    --accent-primary: #7c3aed;
     --accent-soft: #a78bfa;
-    --accent-dim: #7c3aed;
-    --accent-glow: rgba(139, 92, 246, 0.22);
+    --accent-dim: #6d28d9;
+    --accent-glow: transparent;
+    --grid-color: rgba(148, 163, 184, 0.07);
 }
 
 html.dark.theme-cyan {
-    --bg-ink: #050b10;
-    --bg-panel: #0a141e;
-    --bg-raised: #10202f;
-    --border-edge: #173249;
-    --border-edge-subtle: #112537;
-    --accent-primary: #06b6d4;
-    --accent-soft: #22d3ee;
-    --accent-dim: #0891b2;
-    --accent-glow: rgba(6, 182, 212, 0.22);
+    --bg-ink: #091214;
+    --bg-panel: #0e1c20;
+    --bg-raised: #14282e;
+    --border-edge: #1e3c45;
+    --border-edge-subtle: #152b31;
+    --accent-primary: #0d9488;
+    --accent-soft: #2dd4bf;
+    --accent-dim: #0f766e;
+    --accent-glow: transparent;
+    --grid-color: rgba(148, 163, 184, 0.07);
 }
 
 /* ==========================================================================
-   Light Mode Palettes
+   Light Mode Palettes (Clean academic paper, notebook cards & crisp ink)
    ========================================================================== */
 html.light, html.light.theme-indigo {
     --bg-ink: #f8fafc;
     --bg-panel: #ffffff;
     --bg-raised: #f1f5f9;
-    --border-edge: #cbd5e1;
-    --border-edge-subtle: #e2e8f0;
+    --border-edge: #e2e8f0;
+    --border-edge-subtle: #edf2f7;
     --text-main: #0f172a;
     --text-muted: #475569;
     --text-dim: #64748b;
-    --accent-primary: #4f46e5;
-    --accent-soft: #6366f1;
-    --accent-dim: #4338ca;
-    --accent-glow: rgba(79, 70, 229, 0.15);
-    --grid-color: rgba(100, 116, 139, 0.12);
+    --accent-primary: #3730a3;
+    --accent-soft: #4f46e5;
+    --accent-dim: #312e81;
+    --accent-glow: transparent;
+    --grid-color: rgba(100, 116, 139, 0.08);
 }
 
 html.light.theme-cobalt {
-    --bg-ink: #f0f7ff;
+    --bg-ink: #f7f9fc;
     --bg-panel: #ffffff;
-    --bg-raised: #e0f2fe;
-    --border-edge: #93c5fd;
-    --border-edge-subtle: #bfdbfe;
-    --accent-primary: #1d4ed8;
+    --bg-raised: #eff4fa;
+    --border-edge: #dbe4ef;
+    --border-edge-subtle: #e9f0f8;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+    --text-dim: #64748b;
+    --accent-primary: #1e40af;
     --accent-soft: #2563eb;
-    --accent-dim: #1e40af;
-    --accent-glow: rgba(29, 78, 216, 0.15);
+    --accent-dim: #1d4ed8;
+    --accent-glow: transparent;
+    --grid-color: rgba(100, 116, 139, 0.08);
 }
 
 html.light.theme-emerald {
-    --bg-ink: #f0fdf4;
+    --bg-ink: #f7faf8;
     --bg-panel: #ffffff;
-    --bg-raised: #dcfce7;
-    --border-edge: #86efac;
-    --border-edge-subtle: #bbf7d0;
-    --accent-primary: #059669;
-    --accent-soft: #10b981;
-    --accent-dim: #047857;
-    --accent-glow: rgba(5, 150, 105, 0.15);
+    --bg-raised: #eef5f1;
+    --border-edge: #d1e5db;
+    --border-edge-subtle: #e3f0e9;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+    --text-dim: #64748b;
+    --accent-primary: #047857;
+    --accent-soft: #059669;
+    --accent-dim: #065f46;
+    --accent-glow: transparent;
+    --grid-color: rgba(100, 116, 139, 0.08);
 }
 
 html.light.theme-violet {
-    --bg-ink: #faf5ff;
+    --bg-ink: #faf8fc;
     --bg-panel: #ffffff;
-    --bg-raised: #f3e8ff;
-    --border-edge: #d8b4fe;
-    --border-edge-subtle: #e9d5ff;
-    --accent-primary: #7c3aed;
-    --accent-soft: #8b5cf6;
-    --accent-dim: #6d28d9;
-    --accent-glow: rgba(124, 58, 237, 0.15);
+    --bg-raised: #f4effa;
+    --border-edge: #e3d9f2;
+    --border-edge-subtle: #efe9f7;
+    --text-main: #181124;
+    --text-muted: #475569;
+    --text-dim: #64748b;
+    --accent-primary: #6b21a8;
+    --accent-soft: #7e22ce;
+    --accent-dim: #581c87;
+    --accent-glow: transparent;
+    --grid-color: rgba(100, 116, 139, 0.08);
 }
 
 html.light.theme-cyan {
-    --bg-ink: #ecfeff;
+    --bg-ink: #f5f9f9;
     --bg-panel: #ffffff;
-    --bg-raised: #cffafe;
-    --border-edge: #67e8f9;
-    --border-edge-subtle: #a5f3fc;
-    --accent-primary: #0891b2;
-    --accent-soft: #06b6d4;
-    --accent-dim: #0e7490;
-    --accent-glow: rgba(8, 145, 178, 0.15);
+    --bg-raised: #e8f3f3;
+    --border-edge: #cde4e4;
+    --border-edge-subtle: #e0f0f0;
+    --text-main: #0c1a1e;
+    --text-muted: #475569;
+    --text-dim: #64748b;
+    --accent-primary: #0f766e;
+    --accent-soft: #0d9488;
+    --accent-dim: #115e59;
+    --accent-glow: transparent;
+    --grid-color: rgba(100, 116, 139, 0.08);
 }
 
-/* Background utilities using CSS variables */
+/* Background & Border utilities */
 .bg-ink { background-color: var(--bg-ink); }
 .bg-panel { background-color: var(--bg-panel); }
 .bg-raised { background-color: var(--bg-raised); }
@@ -147,28 +170,34 @@ html.light.theme-cyan {
 .border-accent { border-color: var(--accent-primary); }
 .hover\:bg-accent:hover { background-color: var(--accent-primary); }
 
-/* Typography color overrides for Light Mode */
-html.light .text-white { color: var(--text-main) !important; }
+/* Light Mode Typography & Color Contrast */
+html.light .text-white { color: var(--text-main); }
 html.light .text-slate-100 { color: #0f172a !important; }
 html.light .text-slate-200 { color: #1e293b !important; }
 html.light .text-slate-300 { color: #334155 !important; }
-html.light .text-slate-400 { color: #64748b !important; }
+html.light .text-slate-400 { color: #475569 !important; }
 html.light .text-slate-500 { color: #64748b !important; }
 html.light textarea, html.light input { color: #0f172a !important; }
 
-/* ==========================================================================
-   Safe translucent accent surfaces
-   The Tailwind CDN build silently DROPS /opacity modifiers on CSS-variable
-   colors (e.g. bg-accent/20 or bg-ink/90 render fully transparent), so these
-   utilities use color-mix directly. Supported in Chrome/Edge — the browsers
-   this app requires for the Web Speech API.
-   ========================================================================== */
-.bg-accent-tint { background-color: color-mix(in srgb, var(--accent-primary) 15%, transparent); }
-.bg-accent-tint-strong { background-color: color-mix(in srgb, var(--accent-primary) 25%, transparent); }
-.border-accent-soft { border-color: color-mix(in srgb, var(--accent-primary) 45%, transparent); }
+/* Keep white text on solid accent buttons in light mode */
+html.light .bg-accent,
+html.light .bg-accent.text-white,
+html.light .bg-accent * {
+    color: #ffffff !important;
+}
+html.light .nav-link.active,
+html.light .tone-badge.active,
+html.light .soundboard-tab.active,
+html.light .classroom-mode-btn.active {
+    color: #ffffff !important;
+}
 
-/* Voice Composer message box safety net: guarantees readable text and a
-   visible caret in every theme/mode even if utility classes fail to apply. */
+/* Safe Translucent Accents */
+.bg-accent-tint { background-color: color-mix(in srgb, var(--accent-primary) 12%, transparent); }
+.bg-accent-tint-strong { background-color: color-mix(in srgb, var(--accent-primary) 20%, transparent); }
+.border-accent-soft { border-color: color-mix(in srgb, var(--accent-primary) 35%, transparent); }
+
+/* Voice Composer textarea */
 #shorthand-input {
     background-color: var(--bg-ink);
     color: var(--text-main);
@@ -186,7 +215,7 @@ html, body {
     padding: 0;
 }
 
-/* Prevent dynamic text generation from blowing out container widths */
+/* Dynamic text break containment */
 #caption-body,
 #caption-translated-body,
 #translated-text-target,
@@ -199,10 +228,10 @@ html, body {
     overflow-wrap: anywhere;
 }
 
-/* Diagram canvas: faint engineering grid, rigidly constrained */
+/* Clean Academic Whiteboard Grid */
 #diagram-container {
-    background-image: radial-gradient(var(--grid-color) 1px, transparent 1px);
-    background-size: 22px 22px;
+    background-image: radial-gradient(var(--grid-color) 1.25px, transparent 1.25px);
+    background-size: 20px 20px;
     flex: 1 1 0%;
     min-height: 0;
     min-width: 0;
@@ -237,10 +266,10 @@ html, body {
     overflow: hidden;
 }
 
-/* Concept Inspector Floating HUD */
+/* Concept Inspector Card */
 #concept-inspector-hud {
     transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 20px var(--accent-glow, rgba(99, 102, 241, 0.15));
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3), 0 0 1px 1px var(--border-edge);
 }
 
 #concept-inspector-hud.hidden {
@@ -252,29 +281,29 @@ html, body {
 }
 
 .relationship-chip:hover {
-    border-color: var(--accent-primary, #6366f1);
+    border-color: var(--accent-primary);
 }
 
-/* Vis.js Custom Dark/Light Tooltip */
+/* Vis.js Custom Academic Tooltip */
 div.vis-tooltip {
     position: absolute;
-    background: var(--bg-panel, #10141b) !important;
-    color: var(--text-base, #f8fafc) !important;
-    border: 1px solid var(--border-edge, #212836) !important;
+    background: var(--bg-panel) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-edge) !important;
     border-radius: 8px !important;
-    padding: 6px 10px !important;
-    font-family: 'Outfit', system-ui, sans-serif !important;
+    padding: 6px 12px !important;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
     font-size: 11px !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
     pointer-events: none !important;
     z-index: 100 !important;
 }
 
-/* History Timeline Range Slider */
+/* Diagram Timeline Slider */
 .history-slider {
     -webkit-appearance: none;
     appearance: none;
-    height: 6px;
+    height: 5px;
     border-radius: 9999px;
     background: var(--bg-raised);
     border: 1px solid var(--border-edge);
@@ -288,38 +317,37 @@ div.vis-tooltip {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--accent-soft);
+    background: var(--accent-primary);
     cursor: pointer;
-    box-shadow: 0 0 8px var(--accent-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     transition: transform 0.15s ease, background 0.15s ease;
 }
 
 .history-slider::-webkit-slider-thumb:hover {
-    transform: scale(1.2);
-    background: #ffffff;
+    transform: scale(1.15);
 }
 
 .history-slider::-moz-range-thumb {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--accent-soft);
+    background: var(--accent-primary);
     border: none;
     cursor: pointer;
-    box-shadow: 0 0 8px var(--accent-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-/* Animations */
+/* Minimalist Clean Animations */
 @keyframes rise-in {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
 }
-.rise-in { animation: rise-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rise-in { animation: rise-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-/* Speaking animation pulse */
+/* Speaking animation: quiet, calm indicator without neon glow */
 @keyframes speak-pulse {
-    0%, 100% { transform: scale(1); opacity: 0.9; }
-    50% { transform: scale(1.05); opacity: 1; filter: drop-shadow(0 0 6px var(--accent-soft)); }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.85; }
 }
 .speaking-active {
     animation: speak-pulse 1.2s ease-in-out infinite;
@@ -345,10 +373,11 @@ div.vis-tooltip {
     pointer-events: none;
 }
 .toast {
-    animation: toast-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: toast-slide-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
 }
 @keyframes toast-slide-in {
-    from { opacity: 0; transform: translateY(12px) scale(0.96); }
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -360,22 +389,26 @@ div.vis-tooltip {
 }
 
 /* ==========================================================================
-   3D Interactive Flashcards
+   Tactile Academic Study Flashcards (Clean 3x5 Index Cards)
    ========================================================================== */
 .flashcards-grid {
     perspective: 1000px;
 }
 .flashcard {
     perspective: 1000px;
-    height: 140px;
+    height: 150px;
     cursor: pointer;
+    transition: transform 0.2s ease;
+}
+.flashcard:hover {
+    transform: translateY(-2px);
 }
 .flashcard-inner {
     position: relative;
     width: 100%;
     height: 100%;
     text-align: center;
-    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     transform-style: preserve-3d;
 }
 .flashcard.flipped .flashcard-inner {
@@ -393,54 +426,71 @@ div.vis-tooltip {
     justify-content: center;
     padding: 1rem;
     border-radius: 0.75rem;
+    border: 1px solid var(--border-edge);
+}
+.flashcard-front {
+    background-color: var(--bg-panel);
+    color: var(--text-main);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .flashcard-back {
+    background-color: var(--bg-raised);
+    color: var(--text-main);
     transform: rotateY(180deg);
+    border-color: var(--accent-primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 /* ==========================================================================
-   Interactive Quiz Card
+   Interactive Quiz Card (Clean modern worksheet layout)
    ========================================================================== */
 .quiz-option {
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     border: 1px solid var(--border-edge);
+    background-color: var(--bg-raised);
+    color: var(--text-main);
 }
 .quiz-option:hover:not(.answered) {
     border-color: var(--accent-primary);
-    background-color: var(--bg-raised);
+    background-color: var(--bg-panel);
 }
 .quiz-option.correct {
-    background-color: rgba(16, 185, 129, 0.18) !important;
+    background-color: rgba(16, 185, 129, 0.12) !important;
     border-color: #10b981 !important;
+    color: #059669 !important;
+}
+html.dark .quiz-option.correct {
     color: #34d399 !important;
 }
 .quiz-option.wrong {
-    background-color: rgba(239, 68, 68, 0.18) !important;
+    background-color: rgba(239, 68, 68, 0.12) !important;
     border-color: #ef4444 !important;
+    color: #dc2626 !important;
+}
+html.dark .quiz-option.wrong {
     color: #f87171 !important;
 }
 
-/* On-Command Generate Button Glow */
-@keyframes cmd-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
-    50% { box-shadow: 0 0 12px 2px var(--accent-glow); }
-}
+/* Generate Button: Clean, confident action button without AI-slop neon pulse */
 .cmd-pulse-btn {
-    animation: cmd-pulse 2s infinite ease-in-out;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.cmd-pulse-btn:hover {
+    opacity: 0.92;
 }
 
-/* Scrollbars */
+/* Unobtrusive Scrollbars */
 .slim-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
 .slim-scroll::-webkit-scrollbar-thumb { background: var(--border-edge); border-radius: 4px; }
-.slim-scroll::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+.slim-scroll::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
 /* ==========================================================================
-   Multi-Page Navigation & View Transitions (Strict Rigid Display Engine)
+   Multi-Page Navigation Engine
    ========================================================================== */
 .page-view {
     display: none !important;
     opacity: 0;
-    transition: opacity 0.18s ease;
+    transition: opacity 0.15s ease;
 }
 
 .page-view.active {
@@ -454,16 +504,17 @@ div.vis-tooltip {
     display: grid !important;
 }
 
+/* Navigation Links (Clean, academic tabs) */
 .nav-link {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.15s ease;
     position: relative;
 }
 
 .nav-link.active {
     background-color: var(--bg-raised);
-    color: #ffffff;
-    border-color: var(--accent-primary);
-    box-shadow: 0 0 14px var(--accent-glow);
+    color: var(--text-main);
+    border-color: var(--border-edge);
+    font-weight: 600;
 }
 
 .nav-link.active::after {
@@ -486,16 +537,15 @@ div.vis-tooltip {
 }
 
 .mobile-nav-link:active {
-    transform: scale(0.93);
+    transform: scale(0.95);
 }
 
 .mobile-nav-link.active {
-    color: var(--accent-soft) !important;
+    color: var(--accent-primary) !important;
 }
 
 .mobile-nav-link.active svg {
     stroke: var(--accent-primary) !important;
-    filter: drop-shadow(0 0 6px var(--accent-glow));
 }
 
 .mobile-nav-link.active::after {
@@ -505,10 +555,9 @@ div.vis-tooltip {
     left: 50%;
     transform: translateX(-50%);
     width: 14px;
-    height: 2.5px;
+    height: 2px;
     background: var(--accent-primary);
     border-radius: 9999px;
-    box-shadow: 0 0 6px var(--accent-glow);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -519,21 +568,7 @@ div.vis-tooltip {
     .page-view { transition: none; }
 }
 
-/* Advanced UI Overhaul: Diagram Box & QuickTalk */
-/* ========================================================================== */
-
-/* Diagram Canvas Engineering Grid & Glow */
-#diagram-container {
-    background-image: radial-gradient(var(--grid-color) 1.25px, transparent 1.25px);
-    background-size: 24px 24px;
-    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.35);
-}
-
-#vis-network-container canvas {
-    filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.35));
-}
-
-/* Key Concept & Prompt Chips */
+/* Concept & Prompt Chips */
 .concept-chip {
     animation: rise-in 0.2s ease-out both;
     transition: all 0.15s ease;
@@ -542,61 +577,56 @@ div.vis-tooltip {
 .concept-chip:hover {
     transform: translateY(-1px);
     border-color: var(--accent-primary);
-    box-shadow: 0 0 12px var(--accent-glow);
 }
 
 .prompt-chip {
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
 }
 
 .prompt-chip:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     border-color: var(--accent-primary);
     background-color: var(--bg-raised);
-    box-shadow: 0 4px 14px var(--accent-glow);
 }
 
 /* Tone Selector Badges */
 .tone-badge {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.15s ease;
 }
 
 .tone-badge.active {
     background-color: var(--accent-primary) !important;
     color: #ffffff !important;
-    border-color: var(--accent-soft) !important;
-    box-shadow: 0 0 14px var(--accent-glow);
+    border-color: var(--accent-primary) !important;
 }
 
 /* Soundboard Tabs & Buttons */
 .soundboard-tab.active {
     background-color: var(--accent-primary) !important;
     color: #ffffff !important;
-    border-color: var(--accent-soft) !important;
-    box-shadow: 0 0 10px var(--accent-glow);
+    border-color: var(--accent-primary) !important;
 }
 
 .preset-btn {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.15s ease;
 }
 
 .preset-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    transform: translateY(-1px);
+    border-color: var(--accent-primary);
 }
 
-/* Audio Room Floating Dock & Waveform Visualizer */
+/* Audio Room Floating Dock */
 #audio-room-dock {
     transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
 }
 
 .audio-wave-bar {
     transition: height 0.08s ease, background-color 0.15s ease;
 }
 
-/* ==========================================================================
-   Keyboard Shortcut Hover Tooltips (data-kbd hints)
-   ========================================================================== */
+/* Minimalist Keyboard Tooltip */
 .kbd-tooltip {
     position: fixed;
     top: 0;
@@ -604,11 +634,11 @@ div.vis-tooltip {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 10px;
-    background: var(--bg-raised);
+    padding: 4px 8px;
+    background: var(--bg-panel);
     border: 1px solid var(--border-edge);
-    border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 14px var(--accent-glow);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     font-size: 11px;
     color: var(--text-muted);
@@ -637,10 +667,9 @@ div.vis-tooltip {
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    border-radius: 5px;
-    background: var(--bg-panel);
+    border-radius: 4px;
+    background: var(--bg-raised);
     border: 1px solid var(--border-edge);
-    border-bottom-width: 2px;
     color: var(--text-main);
     font-family: inherit;
     font-size: 10px;
@@ -652,14 +681,8 @@ div.vis-tooltip {
 }
 
 /* ==========================================================================
-   Mobile Phone Optimization
-   Every rule below lives inside a max-width media query, so the desktop
-   (lg+) experience stays pixel-identical. Phones (< 640px) additionally get
-   touch-sized controls, safe-area-aware chrome, no iOS focus zoom, and
-   naturally scrolling stacked pages.
+   Mobile Optimization
    ========================================================================== */
-
-/* ---------- App shell: bottom nav, safe areas, touch scroll feel (< lg) ---------- */
 @media (max-width: 1023.98px) {
     html {
         -webkit-text-size-adjust: 100%;
@@ -667,53 +690,31 @@ div.vis-tooltip {
     }
 
     body {
-        /* Reserve room for the bottom nav + iPhone home-indicator inset */
         padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px)) !important;
         -webkit-tap-highlight-color: transparent;
     }
 
-    /* Bottom nav grows with the safe area instead of hiding behind it */
     body > nav.lg\:hidden {
         height: auto;
         min-height: 3.5rem;
         padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 
-    /* Full-height tap targets for each nav tab */
     body > nav.lg\:hidden a {
         align-self: stretch;
         justify-content: center;
         padding: 0.375rem 0.25rem;
     }
 
-    /* Toasts float above the bottom nav + safe area */
     #toast-container {
         bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
     }
 
-    /* Momentum scrolling with native touch feel */
     .slim-scroll {
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: auto;
     }
-}
 
-/* Landscape phones: collapse the bottom nav into an icon rail */
-@media (max-width: 1023.98px) and (max-height: 460px) {
-    body {
-        padding-bottom: calc(2.75rem + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    body > nav.lg\:hidden {
-        min-height: 2.75rem;
-    }
-    body > nav.lg\:hidden a span {
-        display: none;
-    }
-}
-
-/* ---------- Page 1 · EchoVisual: caption band + whiteboard stack (< lg) ---------- */
-@media (max-width: 1023.98px) {
-    /* Stack the two panels; the section itself scrolls smoothly on short screens */
     #view-classroom.page-view.active {
         display: flex !important;
         flex-direction: column;
@@ -723,21 +724,18 @@ div.vis-tooltip {
         overscroll-behavior: auto;
     }
 
-    /* Transcript gets a comfortable fixed band in split mode */
     #caption-column {
         flex: 0 0 auto;
         height: clamp(14rem, 34vh, 24rem);
         min-height: 14rem;
     }
 
-    /* The whiteboard owns remaining space */
     #visual-column {
         flex: 1 1 auto;
         height: auto;
         min-height: 16rem;
     }
 
-    /* Mobile EchoVisual Mode: Captions full-height (fits viewport cleanly without scroll-trap) */
     #view-classroom.mobile-mode-captions.page-view.active {
         overflow-y: hidden !important;
     }
@@ -751,7 +749,6 @@ div.vis-tooltip {
         display: none !important;
     }
 
-    /* Mobile EchoVisual Mode: Whiteboard full-height (fits viewport cleanly without scroll-trap) */
     #view-classroom.mobile-mode-board.page-view.active {
         overflow-y: hidden !important;
     }
@@ -765,16 +762,76 @@ div.vis-tooltip {
         display: none !important;
     }
 
-    /* Segmented Mode Button Active */
     .classroom-mode-btn.active {
         background-color: var(--accent-primary) !important;
         color: #ffffff !important;
-        border-color: var(--accent-soft) !important;
-        box-shadow: 0 0 10px var(--accent-glow);
+        border-color: var(--accent-primary) !important;
+    }
+
+    #view-expression,
+    #view-study {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: auto;
+    }
+
+    #view-expression > div.grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        height: auto;
+        min-height: 0;
+    }
+
+    #view-expression > div.grid > div {
+        height: auto;
+        min-height: 0;
+    }
+
+    #shorthand-input {
+        min-height: 10rem;
+    }
+
+    #spoken-log {
+        min-height: 8rem;
+        max-height: 24rem;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #soundboard-grid {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    #study-notes-pane,
+    #study-quiz-pane,
+    #study-flashcards-pane {
+        flex: 0 0 auto;
+        height: auto;
+        min-height: 0;
+    }
+
+    #study-notes-pane > div {
+        height: auto;
+        max-height: none !important;
+        overflow: visible !important;
     }
 }
 
-/* ---------- Page 2 · QuickTalk: Natural vertical scroll on all viewports ---------- */
+/* Landscape phones */
+@media (max-width: 1023.98px) and (max-height: 460px) {
+    body {
+        padding-bottom: calc(2.75rem + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    body > nav.lg\:hidden {
+        min-height: 2.75rem;
+    }
+    body > nav.lg\:hidden a span {
+        display: none;
+    }
+}
+
+/* Expression natural vertical scroll on desktop */
 #view-expression {
     overflow-y: auto !important;
     overflow-x: hidden;
@@ -796,75 +853,16 @@ div.vis-tooltip {
     min-height: 8rem;
 }
 
-/* ---------- Pages 2-3 · Expression & Study: natural stacks that scroll (< lg) ---------- */
-@media (max-width: 1023.98px) {
-    #view-expression,
-    #view-study {
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior: auto;
-    }
-
-    /* Expression: single scrolling column, composer first */
-    #view-expression > div.grid {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        height: auto;
-        min-height: 0;
-    }
-
-    /* Release the rigid h-full locks on the stacked panels */
-    #view-expression > div.grid > div {
-        height: auto;
-        min-height: 0;
-    }
-
-    #shorthand-input {
-        min-height: 10rem;
-    }
-
-    #spoken-log {
-        min-height: 8rem;
-        max-height: 24rem;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    /* Let soundboard breathe without trapped inner scroll on mobile */
-    #soundboard-grid {
-        max-height: none !important;
-        overflow: visible !important;
-    }
-
-    /* Study: let the panes and notes grow naturally with page scroll */
-    #study-notes-pane,
-    #study-quiz-pane,
-    #study-flashcards-pane {
-        flex: 0 0 auto;
-        height: auto;
-        min-height: 0;
-    }
-
-    #study-notes-pane > div {
-        height: auto;
-        max-height: none !important;
-        overflow: visible !important;
-    }
-}
-
-/* ---------- Phones (< 640px): touch ergonomics & compact chrome ---------- */
+/* Phones (< 640px) */
 @media (max-width: 639.98px) {
-    /* Tighter page gutter — more pixels for content */
     main {
         padding: 0.5rem !important;
     }
 
-    /* Diagram canvas breathes closer to its panel edges */
     #diagram-container {
         padding: 0.625rem;
     }
 
-    /* Caption card headers wrap into tidy rows instead of clipping */
     #caption-column > div:first-child {
         height: auto;
         min-height: 3rem;
@@ -879,7 +877,6 @@ div.vis-tooltip {
         row-gap: 0.375rem;
     }
 
-    /* Session header wraps when in-room controls + Start Class collide */
     body > header:nth-of-type(2) {
         height: auto;
         min-height: 2.75rem;
@@ -887,13 +884,11 @@ div.vis-tooltip {
         row-gap: 0.25rem;
     }
 
-    /* Tutor header: controls slide below the title instead of overflowing */
     #view-tutor > div:first-child {
         flex-wrap: wrap;
         row-gap: 0.5rem;
     }
 
-    /* Finger-friendly minimum hit areas on dense control rows */
     #caption-column > div:first-child button,
     #caption-column > div:nth-child(2) button,
     #visual-column > div:first-child button,
@@ -905,24 +900,20 @@ div.vis-tooltip {
         min-height: 2.25rem;
     }
 
-    /* Primary actions get an extra bump */
     #start-class-btn,
     #manual-generate-btn {
         min-height: 2.5rem;
     }
 
-    /* Quiz answers are the main interaction — size them for thumbs */
     button.quiz-option {
         padding-top: 0.7rem;
         padding-bottom: 0.7rem;
     }
 
-    /* Study Hub quick link fills its bar height */
     #visual-column > div:last-child a {
         min-height: 2.25rem;
     }
 
-    /* Center icon-only toolbar buttons inside their taller touch boxes */
     #caption-column > div:first-child button,
     #caption-column > div:nth-child(2) button,
     #visual-column > div:first-child button {
@@ -931,20 +922,18 @@ div.vis-tooltip {
         justify-content: center;
     }
 
-    /* Bigger, grabbable diagram history slider */
     .history-slider {
-        height: 8px;
+        height: 7px;
     }
     .history-slider::-webkit-slider-thumb {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
     }
     .history-slider::-moz-range-thumb {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
     }
 
-    /* 16px controls stop iOS Safari from zoom-jumping on focus */
     #shorthand-input,
     #chat-input,
     #custom-preset-input,
@@ -956,7 +945,6 @@ div.vis-tooltip {
         font-size: 16px !important;
     }
 
-    /* Fullscreen diagram modal: reclaim the padding */
     #fullscreen-modal {
         padding: 0.75rem;
     }
@@ -967,7 +955,6 @@ div.vis-tooltip {
         padding: 0.5rem;
     }
 
-    /* Rooms hub: denser cards for thumb scrolling */
     #view-rooms {
         padding: 0.75rem;
     }
@@ -985,38 +972,34 @@ div.vis-tooltip {
         row-gap: 0.75rem;
     }
 
-    /* Mobile Flashcards: expandable height so explanations never truncate */
     .flashcard {
         height: auto !important;
-        min-height: 175px !important;
+        min-height: 170px !important;
     }
     .flashcard-inner {
-        min-height: 175px;
+        min-height: 170px;
     }
     .flashcard-front, .flashcard-back {
-        min-height: 175px;
+        min-height: 170px;
     }
     .flashcard-back p {
         max-height: 110px;
         overflow-y: auto;
     }
 
-    /* Mobile On-Canvas Zoom HUD */
     #mobile-canvas-zoom-hud {
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
 
-    /* Tactile tap scale feedback on touch buttons */
     button:active:not(:disabled),
     .quiz-option:active,
     .preset-btn:active,
     .prompt-chip:active,
     .tone-badge:active,
     .chat-chip:active {
-        transform: scale(0.96);
+        transform: scale(0.97);
     }
 }
-
 
 /* ==========================================================================
    Study Hub Mindmap Studio Styling
@@ -1035,7 +1018,7 @@ div.vis-tooltip {
 }
 
 .mindmap-tree-item {
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
 }
 
 .mindmap-tree-item:hover {
