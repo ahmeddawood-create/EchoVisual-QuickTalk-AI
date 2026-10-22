@@ -4548,6 +4548,14 @@ function renderSavedSessionsList() {
                         class="px-3.5 py-1.5 rounded-xl bg-accent hover:opacity-90 text-white font-mono text-xs font-semibold shadow-sm shadow-accent/20 transition-all">
                     Restore to View
                 </button>
+                <button onclick="window.exportSingleSessionByIndex(${idx})" title="Export this session as JSON"
+                        class="p-2 rounded-xl bg-panel hover:bg-edge text-slate-400 hover:text-accent border border-edge transition-colors">
+                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                </button>
                 <button onclick="window.deleteSessionByIndex(${idx})" title="Delete archived session"
                         class="p-2 rounded-xl bg-panel hover:bg-red-950/60 text-slate-400 hover:text-red-400 border border-edge transition-colors">
                     <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -4578,6 +4586,107 @@ window.deleteSessionByIndex = function(idx) {
     }
     renderSavedSessionsList();
     showToast('Saved session removed');
+};
+
+window.exportSingleSessionByIndex = function(idx) {
+    const list = getSavedSessions();
+    const session = list[idx];
+    if (!session) {
+        showToast('Session not found');
+        return;
+    }
+    const cleanDate = (session.date || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 24);
+    const filename = `echovisual_session_${session.id || cleanDate || fileStamp()}.json`;
+    downloadTextFile(filename, JSON.stringify(session, null, 2), 'application/json;charset=utf-8');
+    showToast('📥 Session exported as JSON!');
+};
+
+window.exportAllSessions = function() {
+    const list = getSavedSessions();
+    if (!list || list.length === 0) {
+        showToast('No archived sessions to export');
+        return;
+    }
+    const exportData = {
+        app: 'EchoVisual & QuickTalk AI',
+        exportedAt: new Date().toISOString(),
+        version: '1.0',
+        count: list.length,
+        sessions: list
+    };
+    const filename = `echovisual_saved_sessions_archive_${fileStamp()}.json`;
+    downloadTextFile(filename, JSON.stringify(exportData, null, 2), 'application/json;charset=utf-8');
+    showToast(`📥 Exported all ${list.length} archived session(s)!`);
+};
+
+window.importSessionsFromFile = function(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const raw = JSON.parse(e.target.result);
+            let sessionsToImport = [];
+
+            if (Array.isArray(raw)) {
+                sessionsToImport = raw;
+            } else if (raw && Array.isArray(raw.sessions)) {
+                sessionsToImport = raw.sessions;
+            } else if (raw && typeof raw === 'object' && (raw.transcript !== undefined || raw.diagrams !== undefined || raw.description !== undefined)) {
+                sessionsToImport = [raw];
+            } else {
+                throw new Error('Unrecognized session format. Expected a single session or array of sessions.');
+            }
+
+            if (!sessionsToImport.length) {
+                showToast('Import file contains no sessions');
+                return;
+            }
+
+            const currentList = getSavedSessions();
+            let importedCount = 0;
+
+            for (const item of sessionsToImport) {
+                if (!item || typeof item !== 'object') continue;
+                const normalized = {
+                    id: item.id || (Date.now() + Math.floor(Math.random() * 10000)),
+                    date: item.date || new Date().toLocaleString(),
+                    description: item.description || 'Imported Session',
+                    transcript: typeof item.transcript === 'string' ? item.transcript : '',
+                    diagrams: Array.isArray(item.diagrams) ? item.diagrams : [],
+                    spokenLog: Array.isArray(item.spokenLog) ? item.spokenLog : [],
+                    keyTerms: Array.isArray(item.keyTerms) ? item.keyTerms : [],
+                    room: item.room || null
+                };
+
+                const existingIdx = currentList.findIndex(s => s.id === normalized.id);
+                if (existingIdx >= 0) {
+                    currentList[existingIdx] = normalized;
+                } else {
+                    currentList.unshift(normalized);
+                }
+                importedCount++;
+            }
+
+            while (currentList.length > 50) currentList.pop();
+
+            try {
+                localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(currentList));
+            } catch (storageErr) {
+                console.warn('LocalStorage save error:', storageErr);
+            }
+
+            renderSavedSessionsList();
+            refreshStorageDashboard();
+            showToast(`✅ Successfully imported ${importedCount} session(s) into archive!`);
+        } catch (err) {
+            console.error('Failed to import session file:', err);
+            showToast('❌ Failed to parse session JSON file: ' + err.message);
+        }
+    };
+    reader.onerror = () => {
+        showToast('❌ Error reading file');
+    };
+    reader.readAsText(file);
 };
 
 function restoreSession(session) {
@@ -4845,16 +4954,42 @@ function convertSvgToPngAndDownload(svgString, filename) {
     }
 }
 
+function exportCurrentSessionJson() {
+    const currentSession = buildSessionRecord();
+    const filename = `echovisual_session_${fileStamp()}.json`;
+    downloadTextFile(filename, JSON.stringify(currentSession, null, 2), 'application/json;charset=utf-8');
+    showToast('📦 Current session exported as JSON!');
+}
+
 function initStorageActions() {
     const saveBtn = $('save-current-session-btn');
     const restoreBtn = $('restore-last-session-btn');
     const dlMd = $('download-study-guide-btn');
     const dlHtml = $('download-html-report-btn');
+    const dlJson = $('download-json-session-btn');
+    const exportAllBtn = $('export-all-sessions-btn');
+    const importBtn = $('import-sessions-btn');
+    const importInput = $('import-sessions-input');
 
     if (saveBtn) saveBtn.addEventListener('click', saveCurrentSnapshot);
     if (restoreBtn) restoreBtn.addEventListener('click', restoreLastSession);
     if (dlMd) dlMd.addEventListener('click', exportMarkdownStudyGuide);
     if (dlHtml) dlHtml.addEventListener('click', exportHtmlStudyReport);
+    if (dlJson) dlJson.addEventListener('click', exportCurrentSessionJson);
+
+    if (exportAllBtn) exportAllBtn.addEventListener('click', window.exportAllSessions);
+    if (importBtn && importInput) {
+        importBtn.addEventListener('click', () => {
+            importInput.value = '';
+            importInput.click();
+        });
+        importInput.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) {
+                window.importSessionsFromFile(file);
+            }
+        });
+    }
 }
 
 // ------------------------------------------------------------------
