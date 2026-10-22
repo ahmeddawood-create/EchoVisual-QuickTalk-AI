@@ -1,8 +1,8 @@
 /* ==========================================================================
    EchoVisual & QuickTalk AI - Multi-Page Application Logic
    5 Dedicated Views with Continuous Live Background Recording:
-   1. 🎙️ Classroom View (#classroom): Live Speech + Urdu/Eng + Multi-Lang Translation + Visual Stream
-   2. 🗣️ Student Expression Board (#expression): Full-page voice composer, Pakistani soundboards & spoken history
+   1. 🎙️ EchoVisual View (#classroom): Live Speech + Urdu/Eng + Multi-Lang Translation + Visual Stream
+   2. 🗣️ QuickTalk View (#expression): Full-page voice composer, Pakistani soundboards & spoken history
    3. 📚 Study Hub & Quiz Arena (#study): Structured study notes, interactive MCQs & 3D flashcards
    4. 🤖 AI Classroom Tutor (#tutor): Full-screen contextual conversational tutor (Roman Urdu & English)
    5. 💾 Session Storage & Downloads (#storage): Session archives, 1-click restore & multi-format export center
@@ -337,7 +337,7 @@ function handleWsEvent(msg) {
                 console.log(`[WS] Peer left: ${msg.peer_id}`);
                 closePeerConnection(msg.peer_id);
                 updateAudioRoomUI();
-                showToast(`👤 Peer left class`);
+                showToast(`👤 Peer left live room`);
             }
             break;
 
@@ -507,8 +507,18 @@ function fallbackCopy(text, successMsg) {
 // Multi-Page SPA Router
 // ------------------------------------------------------------------
 const VALID_PAGES = ['classroom', 'rooms', 'expression', 'study', 'tutor', 'storage'];
+const PAGE_ALIASES = {
+    echovisual: 'classroom',
+    'echo-visual': 'classroom',
+    liveroom: 'rooms',
+    'live-room': 'rooms',
+    quicktalk: 'expression',
+    'quick-talk': 'expression',
+};
 
 function navigateToPage(pageName) {
+    const resolved = PAGE_ALIASES[pageName?.toLowerCase()] || pageName;
+    pageName = resolved;
     if (!VALID_PAGES.includes(pageName)) {
         pageName = 'classroom';
     }
@@ -572,12 +582,12 @@ function navigateToPage(pageName) {
 
 function initPageRouter() {
     window.addEventListener('hashchange', () => {
-        const hash = window.location.hash.replace('#', '') || 'classroom';
-        navigateToPage(hash);
+        const raw = window.location.hash.replace('#', '') || 'classroom';
+        navigateToPage(PAGE_ALIASES[raw.toLowerCase()] || raw);
     });
 
-    const initialPage = window.location.hash.replace('#', '') || 'classroom';
-    navigateToPage(initialPage);
+    const initialRaw = window.location.hash.replace('#', '') || 'classroom';
+    navigateToPage(PAGE_ALIASES[initialRaw.toLowerCase()] || initialRaw);
 }
 
 // ------------------------------------------------------------------
@@ -1508,7 +1518,7 @@ function renderSummaryAndNotes(bullets, notes, terms) {
     if (sumList) {
         sumList.innerHTML = (bullets && bullets.length)
             ? bullets.map((b) => `<li class="rise-in flex gap-2"><span class="text-accent font-mono mt-[1px]">›</span><span>${escapeHtml(b)}</span></li>`).join('')
-            : '<li class="text-slate-500 italic">No summary points generated yet. Click "Generate Diagram" on the Classroom page to create one.</li>';
+            : '<li class="text-slate-500 italic">No summary points generated yet. Click "Generate Diagram" on the EchoVisual page to create one.</li>';
     }
 
     const nList = $('notes-list');
@@ -2309,7 +2319,7 @@ function initZoomAndFullscreen() {
                     captionCol.classList.remove('hidden');
                     visualCol.classList.remove('lg:col-span-12');
                     visualCol.classList.add('lg:col-span-7');
-                    showToast('Split Classroom View restored');
+                    showToast('Split EchoVisual View restored');
                 }
             }
         });
@@ -2481,7 +2491,7 @@ function initClassroomMobileSwitcher() {
         } else {
             splitBtn.classList.add('active', 'bg-raised', 'text-white');
             splitBtn.classList.remove('text-slate-400');
-            showToast('⊞ Split Classroom Mode');
+            showToast('⊞ Split EchoVisual Mode');
         }
     }
 
@@ -2559,7 +2569,7 @@ function initLiveSpeechRecognition() {
             console.warn('Speech recognition warning:', event.error);
             if (event.error === 'not-allowed') {
                 setStatus('mic blocked', 'bg-amber-950 text-amber-300 border-amber-800');
-                showToast('🎙️ Microphone access blocked. You can still use Prompt Chips & Expression Board!', true);
+                showToast('🎙️ Microphone access blocked. You can still use Prompt Chips & QuickTalk!', true);
             }
         };
 
@@ -2945,7 +2955,7 @@ function resetClassroomForNewClass() {
     if ($('flashcard-badge')) $('flashcard-badge').textContent = '0';
     if ($('nav-study-badge')) $('nav-study-badge').textContent = '0';
 
-    // 6. Clear Expression Board Spoken Log
+    // 6. Clear QuickTalk Spoken Log
     renderSpokenLog();
 
     // 7. Update Dashboard Stats & clean last session
@@ -2996,7 +3006,7 @@ function startListening() {
     } else if (speechStarted) {
         showToast('🎙️ Live lecture started! Transcribing speech into Vis.js diagrams...');
     } else {
-        showToast('🎙️ Class session started! Live transcript active (speak, click Prompt chips, or use Expression Board).');
+        showToast('🎙️ Class session started! Live transcript active (speak, click Prompt chips, or use QuickTalk).');
     }
 }
 
@@ -3797,7 +3807,7 @@ function speakTranslatedText(text, language) {
 }
 
 // ------------------------------------------------------------------
-// Student Expression Board (Shorthand refinement + Speech)
+// QuickTalk (Shorthand refinement + Speech)
 // ------------------------------------------------------------------
 
 
@@ -4573,7 +4583,7 @@ function renderSavedSessionsList() {
                 </div>
             </div>
             <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                <button onclick="window.restoreSessionByIndex(${idx})" title="Restore session to Classroom & Study Hub"
+                <button onclick="window.restoreSessionByIndex(${idx})" title="Restore session to EchoVisual & Study Hub"
                         class="px-3.5 py-1.5 rounded-xl bg-accent hover:opacity-90 text-white font-mono text-xs font-semibold shadow-sm shadow-accent/20 transition-all">
                     Restore to View
                 </button>
@@ -5672,7 +5682,7 @@ function updateAudioRoomUI() {
             if (dockTitle) dockTitle.textContent = 'Listening to Teacher Audio';
             if (dockIcon) dockIcon.textContent = '🎧';
             if (dockVolumeBox) dockVolumeBox.classList.remove('hidden');
-            setDockAudioState('🎧 Listening to live classroom');
+            setDockAudioState('🎧 Listening to live room');
         }
     } else {
         if (roomControls) {
@@ -5769,7 +5779,7 @@ function initAudioRoomEngine() {
 }
 
 // ------------------------------------------------------------------
-// Online Classroom Lobby & Room Lifecycle
+// Live Room Lobby & Room Lifecycle
 // ------------------------------------------------------------------
 function initLobby() {
     const openModalBtn = $('open-online-modal-btn');
@@ -5796,17 +5806,17 @@ function initLobby() {
             const res = await fetch(`${API_BASE}/api/rooms/${code}/validate`);
             const data = await res.json();
             enterRoom(code, name, 'student');
-            showToast(`🎉 Joined classroom ${code} as student!`);
+            showToast(`🎉 Joined live room ${code} as student!`);
         } catch (e) {
             enterRoom(code, name, 'student');
-            showToast(`🎉 Joined classroom ${code}!`);
+            showToast(`🎉 Joined live room ${code}!`);
         }
     };
 
     const handleCreate = async (displayName) => {
         const name = (displayName || '').trim() || 'Teacher';
         try {
-            showToast('Creating live classroom audio room...');
+            showToast('Creating live room audio...');
             const res = await fetch(`${API_BASE}/api/rooms/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -5815,12 +5825,12 @@ function initLobby() {
             const data = await res.json();
             if (data && data.room_id) {
                 enterRoom(data.room_id, name, 'host');
-                showToast(`✨ Classroom ${data.room_id} created! You are the Host.`);
+                showToast(`✨ Live Room ${data.room_id} created! You are the Host.`);
             }
         } catch (e) {
             const fallbackCode = Math.random().toString(36).substring(2, 8).toUpperCase();
             enterRoom(fallbackCode, name, 'host');
-            showToast(`✨ Classroom ${fallbackCode} created!`);
+            showToast(`✨ Live Room ${fallbackCode} created!`);
         }
     };
 
@@ -5845,7 +5855,7 @@ function initLobby() {
     if (hubLeaveBtn) {
         hubLeaveBtn.addEventListener('click', () => {
             leaveRoom();
-            showToast('Left classroom');
+            showToast('Left live room');
         });
     }
 
@@ -5889,12 +5899,12 @@ function enterRoom(roomId, displayName = '', role = 'student') {
         startHostAudioStream();
     }
 
-    // Navigate to Classroom whiteboard view
+    // Navigate to EchoVisual whiteboard view
     navigateToPage('classroom');
 }
 
 function leaveRoom() {
-    autoSaveSessionOnClassEnd('Left online classroom');
+    autoSaveSessionOnClassEnd('Left live room');
     stopRoomAudio();
     if (wsSocket) {
         try { wsSocket.close(); } catch (e) {}
@@ -5909,5 +5919,5 @@ function leaveRoom() {
     updateHubActiveCard();
     updateAudioRoomUI();
 
-    showToast('👋 You left the online class room.');
+    showToast('👋 You left the live room.');
 }

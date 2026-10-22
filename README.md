@@ -49,9 +49,9 @@ Built with FastAPI, Google Gemini, Microsoft Edge Neural TTS, and a lightweight 
 - Creates flashcards for concept recall and revision
 - Exports study summaries and classroom outputs to Markdown or HTML
 
-### AI tutor and room system
+### Live Room and AI Tutor
 - Context-aware tutor interactions grounded in lecture transcript and graph state
-- Shared room-based classroom participation with 6-character codes
+- Shared 6-character codes for collaborative Live Rooms
 - WebSocket relay for caption and state synchronization
 - Browser WebRTC engine for low-latency live audio streaming from host/teacher to student rooms
 
@@ -131,9 +131,9 @@ The backend exposes the following REST and WebSocket routes:
 
 | Protocol | Method | Path | Description |
 | :---: | :---: | :--- | :--- |
-| WS | — | `/ws/live-session/{room_id}/{client_id}` | Live classroom stream with captions, graph updates, and realtime state sync |
+| WS | — | `/ws/live-session/{room_id}/{client_id}` | Live Room stream with captions, graph updates, and realtime state sync |
 | HTTP | GET | `/health` | Liveness check and API configuration status |
-| HTTP | POST | `/api/rooms/create` | Creates a new classroom room |
+| HTTP | POST | `/api/rooms/create` | Creates a new Live Room |
 | HTTP | GET | `/api/rooms/{room_id}/validate` | Validates whether a room exists |
 | HTTP | POST | `/api/transcribe-to-diagram` | Converts a transcript chunk into a diagram, notes, and key terms |
 | HTTP | POST | `/api/generate-notes` | Generates a short note summary |

@@ -72,15 +72,15 @@
         <!-- Center: Desktop Navigation Tabs (lg+; tablets and phones use the bottom nav bar) -->
         <div class="hidden lg:flex flex-1 items-center justify-center min-w-0">
             <nav class="flex items-center gap-1 bg-ink/70 p-1 rounded-xl border border-edge">
-                <a href="#classroom" id="nav-classroom" data-kbd="Alt+1" data-kbd-label="Classroom" class="nav-link active px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5">
-                    <span>🎙️ Classroom</span>
+                <a href="#classroom" id="nav-classroom" data-kbd="Alt+1" data-kbd-label="EchoVisual" class="nav-link active px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5">
+                    <span>🎙️ EchoVisual</span>
                 </a>
-                <a href="#rooms" id="nav-rooms" data-kbd="Alt+2" data-kbd-label="Online Class" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
-                    <span>👥 Online Class</span>
+                <a href="#rooms" id="nav-rooms" data-kbd="Alt+2" data-kbd-label="Live Room" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
+                    <span>👥 Live Room</span>
                     <span id="nav-room-badge" class="px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px] font-mono hidden">LIVE</span>
                 </a>
-                <a href="#expression" id="nav-expression" data-kbd="Alt+3" data-kbd-label="Expression Board" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
-                    <span>🗣️ Expression Board</span>
+                <a href="#expression" id="nav-expression" data-kbd="Alt+3" data-kbd-label="QuickTalk" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
+                    <span>🗣️ QuickTalk</span>
                 </a>
                 <a href="#study" id="nav-study" data-kbd="Alt+4" data-kbd-label="Study Hub" class="nav-link px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
                     <span>📚 Study Hub</span>
@@ -214,10 +214,10 @@
     <main class="flex-1 min-h-0 min-w-0 flex flex-col p-2.5 sm:p-3 md:p-4 overflow-hidden relative">
 
         <!-- ===================================================================== -->
-        <!-- PAGE 1: LIVE CLASSROOM & VISUAL STREAM                                -->
+        <!-- PAGE 1: ECHOVISUAL (LIVE CAPTION & VISUAL STREAM)                     -->
         <!-- ===================================================================== -->
         <section id="view-classroom" class="page-view active grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0 h-full w-full">
-            <!-- Mobile Classroom View Mode Switcher (< lg only) -->
+            <!-- Mobile EchoVisual View Mode Switcher (< lg only) -->
             <div id="classroom-mobile-switcher" class="lg:hidden col-span-1 flex items-center justify-between p-1 bg-panel border border-edge rounded-xl shrink-0 shadow-sm">
                 <div class="grid grid-cols-3 w-full gap-1 text-xs font-semibold">
                     <button type="button" id="mobile-mode-split" class="classroom-mode-btn active py-1.5 px-2 rounded-lg bg-raised text-white border border-edge/60 shadow-sm flex items-center justify-center gap-1.5 transition-all">
@@ -583,14 +583,14 @@
         </section>
 
         <!-- ===================================================================== -->
-        <!-- PAGE 2: STUDENT EXPRESSION & VOICE BOARD                             -->
+        <!-- PAGE 2: QUICKTALK (STUDENT EXPRESSION & VOICE BOARD)                  -->
         <!-- ===================================================================== -->
         <section id="view-expression" class="page-view flex-1 min-h-0 h-full w-full flex-col gap-3 md:gap-4 overflow-y-auto slim-scroll pb-4 md:pb-6">
             <!-- Header Banner (shrink-0) -->
             <div class="bg-panel border border-edge rounded-2xl p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl shrink-0 backdrop-blur-md">
                 <div>
                     <h2 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
-                        <span>Student Expression &amp; Voice Studio</span>
+                        <span>QuickTalk Voice Studio</span>
                         <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-accent-tint text-accent border border-accent-soft font-semibold">QuickTalk AI</span>
                     </h2>
                     <p class="text-xs text-slate-400 mt-0.5">Type fragments, Pakistani classroom phrases, or Roman Urdu to speak aloud with instant AI neural voice.</p>
@@ -820,7 +820,7 @@
                     <div>
                         <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold mb-2">Lecture Key Summary</h3>
                         <ul id="summary-list" class="space-y-2 text-sm text-slate-300">
-                            <li class="text-slate-500 italic">No summary points generated yet. Click "Generate Diagram" on the Classroom page to create one.</li>
+                            <li class="text-slate-500 italic">No summary points generated yet. Click "Generate Diagram" on the EchoVisual page to create one.</li>
                         </ul>
                     </div>
 
@@ -1230,7 +1230,7 @@
 
     
         <!-- ===================================================================== -->
-        <!-- PAGE: DEDICATED ONLINE CLASSROOMS & MEETING HUB (#rooms)             -->
+        <!-- PAGE: DEDICATED LIVE ROOM & MEETING HUB (#rooms)                      -->
         <!-- ===================================================================== -->
         <section id="view-rooms" class="page-view hidden flex-1 min-h-0 h-full w-full overflow-y-auto slim-scroll p-4 md:p-8 flex flex-col items-center justify-start">
             <div class="max-w-4xl w-full mx-auto space-y-6 rise-in">
@@ -1238,9 +1238,9 @@
                 <div class="text-center space-y-2">
                     <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent/15 border border-accent/30 text-accent text-xs font-mono font-medium shadow-sm">
                         <span class="w-2 h-2 rounded-full bg-accent animate-ping"></span>
-                        <span>Live Audio Classroom & Collaboration Hub</span>
+                        <span>Live Room Audio & Collaboration Hub</span>
                     </div>
-                    <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight">Interactive Live Audio Classrooms</h1>
+                    <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight">Interactive Live Rooms</h1>
                     <p class="text-xs md:text-sm text-slate-400 max-w-xl mx-auto">
                         Connect teacher and students in real time. Streams live microphone audio directly from the host room to student rooms, paired with real-time AI diagrams and speech translation.
                     </p>
@@ -1262,7 +1262,7 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <a href="#classroom" class="px-4 py-2 rounded-xl bg-accent text-white text-xs font-semibold hover:opacity-90 shadow-md transition-all">
-                            Open Whiteboard ➔
+                            Open EchoVisual ➔
                         </a>
                         <button id="hub-leave-active-btn" class="px-3 py-2 rounded-xl bg-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/30 border border-red-500/30 transition-all">
                             Leave
@@ -1283,7 +1283,7 @@
                             </div>
 
                             <div>
-                                <h2 class="text-lg font-bold text-white mb-1">Join an Online Class</h2>
+                                <h2 class="text-lg font-bold text-white mb-1">Join a Live Room</h2>
                                 <p class="text-xs text-slate-400">Enter the 6-character room code to join and listen to the teacher's live audio broadcast.</p>
                             </div>
 
@@ -1304,7 +1304,7 @@
 
                         <div class="pt-6">
                             <button id="hub-join-btn" class="w-full py-3.5 rounded-2xl bg-accent hover:opacity-90 text-white font-semibold text-sm shadow-lg shadow-accent/25 transition-all flex items-center justify-center gap-2">
-                                <span>🎧 Join Classroom (Listen Live)</span>
+                                <span>🎧 Join Live Room (Listen Live)</span>
                             </button>
                         </div>
                     </div>
@@ -1320,7 +1320,7 @@
                             </div>
 
                             <div>
-                                <h2 class="text-lg font-bold text-white mb-1">Host a New Classroom</h2>
+                                <h2 class="text-lg font-bold text-white mb-1">Host a New Live Room</h2>
                                 <p class="text-xs text-slate-400">Launch an instant audio room. Your microphone audio will stream live to all students who join.</p>
                             </div>
 
@@ -1446,28 +1446,28 @@
     <!-- ======================= Mobile Bottom Navigation Bar ======================= -->
     <!-- ======================= Mobile Bottom Navigation Bar ======================= -->
     <nav class="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-panel/95 backdrop-blur-lg border-t border-edge flex items-center justify-around z-30 shadow-2xl safe-pb">
-        <a href="#classroom" class="mobile-nav-link active flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="classroom" data-kbd="Alt+1" data-kbd-label="Classroom">
+        <a href="#classroom" class="mobile-nav-link active flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="classroom" data-kbd="Alt+1" data-kbd-label="EchoVisual">
             <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
             </svg>
-            <span class="truncate px-0.5 leading-tight">Classroom</span>
+            <span class="truncate px-0.5 leading-tight">EchoVisual</span>
         </a>
-        <a href="#rooms" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="rooms" data-kbd="Alt+2" data-kbd-label="Online Class">
+        <a href="#rooms" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="rooms" data-kbd="Alt+2" data-kbd-label="Live Room">
             <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                 <circle cx="9" cy="7" r="4"></circle>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
-            <span class="truncate px-0.5 leading-tight">Online</span>
+            <span class="truncate px-0.5 leading-tight">Live Room</span>
         </a>
-        <a href="#expression" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="expression" data-kbd="Alt+3" data-kbd-label="Expression Board">
+        <a href="#expression" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="expression" data-kbd="Alt+3" data-kbd-label="QuickTalk">
             <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
             </svg>
-            <span class="truncate px-0.5 leading-tight">Speak</span>
+            <span class="truncate px-0.5 leading-tight">QuickTalk</span>
         </a>
         <a href="#study" class="mobile-nav-link flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 py-1 transition-all" data-page="study" data-kbd="Alt+4" data-kbd-label="Study Hub">
             <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5">

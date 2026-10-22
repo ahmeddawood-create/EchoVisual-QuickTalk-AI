@@ -519,7 +519,7 @@ div.vis-tooltip {
     .page-view { transition: none; }
 }
 
-/* Advanced UI Overhaul: Diagram Box & Expression Board */
+/* Advanced UI Overhaul: Diagram Box & QuickTalk */
 /* ========================================================================== */
 
 /* Diagram Canvas Engineering Grid & Glow */
@@ -711,7 +711,7 @@ div.vis-tooltip {
     }
 }
 
-/* ---------- Page 1 · Classroom: caption band + whiteboard stack (< lg) ---------- */
+/* ---------- Page 1 · EchoVisual: caption band + whiteboard stack (< lg) ---------- */
 @media (max-width: 1023.98px) {
     /* Stack the two panels; the section itself scrolls smoothly on short screens */
     #view-classroom.page-view.active {
@@ -737,7 +737,7 @@ div.vis-tooltip {
         min-height: 16rem;
     }
 
-    /* Mobile Classroom Mode: Captions full-height (fits viewport cleanly without scroll-trap) */
+    /* Mobile EchoVisual Mode: Captions full-height (fits viewport cleanly without scroll-trap) */
     #view-classroom.mobile-mode-captions.page-view.active {
         overflow-y: hidden !important;
     }
@@ -751,7 +751,7 @@ div.vis-tooltip {
         display: none !important;
     }
 
-    /* Mobile Classroom Mode: Whiteboard full-height (fits viewport cleanly without scroll-trap) */
+    /* Mobile EchoVisual Mode: Whiteboard full-height (fits viewport cleanly without scroll-trap) */
     #view-classroom.mobile-mode-board.page-view.active {
         overflow-y: hidden !important;
     }
@@ -774,7 +774,7 @@ div.vis-tooltip {
     }
 }
 
-/* ---------- Page 2 · Expression Board: Natural vertical scroll on all viewports ---------- */
+/* ---------- Page 2 · QuickTalk: Natural vertical scroll on all viewports ---------- */
 #view-expression {
     overflow-y: auto !important;
     overflow-x: hidden;
