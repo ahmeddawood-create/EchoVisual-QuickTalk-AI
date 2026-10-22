@@ -628,6 +628,43 @@ class TestRoomManagement(unittest.TestCase):
                 self.assertEqual(answer_msg["type"], "webrtc_answer")
                 self.assertEqual(answer_msg["source_peer"], "peerB")
 
+    def test_audio_role_and_state_signaling(self):
+        resp = client.post("/api/rooms/create")
+        room_id = resp.json()["room_id"]
+
+        with client.websocket_connect(f"/ws/live-session/{room_id}/teacher1") as ws_host:
+            ready_host = ws_host.receive_json()
+            self.assertEqual(ready_host["type"], "ready")
+
+            # Host announces role
+            ws_host.send_json({
+                "type": "role_announce",
+                "role": "host",
+                "name": "Prof. Ali"
+            })
+
+            with client.websocket_connect(f"/ws/live-session/{room_id}/student1") as ws_student:
+                ready_student = ws_student.receive_json()
+                self.assertEqual(ready_student["type"], "ready")
+                self.assertEqual(ready_student.get("host_id"), "teacher1")
+
+                # teacher receives peer_joined
+                joined_msg = ws_host.receive_json()
+                self.assertEqual(joined_msg["type"], "peer_joined")
+                self.assertEqual(joined_msg["peer_id"], "student1")
+
+                # Host sends audio state (e.g. muted/unmuted)
+                ws_host.send_json({
+                    "type": "audio_state",
+                    "is_muted": True
+                })
+
+                # Student receives audio state
+                audio_msg = ws_student.receive_json()
+                self.assertEqual(audio_msg["type"], "audio_state")
+                self.assertTrue(audio_msg["is_muted"])
+                self.assertEqual(audio_msg["peer_id"], "teacher1")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

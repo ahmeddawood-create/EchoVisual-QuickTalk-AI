@@ -53,7 +53,7 @@ Built with FastAPI, Google Gemini, Microsoft Edge Neural TTS, and a lightweight 
 - Context-aware tutor interactions grounded in lecture transcript and graph state
 - Shared room-based classroom participation with 6-character codes
 - WebSocket relay for caption and state synchronization
-- Browser WebRTC support for peer audio/video rooms
+- Browser WebRTC engine for low-latency live audio streaming from host/teacher to student rooms
 
 ---
 
@@ -77,7 +77,6 @@ Built with FastAPI, Google Gemini, Microsoft Edge Neural TTS, and a lightweight 
 - Python 3.10+
 - Google Chrome or Microsoft Edge for browser speech APIs
 - A microphone
-- Optional camera for room video sessions
 - A Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey)
 - Optional Groq API key for Whisper-based speech-to-text
 
@@ -118,7 +117,7 @@ Open http://127.0.0.1:8000 in Chrome or Edge, grant microphone permission, and s
 | Variable | Required | Default | Description |
 | :--- | :---: | :--- | :--- |
 | `GEMINI_API_KEY` | Yes | — | API key for Gemini-generated responses |
-| `GEMINI_MODEL` | No | `gemini-3.1-flash-lite` | Overrides the default Gemini model |
+| `GEMINI_MODEL` | No | `gemini-3.5-flash` | Overrides the default Gemini model |
 | `EDGE_TTS_VOICE_EN` | No | `en-US-JennyNeural` | English voice used for spoken output |
 | `EDGE_TTS_VOICE_UR` | No | `ur-PK-UzmaNeural` | Urdu voice used for spoken output |
 | `GROQ_API_KEY` | No | — | Enables Whisper-based speech-to-text support |

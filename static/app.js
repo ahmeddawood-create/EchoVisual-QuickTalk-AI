@@ -85,8 +85,8 @@ let autoDiagramInterval = null;
 let autoDiagramTimer = null;
 let lastAutoDiagramTranscript = '';
 let lastAutoDiagramAt = 0;
-const AUTO_DIAGRAM_INTERVAL_MS = 8000;
-const AUTO_DIAGRAM_DEBOUNCE_MS = 3000;
+const AUTO_DIAGRAM_INTERVAL_MS = 5000;
+const AUTO_DIAGRAM_DEBOUNCE_MS = 1500;
 const AUTO_DIAGRAM_MIN_NEW_CHARS = 20;
 
 // Rate-limited API Queue State
@@ -267,11 +267,23 @@ function handleWsEvent(msg) {
             if (msg.graph_state) {
                 renderDiagramDirect(msg.graph_state, msg.summary_bullets, msg.key_terms);
             }
-            if (msg.peers) {
-                msg.peers.forEach((peerId) => {
-                    createPeerConnection(peerId, false);
+            if (currentRoomId) {
+                sendWsMessage({
+                    type: 'role_announce',
+                    role: currentUserRole,
+                    name: currentDisplayName,
                 });
             }
+            if (msg.host_id) {
+                currentHostId = msg.host_id;
+            }
+            if (msg.peers) {
+                msg.peers.forEach((peerId) => {
+                    const shouldInitiate = (currentUserRole === 'host');
+                    createPeerConnection(peerId, shouldInitiate);
+                });
+            }
+            updateAudioRoomUI();
             break;
 
         case 'caption':
@@ -313,21 +325,38 @@ function handleWsEvent(msg) {
         case 'peer_joined':
             if (msg.peer_id) {
                 console.log(`[WS] Peer joined: ${msg.peer_id}`);
-                createPeerConnection(msg.peer_id, true);
-                showToast(`👤 Peer joined class`);
+                const shouldInitiate = (currentUserRole === 'host');
+                createPeerConnection(msg.peer_id, shouldInitiate);
+                updateAudioRoomUI();
+                showToast(`👤 Student joined class`);
             }
             break;
 
         case 'peer_left':
             if (msg.peer_id) {
                 console.log(`[WS] Peer left: ${msg.peer_id}`);
-                removeVideoElement(msg.peer_id);
-                if (peerConnections[msg.peer_id]) {
-                    peerConnections[msg.peer_id].close();
-                    delete peerConnections[msg.peer_id];
-                }
-                delete iceCandidateQueues[msg.peer_id];
+                closePeerConnection(msg.peer_id);
+                updateAudioRoomUI();
                 showToast(`👤 Peer left class`);
+            }
+            break;
+
+        case 'peer_role':
+            if (msg.peer_id) {
+                roomPeers[msg.peer_id] = { role: msg.role, name: msg.name };
+                if (msg.role === 'host') {
+                    currentHostId = msg.peer_id;
+                    if (currentUserRole === 'student') {
+                        showToast(`🎙️ Teacher (${msg.name || 'Host'}) joined the class!`);
+                    }
+                }
+                updateAudioRoomUI();
+            }
+            break;
+
+        case 'audio_state':
+            if (msg.is_muted !== undefined) {
+                onHostAudioStateChanged(msg.is_muted);
             }
             break;
 
@@ -5194,7 +5223,7 @@ document.addEventListener('DOMContentLoaded', () => {
     safeInit('Chatbot', initChatbot);
     safeInit('StorageActions', initStorageActions);
     safeInit('Lobby', initLobby);
-    safeInit('DraggableDeck', initDraggableVideoDeck);
+    safeInit('AudioRoomEngine', initAudioRoomEngine);
     safeInit('Timeline', initTimelineControls);
     safeInit('StorageDashboard', refreshStorageDashboard);
 
@@ -5219,11 +5248,26 @@ document.addEventListener('DOMContentLoaded', () => {
 // ------------------------------------------------------------------
 
 // ------------------------------------------------------------------
-// WebRTC Video & Audio Conference Engine
+// WebRTC Audio Streaming Engine (Host Microphone -> Student Audio Room)
 // ------------------------------------------------------------------
-let localStream = null;
+let localAudioStream = null;
+let currentUserRole = 'student'; // 'host' or 'student'
+let currentDisplayName = '';
+let currentHostId = null;
+let isHostMicMuted = false;
+let isStudentSpeakerMuted = false;
+let currentSpeakerVolume = 1.0;
 const peerConnections = {}; // peer_id -> RTCPeerConnection
 const iceCandidateQueues = {}; // peer_id -> Array of candidates
+const roomPeers = {}; // peer_id -> { role, name }
+
+let roomAudioCtx = null;
+let hostAudioSource = null;
+let hostAudioAnalyser = null;
+let remoteAudioSource = null;
+let remoteAudioAnalyser = null;
+let audioAnimLoopRunning = false;
+
 const rtcConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -5234,128 +5278,82 @@ const rtcConfig = {
     ]
 };
 
-async function startLocalVideo() {
+// ------------------------------------------------------------------
+// Host Audio Broadcast Capture
+// ------------------------------------------------------------------
+async function startHostAudioStream() {
     try {
-        console.log('[WebRTC] Requesting camera and microphone access...');
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                frameRate: { ideal: 30 }
+        console.log('[WebRTC Audio] Requesting host microphone access...');
+        localAudioStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
             },
-            audio: true
+            video: false
         });
-        console.log('[WebRTC] Camera and microphone acquired successfully');
-        addVideoElement(currentClientId, localStream, true);
-        attachLocalStreamToPeers();
+        console.log('[WebRTC Audio] Host microphone acquired successfully');
+        isHostMicMuted = false;
+        initHostAudioVisualizer(localAudioStream);
+        attachHostAudioToPeers();
+        updateAudioRoomUI();
+        showToast('🎙️ Live microphone active! Audio is streaming to students.');
+        return true;
     } catch (err) {
-        console.warn('[WebRTC] Video+Audio capture failed, trying audio only:', err);
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            console.log('[WebRTC] Audio-only stream acquired');
-            addVideoElement(currentClientId, localStream, true);
-            attachLocalStreamToPeers();
-        } catch (err2) {
-            console.warn('[WebRTC] Audio capture failed:', err2);
-            showToast('Camera/Microphone not available. You can still watch the live session.', true);
-        }
+        console.warn('[WebRTC Audio] Microphone capture failed:', err);
+        showToast('Microphone access is required to broadcast audio as teacher.', true);
+        updateAudioRoomUI();
+        return false;
     }
 }
 
-function attachLocalStreamToPeers() {
-    if (!localStream) return;
+function attachHostAudioToPeers() {
+    if (!localAudioStream) return;
+    const audioTrack = localAudioStream.getAudioTracks()[0];
+    if (!audioTrack) return;
+
     Object.entries(peerConnections).forEach(([peerId, pc]) => {
-        localStream.getTracks().forEach((track) => {
+        try {
             const senders = pc.getSenders ? pc.getSenders() : [];
-            const alreadyAdded = senders.some((s) => s.track === track);
+            const alreadyAdded = senders.some((s) => s.track === audioTrack);
             if (!alreadyAdded) {
-                try {
-                    pc.addTrack(track, localStream);
-                    console.log(`[WebRTC] Attached local track (${track.kind}) to peer ${peerId}`);
-                } catch (e) {
-                    console.warn(`[WebRTC] Failed to add track to peer ${peerId}:`, e);
-                }
+                pc.addTrack(audioTrack, localAudioStream);
+                console.log(`[WebRTC Audio] Attached host audio track to peer ${peerId}`);
             }
-        });
+        } catch (e) {
+            console.warn(`[WebRTC Audio] Failed to add track to peer ${peerId}:`, e);
+        }
     });
 }
 
-function stopLocalVideo() {
-    if (localStream) {
-        localStream.getTracks().forEach((track) => {
+function stopRoomAudio() {
+    if (localAudioStream) {
+        localAudioStream.getTracks().forEach((track) => {
             try { track.stop(); } catch (e) {}
         });
-        localStream = null;
+        localAudioStream = null;
     }
-    removeVideoElement(currentClientId);
+    const audioEl = $('remote-class-audio');
+    if (audioEl) {
+        try {
+            audioEl.pause();
+            audioEl.srcObject = null;
+        } catch (e) {}
+    }
     Object.keys(peerConnections).forEach((peerId) => {
+        closePeerConnection(peerId);
+    });
+    hideAudioUnlockPrompt();
+}
+
+function closePeerConnection(peerId) {
+    if (peerConnections[peerId]) {
         try { peerConnections[peerId].close(); } catch (e) {}
         delete peerConnections[peerId];
-        delete iceCandidateQueues[peerId];
-        removeVideoElement(peerId);
-    });
-}
-
-function addVideoElement(peerId, stream, isLocal = false) {
-    const grid = $('video-grid');
-    const streamTrack = $('video-deck-streams') || grid;
-    if (!grid || !streamTrack) return;
-
-    grid.classList.remove('hidden');
-    grid.classList.add('flex');
-
-    let container = $(`video-container-${peerId}`);
-    if (!container) {
-        container = document.createElement('div');
-        container.id = `video-container-${peerId}`;
-        container.className = 'video-card relative shrink-0 h-24 sm:h-28 aspect-video rounded-xl bg-ink overflow-hidden border border-edge shadow-lg';
-
-        const videoEl = document.createElement('video');
-        videoEl.id = `video-${peerId}`;
-        videoEl.className = 'video-stream w-full h-full object-cover rounded-xl';
-        videoEl.autoplay = true;
-        videoEl.playsInline = true;
-        videoEl.setAttribute('autoplay', 'true');
-        videoEl.setAttribute('playsinline', 'true');
-        if (isLocal) {
-            videoEl.muted = true;
-            videoEl.setAttribute('muted', 'true');
-            videoEl.style.transform = 'scaleX(-1)';
-        }
-
-        const badge = document.createElement('div');
-        badge.className = 'absolute bottom-1.5 left-1.5 bg-panel/90 backdrop-blur border border-edge text-slate-200 text-[10px] px-2 py-0.5 rounded-md font-mono flex items-center gap-1.5 shadow-sm z-10';
-        badge.innerHTML = isLocal
-            ? `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> You`
-            : `<span class="w-2 h-2 rounded-full bg-accent"></span> Peer ${escapeHtml(peerId.slice(0, 5))}`;
-
-        container.appendChild(videoEl);
-        container.appendChild(badge);
-        streamTrack.appendChild(container);
     }
-
-    const videoEl = $(`video-${peerId}`);
-    if (videoEl && stream) {
-        if (videoEl.srcObject !== stream) {
-            videoEl.srcObject = stream;
-        }
-        videoEl.onloadedmetadata = () => {
-            videoEl.play().catch((err) => console.warn(`[WebRTC] Video play error for ${peerId}:`, err));
-        };
-        videoEl.play().catch((err) => console.warn(`[WebRTC] Direct play error for ${peerId}:`, err));
-    }
-}
-
-function removeVideoElement(peerId) {
-    const container = $(`video-container-${peerId}`);
-    if (container) container.remove();
-
-    const streamTrack = $('video-deck-streams') || $('video-grid');
-    const grid = $('video-grid');
-    if (streamTrack && streamTrack.children.length === 0 && grid) {
-        grid.classList.add('hidden');
-        grid.classList.remove('flex');
-    }
+    delete iceCandidateQueues[peerId];
+    delete roomPeers[peerId];
+    updateAudioRoomUI();
 }
 
 function handleQueuedIceCandidates(peerId, pc) {
@@ -5372,32 +5370,36 @@ function handleQueuedIceCandidates(peerId, pc) {
     }
 }
 
+// ------------------------------------------------------------------
+// Peer Connection Lifecycle
+// ------------------------------------------------------------------
 function createPeerConnection(peerId, initiate = false) {
     if (peerConnections[peerId]) return peerConnections[peerId];
 
-    console.log(`[WebRTC] Initializing RTCPeerConnection for ${peerId} (initiate=${initiate})`);
+    console.log(`[WebRTC Audio] Creating connection for ${peerId} (initiate=${initiate}, role=${currentUserRole})`);
     const pc = new RTCPeerConnection(rtcConfig);
     peerConnections[peerId] = pc;
 
-    if (localStream) {
-        localStream.getTracks().forEach((track) => {
+    // If host has mic stream, attach audio track to this new peer
+    if (currentUserRole === 'host' && localAudioStream) {
+        const track = localAudioStream.getAudioTracks()[0];
+        if (track) {
             try {
-                pc.addTrack(track, localStream);
-                console.log(`[WebRTC] Added local track (${track.kind}) to new peer ${peerId}`);
+                pc.addTrack(track, localAudioStream);
+                console.log(`[WebRTC Audio] Attached host audio track to new peer ${peerId}`);
             } catch (e) {
-                console.warn(`[WebRTC] addTrack error for ${peerId}:`, e);
+                console.warn(`[WebRTC Audio] addTrack error for ${peerId}:`, e);
             }
-        });
+        }
     }
 
+    // Remote audio track received (guest/student listens to host audio)
     pc.ontrack = (event) => {
-        console.log(`[WebRTC] Received remote track from ${peerId}:`, event.track.kind);
-        let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
-        if (!stream) {
-            stream = new MediaStream();
-            stream.addTrack(event.track);
+        console.log(`[WebRTC Audio] Remote track received from ${peerId}:`, event.track.kind);
+        if (event.track.kind === 'audio') {
+            const stream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
+            handleIncomingHostAudio(stream, peerId);
         }
-        addVideoElement(peerId, stream, false);
     };
 
     pc.onicecandidate = (event) => {
@@ -5410,174 +5412,375 @@ function createPeerConnection(peerId, initiate = false) {
         }
     };
 
+    pc.oniceconnectionstatechange = () => {
+        console.log(`[WebRTC Audio] Peer ${peerId} ICE state: ${pc.iceConnectionState}`);
+        updateAudioRoomUI();
+    };
+
     pc.onconnectionstatechange = () => {
-        console.log(`[WebRTC] Peer ${peerId} connectionState: ${pc.connectionState}`);
+        console.log(`[WebRTC Audio] Peer ${peerId} connectionState: ${pc.connectionState}`);
         if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-            removeVideoElement(peerId);
+            closePeerConnection(peerId);
         }
+        updateAudioRoomUI();
     };
 
     if (initiate) {
-        pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+        pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false })
             .then((offer) => pc.setLocalDescription(offer))
             .then(() => {
-                console.log(`[WebRTC] Sending offer to ${peerId}`);
+                console.log(`[WebRTC Audio] Sending offer to ${peerId}`);
                 sendWsMessage({
                     type: 'webrtc_offer',
                     target_peer: peerId,
                     offer: pc.localDescription,
                 });
             })
-            .catch((err) => console.warn('[WebRTC] Offer creation error:', err));
+            .catch((err) => console.warn('[WebRTC Audio] Offer creation error:', err));
     }
 
     return pc;
 }
 
 // ------------------------------------------------------------------
-// Online Classroom Lobby & Room Lifecycle
+// Remote Audio Playback on Student / Guest Side
 // ------------------------------------------------------------------
+function handleIncomingHostAudio(stream, peerId) {
+    console.log(`[WebRTC Audio] Connecting incoming host audio stream from ${peerId}`);
+    const audioEl = $('remote-class-audio');
+    if (!audioEl) return;
 
-// ------------------------------------------------------------------
-// Floating Draggable Video Deck Engine
-// ------------------------------------------------------------------
-function initDraggableVideoDeck() {
-    const deck = $('video-grid');
-    const handle = $('video-deck-drag-handle');
-    const minBtn = $('minimize-video-deck-btn');
-    const streams = $('video-deck-streams');
+    if (audioEl.srcObject !== stream) {
+        audioEl.srcObject = stream;
+    }
+    audioEl.volume = isStudentSpeakerMuted ? 0 : currentSpeakerVolume;
 
-    if (minBtn && streams) {
-        let isMinimized = false;
-        minBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            isMinimized = !isMinimized;
-            streams.classList.toggle('hidden', isMinimized);
-            minBtn.innerHTML = isMinimized
-                ? '<svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>'
-                : '<svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
-            showToast(isMinimized ? 'Cameras minimized' : 'Cameras expanded');
+    const playPromise = audioEl.play();
+    if (playPromise !== undefined) {
+        playPromise.then(() => {
+            console.log('[WebRTC Audio] Host audio playing smoothly on student device');
+            hideAudioUnlockPrompt();
+            initRemoteAudioVisualizer(stream);
+            setDockAudioState('🟢 Teacher audio streaming live');
+        }).catch((err) => {
+            console.warn('[WebRTC Audio] Autoplay blocked, prompt required:', err);
+            showAudioUnlockPrompt();
         });
     }
-
-    if (!deck || !handle) return;
-
-    let isDragging = false;
-    let startX = 0, startY = 0;
-    let initialLeft = 0, initialTop = 0;
-
-    const onMouseDown = (e) => {
-        if (e.button !== 0 || e.target.closest('button') || e.target.closest('input')) return;
-        isDragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-
-        const rect = deck.getBoundingClientRect();
-        initialLeft = rect.left;
-        initialTop = rect.top;
-
-        deck.style.left = `${initialLeft}px`;
-        deck.style.top = `${initialTop}px`;
-        deck.style.right = 'auto';
-        deck.style.bottom = 'auto';
-
-        handle.style.cursor = 'grabbing';
-        document.body.style.userSelect = 'none';
-
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    };
-
-    const onMouseMove = (e) => {
-        if (!isDragging) return;
-        e.preventDefault();
-
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-
-        let newLeft = initialLeft + dx;
-        let newTop = initialTop + dy;
-
-        const pad = 8;
-        const maxLeft = window.innerWidth - deck.offsetWidth - pad;
-        const maxTop = window.innerHeight - deck.offsetHeight - pad;
-
-        newLeft = Math.max(pad, Math.min(newLeft, maxLeft));
-        newTop = Math.max(pad, Math.min(newTop, maxTop));
-
-        deck.style.left = `${newLeft}px`;
-        deck.style.top = `${newTop}px`;
-    };
-
-    const onMouseUp = () => {
-        if (!isDragging) return;
-        isDragging = false;
-        handle.style.cursor = 'grab';
-        document.body.style.userSelect = '';
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    const onTouchStart = (e) => {
-        if (e.target.closest('button') || e.target.closest('input') || !e.touches[0]) return;
-        isDragging = true;
-        const touch = e.touches[0];
-        startX = touch.clientX;
-        startY = touch.clientY;
-
-        const rect = deck.getBoundingClientRect();
-        initialLeft = rect.left;
-        initialTop = rect.top;
-
-        deck.style.left = `${initialLeft}px`;
-        deck.style.top = `${initialTop}px`;
-        deck.style.right = 'auto';
-        deck.style.bottom = 'auto';
-
-        document.addEventListener('touchmove', onTouchMove, { passive: false });
-        document.addEventListener('touchend', onTouchEnd);
-    };
-
-    const onTouchMove = (e) => {
-        if (!isDragging || !e.touches[0]) return;
-        e.preventDefault();
-        const touch = e.touches[0];
-        const dx = touch.clientX - startX;
-        const dy = touch.clientY - startY;
-
-        let newLeft = initialLeft + dx;
-        let newTop = initialTop + dy;
-
-        const pad = 8;
-        const maxLeft = window.innerWidth - deck.offsetWidth - pad;
-        const maxTop = window.innerHeight - deck.offsetHeight - pad;
-
-        newLeft = Math.max(pad, Math.min(newLeft, maxLeft));
-        newTop = Math.max(pad, Math.min(newTop, maxTop));
-
-        deck.style.left = `${newLeft}px`;
-        deck.style.top = `${newTop}px`;
-    };
-
-    const onTouchEnd = () => {
-        isDragging = false;
-        document.removeEventListener('touchmove', onTouchMove);
-        document.removeEventListener('touchend', onTouchEnd);
-    };
-
-    handle.addEventListener('mousedown', onMouseDown);
-    handle.addEventListener('touchstart', onTouchStart, { passive: true });
 }
 
+function showAudioUnlockPrompt() {
+    const unlockBtn = $('audio-unlock-btn');
+    const dockUnlock = $('dock-unlock-prompt');
+    const dockUnlockBtn = $('dock-unlock-btn');
+    if (unlockBtn) unlockBtn.classList.remove('hidden');
+    if (dockUnlock) dockUnlock.classList.remove('hidden');
+
+    const tryUnlock = () => {
+        const audioEl = $('remote-class-audio');
+        if (audioEl) {
+            audioEl.play().then(() => {
+                hideAudioUnlockPrompt();
+                showToast('🔊 Live audio unmuted!');
+            }).catch((e) => console.warn('Unlock retry error:', e));
+        }
+        if (roomAudioCtx && roomAudioCtx.state === 'suspended') {
+            roomAudioCtx.resume();
+        }
+        document.removeEventListener('click', tryUnlock);
+    };
+
+    if (dockUnlockBtn) {
+        dockUnlockBtn.onclick = (e) => {
+            e.stopPropagation();
+            tryUnlock();
+        };
+    }
+    document.addEventListener('click', tryUnlock, { once: true });
+}
+
+function hideAudioUnlockPrompt() {
+    const unlockBtn = $('audio-unlock-btn');
+    const dockUnlock = $('dock-unlock-prompt');
+    if (unlockBtn) unlockBtn.classList.add('hidden');
+    if (dockUnlock) dockUnlock.classList.add('hidden');
+}
+
+function onHostAudioStateChanged(isMuted) {
+    if (currentUserRole === 'student') {
+        if (isMuted) {
+            setDockAudioState('🔇 Teacher microphone muted');
+            showToast('🔇 Teacher muted microphone');
+        } else {
+            setDockAudioState('🟢 Teacher is speaking');
+            showToast('🎙️ Teacher unmuted microphone');
+        }
+    }
+}
+
+function setDockAudioState(text) {
+    const el = $('dock-audio-state-text');
+    if (el) el.textContent = text;
+}
+
+// ------------------------------------------------------------------
+// Audio Wave Visualizers
+// ------------------------------------------------------------------
+function ensureAudioContext() {
+    if (!roomAudioCtx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+            roomAudioCtx = new AudioCtx();
+        }
+    }
+    if (roomAudioCtx && roomAudioCtx.state === 'suspended') {
+        roomAudioCtx.resume().catch(() => {});
+    }
+    return roomAudioCtx;
+}
+
+function initHostAudioVisualizer(stream) {
+    try {
+        const ctx = ensureAudioContext();
+        if (!ctx) return;
+        hostAudioSource = ctx.createMediaStreamSource(stream);
+        hostAudioAnalyser = ctx.createAnalyser();
+        hostAudioAnalyser.fftSize = 64;
+        hostAudioSource.connect(hostAudioAnalyser);
+        startAudioWavesLoop();
+    } catch (e) {
+        console.warn('Host visualizer error:', e);
+    }
+}
+
+function initRemoteAudioVisualizer(stream) {
+    try {
+        const ctx = ensureAudioContext();
+        if (!ctx) return;
+        remoteAudioSource = ctx.createMediaStreamSource(stream);
+        remoteAudioAnalyser = ctx.createAnalyser();
+        remoteAudioAnalyser.fftSize = 64;
+        remoteAudioSource.connect(remoteAudioAnalyser);
+        startAudioWavesLoop();
+    } catch (e) {
+        console.warn('Remote visualizer error:', e);
+    }
+}
+
+function startAudioWavesLoop() {
+    if (audioAnimLoopRunning) return;
+    audioAnimLoopRunning = true;
+
+    const dataArray = new Uint8Array(32);
+    const render = () => {
+        if (!currentRoomId) {
+            audioAnimLoopRunning = false;
+            return;
+        }
+
+        const activeAnalyser = (currentUserRole === 'host') ? hostAudioAnalyser : remoteAudioAnalyser;
+        let avg = 0;
+        if (activeAnalyser && (!isHostMicMuted || currentUserRole === 'student')) {
+            activeAnalyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < 16; i++) sum += dataArray[i];
+            avg = sum / 16;
+        }
+
+        const container = $('dock-waves-container');
+        if (container) {
+            const bars = container.querySelectorAll('.audio-wave-bar');
+            bars.forEach((bar, idx) => {
+                const val = dataArray[idx * 2] || avg;
+                const h = Math.max(3, Math.min(18, Math.round((val / 255) * 20)));
+                bar.style.height = `${h}px`;
+                if (avg > 12) {
+                    bar.classList.add('bg-emerald-400');
+                    bar.classList.remove('bg-slate-500');
+                } else {
+                    bar.classList.remove('bg-emerald-400');
+                    bar.classList.add('bg-slate-500');
+                }
+            });
+        }
+
+        requestAnimationFrame(render);
+    };
+    requestAnimationFrame(render);
+}
+
+// ------------------------------------------------------------------
+// Room UI and Active Session Management
+// ------------------------------------------------------------------
+function updateAudioRoomUI() {
+    const roomControls = $('room-controls');
+    const openModalBtn = $('open-online-modal-btn');
+    const roomCodeDisplay = $('room-code-display');
+    const roleBadge = $('room-role-badge');
+    const roleText = $('room-role-text');
+    const peerBadge = $('room-peer-badge');
+    const peerCount = $('room-peer-count');
+    const toggleAudioBtn = $('toggle-audio-btn');
+    const toggleSpeakerBtn = $('toggle-speaker-btn');
+    const dock = $('audio-room-dock');
+    const dockTitle = $('dock-role-title');
+    const dockRoomCode = $('dock-room-code');
+    const dockIcon = $('dock-role-icon');
+    const dockVolumeBox = $('dock-student-volume-box');
+
+    if (currentRoomId) {
+        if (roomControls) {
+            roomControls.classList.remove('hidden');
+            roomControls.classList.add('flex');
+        }
+        if (openModalBtn) openModalBtn.classList.add('hidden');
+        if (roomCodeDisplay) roomCodeDisplay.textContent = `Room: ${currentRoomId}`;
+        if (dockRoomCode) dockRoomCode.textContent = `Room: ${currentRoomId}`;
+        if (dock) dock.classList.remove('hidden');
+
+        const totalParticipants = Object.keys(peerConnections).length + 1;
+        if (peerCount) peerCount.textContent = totalParticipants;
+        if (peerBadge) peerBadge.title = `${totalParticipants} connected participant(s)`;
+
+        if (currentUserRole === 'host') {
+            if (roleText) roleText.textContent = 'Host / Teacher';
+            if (roleBadge) {
+                roleBadge.className = 'font-mono text-[10px] sm:text-[11px] px-2 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent font-semibold flex items-center gap-1';
+            }
+            if (toggleAudioBtn) {
+                toggleAudioBtn.classList.remove('hidden');
+                toggleAudioBtn.classList.toggle('bg-red-500/20', isHostMicMuted);
+                toggleAudioBtn.classList.toggle('border-red-500/40', isHostMicMuted);
+                toggleAudioBtn.title = isHostMicMuted ? 'Microphone Muted (Click to Unmute)' : 'Microphone Broadcasting (Click to Mute)';
+            }
+            if (toggleSpeakerBtn) toggleSpeakerBtn.classList.add('hidden');
+            if (dockTitle) dockTitle.textContent = `${currentDisplayName || 'Teacher'} (Broadcasting Audio)`;
+            if (dockIcon) dockIcon.textContent = '🎙️';
+            if (dockVolumeBox) dockVolumeBox.classList.add('hidden');
+            setDockAudioState(isHostMicMuted ? '🔇 Microphone muted' : '🎙️ Broadcasting live to students');
+        } else {
+            if (roleText) roleText.textContent = 'Student / Listener';
+            if (roleBadge) {
+                roleBadge.className = 'font-mono text-[10px] sm:text-[11px] px-2 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-semibold flex items-center gap-1';
+            }
+            if (toggleAudioBtn) toggleAudioBtn.classList.add('hidden');
+            if (toggleSpeakerBtn) {
+                toggleSpeakerBtn.classList.remove('hidden');
+                toggleSpeakerBtn.classList.toggle('bg-red-500/20', isStudentSpeakerMuted);
+                toggleSpeakerBtn.classList.toggle('border-red-500/40', isStudentSpeakerMuted);
+            }
+            if (dockTitle) dockTitle.textContent = 'Listening to Teacher Audio';
+            if (dockIcon) dockIcon.textContent = '🎧';
+            if (dockVolumeBox) dockVolumeBox.classList.remove('hidden');
+            setDockAudioState('🎧 Listening to live classroom');
+        }
+    } else {
+        if (roomControls) {
+            roomControls.classList.add('hidden');
+            roomControls.classList.remove('flex');
+        }
+        if (openModalBtn) openModalBtn.classList.remove('hidden');
+        if (dock) dock.classList.add('hidden');
+        hideAudioUnlockPrompt();
+    }
+}
+
+function updateHubActiveCard() {
+    const card = $('hub-active-session-card');
+    const badge = $('nav-room-badge');
+    const text = $('hub-active-room-text');
+    if (!card) return;
+
+    if (currentRoomId) {
+        card.classList.remove('hidden');
+        if (badge) badge.classList.remove('hidden');
+        if (text) text.textContent = `Room: ${currentRoomId} (${currentUserRole === 'host' ? 'Host' : 'Student'})`;
+    } else {
+        card.classList.add('hidden');
+        if (badge) badge.classList.add('hidden');
+    }
+}
+
+function initAudioRoomEngine() {
+    // Header copy button
+    const copyBtn = $('copy-room-code-btn');
+    if (copyBtn) {
+        copyBtn.onclick = () => {
+            if (currentRoomId) copyToClipboard(currentRoomId, `📋 Room code ${currentRoomId} copied!`);
+        };
+    }
+
+    // Host mic toggle
+    const toggleAudioBtn = $('toggle-audio-btn');
+    if (toggleAudioBtn) {
+        toggleAudioBtn.onclick = () => {
+            if (localAudioStream) {
+                const track = localAudioStream.getAudioTracks()[0];
+                if (track) {
+                    track.enabled = !track.enabled;
+                    isHostMicMuted = !track.enabled;
+                    toggleAudioBtn.classList.toggle('bg-red-500/20', isHostMicMuted);
+                    toggleAudioBtn.classList.toggle('border-red-500/40', isHostMicMuted);
+                    showToast(isHostMicMuted ? '🔇 Microphone muted' : '🎙️ Microphone broadcasting');
+                    setDockAudioState(isHostMicMuted ? '🔇 Microphone muted' : '🎙️ Broadcasting live to students');
+                    sendWsMessage({
+                        type: 'audio_state',
+                        is_muted: isHostMicMuted,
+                    });
+                }
+            } else if (currentUserRole === 'host') {
+                startHostAudioStream();
+            }
+        };
+    }
+
+    // Student speaker mute/unmute
+    const toggleSpeakerBtn = $('toggle-speaker-btn');
+    if (toggleSpeakerBtn) {
+        toggleSpeakerBtn.onclick = () => {
+            const audioEl = $('remote-class-audio');
+            isStudentSpeakerMuted = !isStudentSpeakerMuted;
+            if (audioEl) {
+                audioEl.volume = isStudentSpeakerMuted ? 0 : currentSpeakerVolume;
+            }
+            toggleSpeakerBtn.classList.toggle('bg-red-500/20', isStudentSpeakerMuted);
+            toggleSpeakerBtn.classList.toggle('border-red-500/40', isStudentSpeakerMuted);
+            showToast(isStudentSpeakerMuted ? '🔇 Teacher audio muted' : '🔊 Teacher audio unmuted');
+        };
+    }
+
+    // Student volume slider in dock
+    const volumeSlider = $('dock-volume-slider');
+    if (volumeSlider) {
+        volumeSlider.oninput = (e) => {
+            currentSpeakerVolume = parseFloat(e.target.value);
+            const audioEl = $('remote-class-audio');
+            if (audioEl && !isStudentSpeakerMuted) {
+                audioEl.volume = currentSpeakerVolume;
+            }
+        };
+    }
+
+    // Header leave button
+    const leaveBtn = $('leave-class-btn');
+    if (leaveBtn) {
+        leaveBtn.onclick = () => leaveRoom();
+    }
+}
+
+// ------------------------------------------------------------------
+// Online Classroom Lobby & Room Lifecycle
+// ------------------------------------------------------------------
 function initLobby() {
     const openModalBtn = $('open-online-modal-btn');
-    const navRoomsBtn = $('nav-rooms');
 
     // Hub page elements
     const hubJoinBtn = $('hub-join-btn');
     const hubCreateBtn = $('hub-create-btn');
     const hubRoomInput = $('hub-room-code-input');
     const hubNameInput = $('hub-name-input');
+    const hubTopicInput = $('hub-create-topic-input');
+    const hubCreateNameInput = $('hub-create-name-input');
     const hubLeaveBtn = $('hub-leave-active-btn');
     const hubCopyBtn = $('hub-copy-active-btn');
 
@@ -5592,18 +5795,10 @@ function initLobby() {
             showToast(`Connecting to room ${code}...`);
             const res = await fetch(`${API_BASE}/api/rooms/${code}/validate`);
             const data = await res.json();
-            if (data && (data.valid || data.exists)) {
-                enterRoom(code, name);
-                navigateToPage('classroom');
-                showToast(`🎉 Joined online class ${code}!`);
-            } else {
-                enterRoom(code, name);
-                navigateToPage('classroom');
-                showToast(`🎉 Created & joined classroom ${code}!`);
-            }
+            enterRoom(code, name, 'student');
+            showToast(`🎉 Joined classroom ${code} as student!`);
         } catch (e) {
-            enterRoom(code, name);
-            navigateToPage('classroom');
+            enterRoom(code, name, 'student');
             showToast(`🎉 Joined classroom ${code}!`);
         }
     };
@@ -5611,7 +5806,7 @@ function initLobby() {
     const handleCreate = async (displayName) => {
         const name = (displayName || '').trim() || 'Teacher';
         try {
-            showToast('Creating new live classroom...');
+            showToast('Creating live classroom audio room...');
             const res = await fetch(`${API_BASE}/api/rooms/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -5619,14 +5814,12 @@ function initLobby() {
             });
             const data = await res.json();
             if (data && data.room_id) {
-                enterRoom(data.room_id, name);
-                navigateToPage('classroom');
-                showToast(`✨ Classroom ${data.room_id} created!`);
+                enterRoom(data.room_id, name, 'host');
+                showToast(`✨ Classroom ${data.room_id} created! You are the Host.`);
             }
         } catch (e) {
             const fallbackCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-            enterRoom(fallbackCode, name);
-            navigateToPage('classroom');
+            enterRoom(fallbackCode, name, 'host');
             showToast(`✨ Classroom ${fallbackCode} created!`);
         }
     };
@@ -5637,7 +5830,6 @@ function initLobby() {
         });
     }
 
-    // Hub page listeners
     if (hubJoinBtn) {
         hubJoinBtn.addEventListener('click', () => {
             handleJoin(hubRoomInput?.value, hubNameInput?.value);
@@ -5646,14 +5838,13 @@ function initLobby() {
 
     if (hubCreateBtn) {
         hubCreateBtn.addEventListener('click', () => {
-            handleCreate(hubNameInput?.value);
+            handleCreate(hubCreateNameInput?.value || hubNameInput?.value);
         });
     }
 
     if (hubLeaveBtn) {
         hubLeaveBtn.addEventListener('click', () => {
             leaveRoom();
-            updateHubActiveCard();
             showToast('Left classroom');
         });
     }
@@ -5664,7 +5855,7 @@ function initLobby() {
         });
     }
 
-    // Quick demo room cards
+    // 1-Click quick test rooms
     $$('.quick-room-card').forEach((card) => {
         card.addEventListener('click', () => {
             const code = card.dataset.room;
@@ -5672,7 +5863,7 @@ function initLobby() {
         });
     });
 
-    // Direct room joining via shared link, e.g. #room=ABC123
+    // Direct room joining via URL hash #room=ABC123
     const hash = window.location.hash || '';
     if (hash.includes('room=')) {
         const match = hash.match(/room=([A-Za-z0-9]+)/);
@@ -5682,120 +5873,41 @@ function initLobby() {
     }
 }
 
-function updateHubActiveCard() {
-    const card = $('hub-active-session-card');
-    const badge = $('nav-room-badge');
-    const text = $('hub-active-room-text');
-    if (!card) return;
-
-    if (currentRoomId) {
-        card.classList.remove('hidden');
-        if (badge) badge.classList.remove('hidden');
-        if (text) text.textContent = `Room: ${currentRoomId}`;
-    } else {
-        card.classList.add('hidden');
-        if (badge) badge.classList.add('hidden');
-    }
-}
-
-function enterRoom(roomId, displayName) {
+function enterRoom(roomId, displayName = '', role = 'student') {
     currentRoomId = roomId;
+    currentUserRole = role || 'student';
+    currentDisplayName = (displayName || '').trim() || (currentUserRole === 'host' ? 'Teacher' : 'Student');
+
     updateHubActiveCard();
+    updateAudioRoomUI();
 
-    // 1. Update Header UI Controls
-    const openBtn = $('open-online-modal-btn');
-    if (openBtn) openBtn.classList.add('hidden');
-
-    const roomControls = $('room-controls');
-    if (roomControls) {
-        roomControls.classList.remove('hidden');
-        roomControls.classList.add('flex');
-    }
-
-    const roomCodeDisplay = $('room-code-display');
-    if (roomCodeDisplay) {
-        roomCodeDisplay.textContent = `Room: ${roomId}`;
-    }
-
-    const copyBtn = $('copy-room-code-btn');
-    if (copyBtn) {
-        copyBtn.onclick = () => {
-            copyToClipboard(roomId, `📋 Room code ${roomId} copied!`);
-        };
-    }
-
-    const toggleVideoBtn = $('toggle-video-btn');
-    if (toggleVideoBtn) {
-        toggleVideoBtn.onclick = () => {
-            if (localStream) {
-                const videoTrack = localStream.getVideoTracks()[0];
-                if (videoTrack) {
-                    videoTrack.enabled = !videoTrack.enabled;
-                    toggleVideoBtn.classList.toggle('bg-red-500/20', !videoTrack.enabled);
-                    showToast(videoTrack.enabled ? '📹 Camera on' : '📹 Camera off');
-                }
-            }
-        };
-    }
-
-    const toggleAudioBtn = $('toggle-audio-btn');
-    if (toggleAudioBtn) {
-        toggleAudioBtn.onclick = () => {
-            if (localStream) {
-                const audioTrack = localStream.getAudioTracks()[0];
-                if (audioTrack) {
-                    audioTrack.enabled = !audioTrack.enabled;
-                    toggleAudioBtn.classList.toggle('bg-red-500/20', !audioTrack.enabled);
-                    showToast(audioTrack.enabled ? '🎙️ Mic unmuted' : '🎙️ Mic muted');
-                }
-            }
-        };
-    }
-
-    const leaveBtn = $('leave-class-btn');
-    if (leaveBtn) {
-        leaveBtn.onclick = () => leaveRoom();
-    }
-
-    // 2. Connect WebSocket to Room
+    // Connect WebSocket to Room
     initLiveWebSocket(roomId);
 
-    // 3. Display Floating Draggable Video Deck & Start WebRTC
-    const grid = $('video-grid');
-    if (grid) {
-        grid.classList.remove('hidden');
-        grid.classList.add('flex');
+    // If host, acquire microphone and broadcast live
+    if (currentUserRole === 'host') {
+        startHostAudioStream();
     }
-    startLocalVideo().catch((e) => console.warn('WebRTC start error:', e));
 
-    // 4. Navigate to Classroom Whiteboard View
+    // Navigate to Classroom whiteboard view
     navigateToPage('classroom');
 }
 
 function leaveRoom() {
     autoSaveSessionOnClassEnd('Left online classroom');
-    stopLocalVideo();
+    stopRoomAudio();
     if (wsSocket) {
         try { wsSocket.close(); } catch (e) {}
         wsSocket = null;
     }
     currentRoomId = null;
+    currentUserRole = 'student';
+    currentHostId = null;
+    isHostMicMuted = false;
+    isStudentSpeakerMuted = false;
+
     updateHubActiveCard();
-
-    const openBtn = $('open-online-modal-btn');
-    if (openBtn) openBtn.classList.remove('hidden');
-
-    const roomControls = $('room-controls');
-    if (roomControls) {
-        roomControls.classList.add('hidden');
-        roomControls.classList.remove('flex');
-    }
-
-    const grid = $('video-grid');
-    if (grid) {
-        grid.classList.add('hidden');
-        grid.classList.remove('flex');
-    }
+    updateAudioRoomUI();
 
     showToast('👋 You left the online class room.');
 }

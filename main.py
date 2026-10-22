@@ -53,11 +53,11 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-# NOTE: gemini-1.5-flash and gemini-2.0-flash have been retired from the API.
-# Benchmarked on 2026-08-26: gemini-3.1-flash-lite 1.3s vs 3.5-flash-lite 1.6s;
-# gemini-flash-lite-latest is unusable (45s, internal thinking).
+# NOTE: gemini-1.5, 2.0, and 2.5 models have been retired from the API.
+# Benchmarked on 2026-10-23: gemini-3.5-flash (~3s) vs 3.5-flash-lite (~15s).
+# gemini-3.5-flash provides ~4-5x faster live diagram/visual generation.
 # Override in .env with GEMINI_MODEL if Google rotates the model again.
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite").strip()
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.5-flash").strip()
 RATE_LIMIT_MAX_REQUESTS = 15      # Gemini free tier allows 15 req/min
 RATE_LIMIT_WINDOW_SECONDS = 60
 MAX_TRANSCRIPT_CHARS = 4000
@@ -69,6 +69,7 @@ MAX_CHAT_CONTEXT_CHARS = 4000
 # translate need room so responses never truncate mid-JSON or mid-sentence
 # (a truncated JSON object fails Pydantic validation and surfaces as a 502).
 MAX_TOKENS_DIAGRAM = 600
+MAX_TOKENS_DELTA = 400
 MAX_TOKENS_NOTES = 900
 MAX_TOKENS_QUIZ = 1400
 MAX_TOKENS_FLASHCARDS = 900
@@ -487,8 +488,12 @@ class RoomState:
     def __init__(self):
         self.graph_state = GraphState()
         self.clients: Dict[str, WebSocket] = {}
+        self.client_roles: Dict[str, dict] = {}
+        self.host_id: Optional[str] = None
         self.rolling_transcript = ""
         self.last_delta_length = 0
+        self.is_delta_generating = False
+        self.last_delta_time = 0.0
 
 
 class RoomManager:
@@ -524,7 +529,7 @@ async def generate_graph_delta(transcript: str, graph_state: GraphState) -> dict
         transcript=transcript,
     )
     raw = await _call_gemini(
-        prompt, prompts.DIAGRAM_DELTA_SYSTEM_INSTRUCTIONS, "application/json"
+        prompt, prompts.DIAGRAM_DELTA_SYSTEM_INSTRUCTIONS, "application/json", MAX_TOKENS_DELTA
     )
     data = _extract_json(raw)
     deltas = data.get("deltas", [])
@@ -1046,7 +1051,9 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
             "client_id": client_id,
             "room_id": room_id,
             "graph_state": room.graph_state.to_dict(),
-                        "peers": [cid for cid in room.clients if cid != client_id]
+            "peers": [cid for cid in room.clients if cid != client_id],
+            "peer_roles": room.client_roles,
+            "host_id": room.host_id
         })
 
         while True:
@@ -1115,42 +1122,53 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
                     except Exception:
                         pass
 
-                # Delta-based visual calculation
+                # Delta-based visual calculation (non-blocking async task to keep live loop fast)
                 diff_len = len(room.rolling_transcript) - room.last_delta_length
+                now = time.monotonic()
                 should_delta = (
-                    (is_final or speaker_pause or diff_len >= 25)
+                    (is_final or speaker_pause or diff_len >= 50)
                     and len(room.rolling_transcript) >= 15
+                    and not room.is_delta_generating
+                    and (now - room.last_delta_time >= 3.5)
                 )
 
                 if should_delta and API_KEY:
+                    room.is_delta_generating = True
+                    room.last_delta_time = now
                     room.last_delta_length = len(room.rolling_transcript)
-                    try:
-                        delta_result = await generate_graph_delta(
-                            room.rolling_transcript[-1000:], room.graph_state
-                        )
-                        delta_msg = {
-                            "type": "diagram_delta",
-                            "deltas": delta_result["deltas"],
-                            "graph_state": delta_result["graph_state"],
-                                                        "summary_bullets": delta_result["summary_bullets"],
-                            "key_terms": delta_result["key_terms"],
-                        }
-                        for client in room.clients.values():
-                            try:
-                                await client.send_json(delta_msg)
-                            except Exception:
-                                pass
-                    except Exception as delta_err:
-                        print(f"[WARN] Live delta update error: {delta_err}")
-                        error_msg = {
-                            "type": "diagram_delta_error",
-                            "error": str(delta_err),
-                        }
-                        for client in room.clients.values():
-                            try:
-                                await client.send_json(error_msg)
-                            except Exception:
-                                pass
+
+                    async def _run_delta_task(target_room: RoomState, transcript_slice: str):
+                        try:
+                            delta_result = await generate_graph_delta(
+                                transcript_slice, target_room.graph_state
+                            )
+                            delta_msg = {
+                                "type": "diagram_delta",
+                                "deltas": delta_result["deltas"],
+                                "graph_state": delta_result["graph_state"],
+                                "summary_bullets": delta_result["summary_bullets"],
+                                "key_terms": delta_result["key_terms"],
+                            }
+                            for client in list(target_room.clients.values()):
+                                try:
+                                    await client.send_json(delta_msg)
+                                except Exception:
+                                    pass
+                        except Exception as delta_err:
+                            print(f"[WARN] Live delta update error: {delta_err}")
+                            error_msg = {
+                                "type": "diagram_delta_error",
+                                "error": str(delta_err),
+                            }
+                            for client in list(target_room.clients.values()):
+                                try:
+                                    await client.send_json(error_msg)
+                                except Exception:
+                                    pass
+                        finally:
+                            target_room.is_delta_generating = False
+
+                    asyncio.create_task(_run_delta_task(room, room.rolling_transcript[-1000:]))
 
             elif msg_type == "shorthand_speak":
                 shorthand_text = msg.get("shorthand", "").strip()
@@ -1205,6 +1223,35 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
                     except Exception:
                         pass
 
+            elif msg_type == "role_announce":
+                role = msg.get("role", "student")
+                name = msg.get("name", "User")
+                room.client_roles[client_id] = {"role": role, "name": name}
+                if role == "host":
+                    room.host_id = client_id
+                ann_msg = {
+                    "type": "peer_role",
+                    "peer_id": client_id,
+                    "role": role,
+                    "name": name,
+                    "host_id": room.host_id,
+                }
+                for cid, client in list(room.clients.items()):
+                    if cid != client_id:
+                        try:
+                            await client.send_json(ann_msg)
+                        except Exception:
+                            pass
+
+            elif msg_type == "audio_state":
+                msg["peer_id"] = client_id
+                for cid, client in list(room.clients.items()):
+                    if cid != client_id:
+                        try:
+                            await client.send_json(msg)
+                        except Exception:
+                            pass
+
     except WebSocketDisconnect:
         pass
     except Exception as ws_err:
@@ -1213,9 +1260,12 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
         # Cleanup
         if room:
             room.clients.pop(client_id, None)
+            room.client_roles.pop(client_id, None)
+            if room.host_id == client_id:
+                room.host_id = None
             for cid, client in list(room.clients.items()):
                 try:
-                    await client.send_json({"type": "peer_left", "peer_id": client_id})
+                    await client.send_json({"type": "peer_left", "peer_id": client_id, "host_id": room.host_id})
                 except Exception:
                     pass
 

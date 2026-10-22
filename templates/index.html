@@ -155,19 +155,33 @@
                     <span id="room-code-display">Room: ...</span>
                     <span class="text-[10px]">📋</span>
                 </button>
-                <button id="toggle-video-btn" class="p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors" title="Toggle Camera">
-                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                    </svg>
-                </button>
-                <button id="toggle-audio-btn" class="p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors" title="Toggle Microphone">
-                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2">
+                <span id="room-role-badge" class="font-mono text-[10px] sm:text-[11px] px-2 py-1 rounded-lg bg-raised border border-edge text-slate-300 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="room-role-text">Teacher</span>
+                </span>
+                <span id="room-peer-badge" class="font-mono text-[10px] sm:text-[11px] px-2 py-1 rounded-lg bg-raised border border-edge text-slate-400 flex items-center gap-1" title="Connected Peers">
+                    <span>👥</span>
+                    <span id="room-peer-count">1</span>
+                </span>
+                <!-- Host microphone broadcast toggle -->
+                <button id="toggle-audio-btn" class="p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors" title="Toggle Microphone Broadcast">
+                    <svg id="mic-icon-active" viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                         <line x1="12" y1="19" x2="12" y2="23"></line>
                         <line x1="8" y1="23" x2="16" y2="23"></line>
                     </svg>
+                </button>
+                <!-- Student incoming audio mute/unmute toggle -->
+                <button id="toggle-speaker-btn" class="hidden p-2 rounded-lg bg-raised hover:bg-edge text-slate-300 hover:text-white border border-edge transition-colors" title="Mute / Unmute Teacher Audio">
+                    <svg id="speaker-icon" viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                </button>
+                <!-- Autoplay unlock button if browser blocked audio -->
+                <button id="audio-unlock-btn" class="hidden font-mono text-[11px] px-2.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-all animate-pulse flex items-center gap-1" title="Click to hear teacher audio">
+                    <span>🔊 Click to Listen</span>
                 </button>
                 <button id="leave-class-btn"
                         class="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 text-xs font-semibold transition-all border border-red-500/30 flex items-center gap-1">
@@ -1224,11 +1238,11 @@
                 <div class="text-center space-y-2">
                     <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent/15 border border-accent/30 text-accent text-xs font-mono font-medium shadow-sm">
                         <span class="w-2 h-2 rounded-full bg-accent animate-ping"></span>
-                        <span>Multiplayer Online Classroom & Video Hub</span>
+                        <span>Live Audio Classroom & Collaboration Hub</span>
                     </div>
-                    <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight">Interactive Live Meetings & Classrooms</h1>
+                    <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight">Interactive Live Audio Classrooms</h1>
                     <p class="text-xs md:text-sm text-slate-400 max-w-xl mx-auto">
-                        Create shared virtual classes or enter with a 6-digit room code. Synchronizes live video cameras, AI whiteboard diagrams, and speech translation in real-time.
+                        Connect teacher and students in real time. Streams live microphone audio directly from the host room to student rooms, paired with real-time AI diagrams and speech translation.
                     </p>
                 </div>
 
@@ -1265,12 +1279,12 @@
                                 <div class="w-12 h-12 rounded-2xl bg-accent/15 border border-accent/30 text-accent flex items-center justify-center text-2xl shadow-inner">
                                     🔑
                                 </div>
-                                <span class="text-[10px] font-mono px-2.5 py-1 rounded-full bg-raised border border-edge text-slate-400">STUDENT / ATTENDEE</span>
+                                <span class="text-[10px] font-mono px-2.5 py-1 rounded-full bg-raised border border-edge text-emerald-400 font-semibold">STUDENT / LISTENER</span>
                             </div>
 
                             <div>
                                 <h2 class="text-lg font-bold text-white mb-1">Join an Online Class</h2>
-                                <p class="text-xs text-slate-400">Enter the 6-character room code provided by your teacher or peer.</p>
+                                <p class="text-xs text-slate-400">Enter the 6-character room code to join and listen to the teacher's live audio broadcast.</p>
                             </div>
 
                             <div class="space-y-3 pt-2">
@@ -1290,7 +1304,7 @@
 
                         <div class="pt-6">
                             <button id="hub-join-btn" class="w-full py-3.5 rounded-2xl bg-accent hover:opacity-90 text-white font-semibold text-sm shadow-lg shadow-accent/25 transition-all flex items-center justify-center gap-2">
-                                <span>🚀 Join Classroom Now</span>
+                                <span>🎧 Join Classroom (Listen Live)</span>
                             </button>
                         </div>
                     </div>
@@ -1302,12 +1316,12 @@
                                 <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-accent/20 border border-accent/40 text-accent flex items-center justify-center text-2xl shadow-inner">
                                     ➕
                                 </div>
-                                <span class="text-[10px] font-mono px-2.5 py-1 rounded-full bg-raised border border-edge text-slate-400">TEACHER / HOST</span>
+                                <span class="text-[10px] font-mono px-2.5 py-1 rounded-full bg-raised border border-edge text-accent font-semibold">TEACHER / BROADCASTER</span>
                             </div>
 
                             <div>
                                 <h2 class="text-lg font-bold text-white mb-1">Host a New Classroom</h2>
-                                <p class="text-xs text-slate-400">Launch an instant collaborative classroom and share the room code with students.</p>
+                                <p class="text-xs text-slate-400">Launch an instant audio room. Your microphone audio will stream live to all students who join.</p>
                             </div>
 
                             <div class="space-y-3 pt-2">
@@ -1327,7 +1341,7 @@
 
                         <div class="pt-6">
                             <button id="hub-create-btn" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-accent to-accent-dim hover:opacity-95 text-white font-semibold text-sm shadow-lg shadow-accent/25 transition-all flex items-center justify-center gap-2">
-                                <span>✨ Create & Launch Room</span>
+                                <span>🎙️ Create & Broadcast Audio</span>
                             </button>
                         </div>
                     </div>
@@ -1377,29 +1391,54 @@
     </main>
 
     <!-- ========================================================================= -->
-    <!-- FLOATING & DRAGGABLE MULTIPLAYER VIDEO DECK                               -->
+    <!-- LIVE AUDIO STREAMING BAR & HIDDEN AUDIO SINK                              -->
     <!-- ========================================================================= -->
-    <div id="video-grid" class="hidden fixed z-50 p-2 rounded-2xl bg-panel/95 backdrop-blur-xl border border-edge/80 shadow-2xl flex flex-col gap-1.5 select-none max-w-[92vw] sm:max-w-xl transition-shadow"
-         style="top: 104px; right: 24px;">
-        
-        <!-- Drag Handle Header -->
-        <div id="video-deck-drag-handle" class="flex items-center justify-between px-2.5 py-1.5 bg-ink/80 rounded-xl border border-edge/60 cursor-grab active:cursor-grabbing hover:border-accent/40 text-slate-400 hover:text-slate-200 transition-all">
-            <div class="flex items-center gap-2 text-[11px] font-mono font-medium select-none pointer-events-none">
-                <span class="text-xs text-accent font-bold">⠿</span>
-                <span class="text-white font-semibold">Live Video Deck</span>
-                <span class="text-[10px] text-slate-500 hidden sm:inline">(Drag anywhere)</span>
+    <!-- Audio element for remote teacher stream -->
+    <audio id="remote-class-audio" autoplay playsinline class="hidden"></audio>
+
+    <!-- Floating Audio Status Dock (displayed while in an active room) -->
+    <div id="audio-room-dock" class="hidden fixed bottom-16 lg:bottom-6 right-4 z-40 p-3 sm:p-4 rounded-2xl bg-panel/95 backdrop-blur-xl border border-edge/90 shadow-2xl max-w-sm w-[calc(100vw-2rem)] sm:w-80 transition-all">
+        <div class="flex items-center justify-between gap-3 mb-2.5">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div id="dock-role-icon" class="w-8 h-8 rounded-xl bg-accent/20 text-accent flex items-center justify-center text-base font-bold shrink-0">
+                    🎙️
+                </div>
+                <div class="min-w-0">
+                    <div id="dock-role-title" class="text-xs font-bold text-white truncate">Teacher Audio Stream</div>
+                    <div id="dock-room-code" class="text-[10px] font-mono text-slate-400 truncate">Room: ...</div>
+                </div>
             </div>
-            <div class="flex items-center gap-1">
-                <button id="minimize-video-deck-btn" title="Minimize / Expand Video Deck" class="p-1 rounded-lg hover:bg-raised text-slate-400 hover:text-white transition-colors">
-                    <svg id="deck-min-icon" viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                </button>
-            </div>
+            <span id="dock-status-badge" class="font-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>LIVE</span>
+            </span>
         </div>
 
-        <!-- Video Streams Strip Container -->
-        <div id="video-deck-streams" class="flex items-center gap-2 overflow-x-auto overflow-y-hidden slim-scroll py-0.5">
+        <!-- Audio Activity Wave Visualizer -->
+        <div class="flex items-center justify-between gap-2 bg-ink/80 rounded-xl px-3 py-2 border border-edge/60">
+            <div class="flex items-center gap-1 h-4" id="dock-waves-container">
+                <span class="audio-wave-bar w-1 rounded-full bg-emerald-400 transition-all duration-75" style="height: 4px;"></span>
+                <span class="audio-wave-bar w-1 rounded-full bg-emerald-400 transition-all duration-75" style="height: 10px;"></span>
+                <span class="audio-wave-bar w-1 rounded-full bg-emerald-400 transition-all duration-75" style="height: 14px;"></span>
+                <span class="audio-wave-bar w-1 rounded-full bg-emerald-400 transition-all duration-75" style="height: 8px;"></span>
+                <span class="audio-wave-bar w-1 rounded-full bg-emerald-400 transition-all duration-75" style="height: 5px;"></span>
+            </div>
+            <span id="dock-audio-state-text" class="text-[11px] font-mono text-slate-300 truncate">Broadcasting live...</span>
+        </div>
+
+        <!-- Student Volume Slider (visible for students listening) -->
+        <div id="dock-student-volume-box" class="hidden mt-2.5 pt-2 border-t border-edge/50 flex items-center gap-2">
+            <span class="text-xs text-slate-400">🔈</span>
+            <input id="dock-volume-slider" type="range" min="0" max="1" step="0.05" value="1"
+                   class="w-full accent-accent h-1.5 bg-ink rounded-lg cursor-pointer" title="Adjust Teacher Audio Volume">
+            <span class="text-xs text-slate-400">🔊</span>
+        </div>
+
+        <!-- Autoplay Unlock Prompt Banner (shown if browser blocked audio autoplay) -->
+        <div id="dock-unlock-prompt" class="hidden mt-2.5 pt-2 border-t border-edge/50 text-center">
+            <button id="dock-unlock-btn" class="w-full py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5">
+                <span>🔊 Click to Hear Teacher Audio</span>
+            </button>
         </div>
     </div>
 
