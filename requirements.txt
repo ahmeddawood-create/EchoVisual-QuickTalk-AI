@@ -1,10 +1,19 @@
+# FastAPI web framework and ASGI server
 fastapi==0.115.6
 uvicorn==0.34.0
-google-generativeai==0.8.3
-python-dotenv==1.0.1
+python-multipart>=0.0.9
+
+# Data validation & environment configuration
 pydantic==2.10.4
-httpx==0.28.1
-edge-tts>=6.1.10
-websockets>=12.0
+python-dotenv==1.0.1
+
+# AI generation & speech-to-text
+google-generativeai==0.8.3
 groq>=0.11.0
 
+# Neural speech synthesis
+edge-tts>=6.1.10
+
+# Realtime WebSocket communication & HTTP client
+websockets>=12.0
+httpx==0.28.1
