@@ -5,75 +5,48 @@ Kept separate from main.py so routing stays clean (AGENTS.md §4).
 """
 
 DIAGRAM_SYSTEM_INSTRUCTIONS = (
-    "You are an expert classroom accessibility assistant tailored for Pakistani students and educators. "
-    "You convert live teacher transcripts (which may be spoken in English, Roman Urdu like 'aaj hum binary search parhein gy', "
-    "or code-switched bilingual speech) into clear visual concept graph learning aids for deaf/hard-of-hearing students."
+    "Convert classroom transcripts (English, Roman Urdu, or Urdu) into clear, concise visual concept graph study aids."
 )
 
-DIAGRAM_PROMPT_TEMPLATE = """Turn this classroom transcript into a visual concept graph study aid with key summary points.
-NOTE: The speech may contain English, Roman Urdu (Urdu written in Latin script), Urdu script, or mixed bilingual speech. Understand all seamlessly.
+DIAGRAM_PROMPT_TEMPLATE = """Convert this classroom transcript into a visual concept graph with summary points.
+Speech may be in English, Roman Urdu, or bilingual code-switching.
 
 TRANSCRIPT:
 \"\"\"{transcript}\"\"\"
 
-Return ONLY a valid JSON object with these exact keys:
-1. "nodes": an array of concept node objects (maximum 8 nodes), each with:
-   - "id": a unique short alphanumeric identifier (e.g. "photosynthesis", "sunlight", "chloroplast")
-   - "label": a short clear display label (English or Roman Urdu, max 4 words)
-   - "shape": "box" (or "ellipse", "circle", "diamond")
-2. "edges": an array of directed edge connection objects between nodes, each with:
-   - "from": source node id
-   - "to": target node id
-   - "label": short relationship phrase (e.g. "requires", "produces", "converts to")
-3. "summary_bullets": 2 to 3 short plain-language strings summarizing key lecture points.
-4. "key_terms": 2 to 4 important technical or conceptual terms.
-
-If the transcript is too short or unclear, return:
+Return ONLY valid JSON matching this exact structure:
+{{
+  "nodes": [{{"id": "concept_id", "label": "Concept Label", "shape": "box"}}],
+  "edges": [{{"from": "concept_id", "to": "other_id", "label": "relation"}}],
+  "summary_bullets": ["Key lecture point 1", "Key lecture point 2"],
+  "key_terms": ["Term 1", "Term 2"]
+}}
+Guidelines: Max 6-8 nodes. Keep labels concise (max 4 words).
+If transcript is too short or unclear, return:
 {{"nodes": [], "edges": [], "summary_bullets": [], "key_terms": []}}
 """
 
 DIAGRAM_DELTA_SYSTEM_INSTRUCTIONS = (
-    "You are an expert real-time visual diagram engineer for classroom accessibility. "
-    "You receive the current graph state (existing nodes and edges) and newly spoken classroom lecture transcript. "
-    "Your job is to emit incremental visual delta operations (ADD_NODE, UPDATE_NODE, CONNECT, REMOVE) "
-    "to evolve the classroom diagram dynamically without restarting or destroying the existing visual mental model."
+    "Incrementally update classroom visual concept graphs with minimal JSON delta operations."
 )
 
-DIAGRAM_DELTA_PROMPT_TEMPLATE = """You are incrementally updating a live classroom knowledge diagram.
-Speech may be in English, Roman Urdu, or bilingual code-switching.
-
-EXISTING GRAPH STATE:
-```json
+DIAGRAM_DELTA_PROMPT_TEMPLATE = """Update this live graph for newly spoken lecture text (English, Roman Urdu, or Urdu).
+EXISTING GRAPH:
 {existing_graph}
-```
 
-NEW TRANSCRIPT CHUNK / RECENT SPEECH:
+NEW SPEECH:
 \"\"\"{transcript}\"\"\"
 
-Generate ONLY incremental delta actions to evolve the existing diagram to reflect the new lecture concepts.
-Valid Actions:
-1. "ADD_NODE": {{"action": "ADD_NODE", "data": {{"id": "UniqueId", "label": "Short label", "shape": "box"}}}}
-2. "UPDATE_NODE": {{"action": "UPDATE_NODE", "data": {{"id": "ExistingId", "label": "Updated label"}}}}
-3. "CONNECT": {{"action": "CONNECT", "data": {{"from": "SourceId", "to": "TargetId", "relation": "arrow label"}}}}
-4. "REMOVE": {{"action": "REMOVE", "data": {{"id": "NodeIdToRemove"}}}}
-
-Keep the graph concise (maximum 10 total active nodes). Connect newly introduced concepts to existing relevant nodes.
-
-Return ONLY a valid JSON object with this exact structure:
+Generate ONLY incremental delta actions (ADD_NODE, UPDATE_NODE, CONNECT, REMOVE):
 {{
   "deltas": [
-    {{
-      "action": "ADD_NODE",
-      "data": {{
-        "id": "A",
-        "label": "Node Label"
-      }}
-    }}
+    {{"action": "ADD_NODE", "data": {{"id": "NewId", "label": "Short label", "shape": "box"}}}},
+    {{"action": "CONNECT", "data": {{"from": "SrcId", "to": "DstId", "relation": "relationship"}}}}
   ],
   "summary_bullets": ["1-2 concise summary points for new concepts"],
-  "key_terms": ["1-3 newly introduced technical terms"]
+  "key_terms": ["1-2 new terms"]
 }}
-
+Keep graph concise (max 10 total active nodes).
 If no new meaningful concepts are introduced, return:
 {{"deltas": [], "summary_bullets": [], "key_terms": []}}
 """
@@ -232,17 +205,28 @@ If the lecture content and context are insufficient, return:
 """
 
 SHORTHAND_SYSTEM_INSTRUCTIONS = (
-    "You are a speech-refinement assistant for students who communicate in shorthand, slang, English, "
+    "You are a classroom speech-refinement assistant for students who communicate in shorthand, slang, English, "
     "or Roman Urdu (e.g. 'sir q abt gravity?? fast smjhaen', 'ye repeat kr den pls'). "
-    "You expand fragmented notes into articulate, natural spoken sentences suitable for a classroom."
+    "You expand fragmented notes into articulate, natural spoken questions or sentences suitable for speaking aloud to the teacher and class. "
+    "When live classroom lecture context is provided, you use it to intelligently disambiguate references "
+    "(e.g. 'this formula', 'ye concept', 'why minus here?', 'repeat that step') so the spoken question is precise and contextual."
 )
 
 SHORTHAND_PROMPT_TEMPLATE = """Rewrite this student shorthand (which may be in English, Roman Urdu, or fragments)
 as ONE clear, {tone}, grammatically correct sentence suitable for speaking aloud to the teacher and class.
-Preserve the exact meaning and intent. Output only the sentence, nothing else.
+Preserve the exact meaning and student intent.
 
-SHORTHAND:
+CLASSROOM LECTURE CONTEXT (Recent Speech, Key Terms & Active Concepts):
+\"\"\"{context}\"\"\"
+
+STUDENT SHORTHAND:
 \"\"\"{shorthand}\"\"\"
+
+Instructions:
+1. If the student's shorthand refers to ongoing lecture concepts (e.g., "this formula", "ye step", "repeat please", "why negative?", "explain that concept"), use the CLASSROOM LECTURE CONTEXT to resolve what they are referring to clearly and naturally.
+2. If the shorthand is self-contained or the context is empty/unrelated, refine it faithfully without inventing unsolicited facts.
+3. Match the requested tone: {tone}.
+4. Output ONLY the single refined spoken sentence, nothing else (no quotes, no preamble).
 """
 
 CHAT_SYSTEM_INSTRUCTIONS = (

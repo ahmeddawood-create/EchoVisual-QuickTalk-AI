@@ -85,8 +85,8 @@ let autoDiagramInterval = null;
 let autoDiagramTimer = null;
 let lastAutoDiagramTranscript = '';
 let lastAutoDiagramAt = 0;
-const AUTO_DIAGRAM_INTERVAL_MS = 5000;
-const AUTO_DIAGRAM_DEBOUNCE_MS = 1500;
+const AUTO_DIAGRAM_INTERVAL_MS = 4000;
+const AUTO_DIAGRAM_DEBOUNCE_MS = 800;
 const AUTO_DIAGRAM_MIN_NEW_CHARS = 20;
 
 // Rate-limited API Queue State
@@ -307,9 +307,10 @@ function handleWsEvent(msg) {
         case 'tts_end':
             if (msg.refined_text) {
                 setRefinePreview(msg.refined_text);
-                logSpoken(msg.refined_text);
+                const ctxInfo = getActiveLectureContext();
+                logSpoken(msg.refined_text, '', ctxInfo.primaryTopic);
                 if (!streamAudioPlayer.audioCtx && 'speechSynthesis' in window) {
-                    speak(msg.refined_text);
+                    speak(msg.refined_text, '', ctxInfo.primaryTopic);
                 }
             }
             toggleAudioVisualizer(false);
@@ -320,6 +321,7 @@ function handleWsEvent(msg) {
             interimBuffer = '';
             renderCaption('');
             renderDiagramDirect({ nodes: [], edges: [] }, [], []);
+            updateQuickTalkLectureContextUI();
             break;
 
         case 'peer_joined':
@@ -574,6 +576,7 @@ function navigateToPage(pageName) {
     } else if (pageName === 'expression') {
         const input = $('shorthand-input');
         if (input) input.focus();
+        updateQuickTalkLectureContextUI();
     } else if (pageName === 'tutor') {
         const input = $('chat-input');
         if (input) input.focus();
@@ -1327,8 +1330,10 @@ async function renderDiagram(graphData, recordHistory = true, customSummary = nu
             if ($('mindmap-badge')) $('mindmap-badge').textContent = String((snapshot.mindmap?.nodes || []).length);
             if ($('nav-study-badge')) $('nav-study-badge').textContent = String(sessionDiagrams.length);
             updateTimelineControls();
+        updateQuickTalkLectureContextUI();
         } else {
             updateTimelineControls();
+        updateQuickTalkLectureContextUI();
         }
 
         clearError();
@@ -2955,8 +2960,9 @@ function resetClassroomForNewClass() {
     if ($('flashcard-badge')) $('flashcard-badge').textContent = '0';
     if ($('nav-study-badge')) $('nav-study-badge').textContent = '0';
 
-    // 6. Clear QuickTalk Spoken Log
+    // 6. Clear QuickTalk Spoken Log & Context
     renderSpokenLog();
+    updateQuickTalkLectureContextUI();
 
     // 7. Update Dashboard Stats & clean last session
     refreshStorageDashboard();
@@ -3896,7 +3902,6 @@ function initToneBadges() {
 
 function initSoundboardTabs() {
     const tabs = $$('.soundboard-tab');
-    const presetBtns = $$('#soundboard-grid .preset-btn');
     tabs.forEach((tab) => {
         tab.addEventListener('click', () => {
             tabs.forEach((t) => {
@@ -3907,7 +3912,7 @@ function initSoundboardTabs() {
             tab.classList.remove('bg-ink', 'text-slate-400', 'border-edge');
 
             const cat = tab.dataset.cat;
-            presetBtns.forEach((btn) => {
+            $$('#soundboard-grid .preset-btn').forEach((btn) => {
                 if (cat === 'all' || btn.dataset.cat === cat) {
                     btn.classList.remove('hidden');
                     btn.classList.add('flex');
@@ -3918,6 +3923,204 @@ function initSoundboardTabs() {
             });
         });
     });
+}
+
+// ------------------------------------------------------------------
+// QuickTalk Lecture Context Awareness Engine
+// ------------------------------------------------------------------
+function getActiveLectureContext(maxChars = 1400) {
+    const currentDiag = (currentDiagramIndex >= 0 && sessionDiagrams[currentDiagramIndex])
+        ? sessionDiagrams[currentDiagramIndex]
+        : (sessionDiagrams.length > 0 ? sessionDiagrams[sessionDiagrams.length - 1] : null);
+
+    const recentSpeech = (interimBuffer + ($('caption-interim')?.textContent || '')).slice(-800).trim();
+    const parts = [];
+
+    let keyTerms = [];
+    let concepts = [];
+    let summary = [];
+
+    if (currentDiag) {
+        if (Array.isArray(currentDiag.key_terms) && currentDiag.key_terms.length > 0) {
+            keyTerms = currentDiag.key_terms.filter(Boolean);
+            parts.push(`Key Terms: ${keyTerms.slice(0, 6).join(', ')}`);
+        }
+        const graphNodes = currentDiag.graph_data?.nodes || currentDiag.nodes || [];
+        if (Array.isArray(graphNodes) && graphNodes.length > 0) {
+            concepts = graphNodes.map(n => n.label || n.id).filter(Boolean).slice(0, 8);
+            if (concepts.length > 0) {
+                parts.push(`Active Diagram Concepts: ${concepts.join(', ')}`);
+            }
+        }
+        if (Array.isArray(currentDiag.summary_bullets) && currentDiag.summary_bullets.length > 0) {
+            summary = currentDiag.summary_bullets.slice(0, 3).filter(Boolean);
+            parts.push(`Summary Takeaways: ${summary.join(' | ')}`);
+        }
+    } else if (allSessionKeyTerms.size > 0) {
+        keyTerms = Array.from(allSessionKeyTerms).filter(Boolean).slice(-6);
+        parts.push(`Session Key Terms: ${keyTerms.join(', ')}`);
+    }
+
+    if (recentSpeech) {
+        parts.push(`Recent Spoken Lecture Speech:\n${recentSpeech}`);
+    }
+
+    const primaryTopic = concepts[0] || keyTerms[0] || (recentSpeech ? 'Live Classroom' : '');
+    const contextString = parts.join('\n\n').slice(0, maxChars);
+    const hasContext = parts.length > 0;
+
+    return {
+        contextString,
+        hasContext,
+        keyTerms,
+        concepts,
+        summary,
+        recentSpeech,
+        primaryTopic,
+    };
+}
+
+function updateSoundboardLectureTopics(concepts = [], keyTerms = []) {
+    const grid = $('soundboard-grid');
+    if (!grid) return;
+
+    grid.querySelectorAll('.dynamic-lecture-preset').forEach((el) => el.remove());
+
+    const combined = [...concepts, ...keyTerms].filter((v, idx, arr) => v && arr.indexOf(v) === idx).slice(0, 6);
+    if (!combined.length) return;
+
+    const toneSelect = $('shorthand-tone-select');
+    combined.forEach((item) => {
+        const btn = document.createElement('button');
+        btn.className = 'preset-btn dynamic-lecture-preset px-3 py-2 rounded-lg bg-ink hover:bg-raised hover:border-accent text-xs text-slate-200 border border-edge transition-all shadow-sm flex items-center gap-1.5 group';
+        btn.dataset.cat = 'lecture';
+        btn.dataset.text = `Sir, could you please clarify the concept of ${item}?`;
+        btn.innerHTML = `
+            <span>🎯 Clarify ${escapeHtml(item)}</span>
+            <span class="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">🔊</span>
+        `;
+        btn.addEventListener('click', () => {
+            const tone = toneSelect ? toneSelect.value : 'polite';
+            enqueueApiTask('speech', { shorthand: btn.dataset.text, tone });
+        });
+        grid.appendChild(btn);
+    });
+
+    const activeTab = document.querySelector('.soundboard-tab.active');
+    const activeCat = activeTab ? activeTab.dataset.cat : 'all';
+    grid.querySelectorAll('.preset-btn').forEach((b) => {
+        if (activeCat === 'all' || b.dataset.cat === activeCat) {
+            b.classList.remove('hidden');
+            b.classList.add('flex');
+        } else {
+            b.classList.add('hidden');
+            b.classList.remove('flex');
+        }
+    });
+}
+
+function updateQuickTalkLectureContextUI() {
+    const ctxInfo = getActiveLectureContext();
+    const indicator = $('quicktalk-context-indicator');
+    const badge = $('quicktalk-context-badge');
+    const summaryEl = $('quicktalk-context-summary');
+    const smartChipsEl = $('quicktalk-smart-chips');
+    const chipsCountEl = $('quicktalk-chips-count');
+
+    if (indicator && summaryEl) {
+        if (ctxInfo.hasContext) {
+            indicator.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse';
+            if (badge) badge.classList.remove('hidden');
+            const topicLabel = ctxInfo.primaryTopic || 'Live Lecture';
+            const count = (ctxInfo.concepts.length || ctxInfo.keyTerms.length || 0);
+            summaryEl.textContent = `Active Topic: ${topicLabel}${count > 1 ? ` · ${count} concepts active` : ''}`;
+            summaryEl.title = ctxInfo.contextString;
+        } else {
+            indicator.className = 'w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0';
+            if (badge) badge.classList.add('hidden');
+            summaryEl.textContent = 'Waiting for lecture speech or concepts...';
+            summaryEl.title = 'No active lecture context detected yet';
+        }
+    }
+
+    if (smartChipsEl) {
+        const pool = [...ctxInfo.concepts, ...ctxInfo.keyTerms].filter((v, idx, arr) => v && arr.indexOf(v) === idx);
+        if (pool.length > 0) {
+            const suggestions = [];
+            if (pool[0]) {
+                suggestions.push({
+                    label: `Clarify ${pool[0]}`,
+                    shorthand: `sir clarify ${pool[0]} please`,
+                    icon: '❓',
+                });
+                suggestions.push({
+                    label: `Example of ${pool[0]}`,
+                    shorthand: `real life example of ${pool[0]} please`,
+                    icon: '💡',
+                });
+            }
+            if (pool[1]) {
+                suggestions.push({
+                    label: `Repeat ${pool[1]}`,
+                    shorthand: `please repeat explanation of ${pool[1]}`,
+                    icon: '🔄',
+                });
+                if (pool[0]) {
+                    suggestions.push({
+                        label: `${pool[0]} vs ${pool[1]}?`,
+                        shorthand: `difference between ${pool[0]} and ${pool[1]}?`,
+                        icon: '⚖️',
+                    });
+                }
+            }
+            if (pool[2]) {
+                suggestions.push({
+                    label: `Why ${pool[2]}?`,
+                    shorthand: `why is ${pool[2]} important here?`,
+                    icon: '❓',
+                });
+            }
+            if (pool[0]) {
+                suggestions.push({
+                    label: `${pool[0]} dubara samjhaen`,
+                    shorthand: `sir ${pool[0]} samajh nahi aya, dubara explain kar dein`,
+                    icon: '🇵🇰',
+                });
+            }
+
+            if (chipsCountEl) {
+                chipsCountEl.textContent = `${suggestions.length} questions`;
+                chipsCountEl.classList.remove('hidden');
+            }
+
+            smartChipsEl.innerHTML = suggestions.map((s) => `
+                <button type="button" class="quicktalk-smart-chip px-2.5 py-1 rounded-md bg-ink hover:bg-raised text-slate-200 border border-edge hover:border-accent text-xs transition-all flex items-center gap-1.5 shadow-sm group"
+                        data-shorthand="${escapeHtml(s.shorthand)}" title="Click to insert: '${escapeHtml(s.shorthand)}'">
+                    <span class="text-[11px]">${s.icon}</span>
+                    <span class="font-medium group-hover:text-accent transition-colors">${escapeHtml(s.label)}</span>
+                </button>
+            `).join('');
+
+            smartChipsEl.querySelectorAll('.quicktalk-smart-chip').forEach((chip) => {
+                chip.addEventListener('click', () => {
+                    const input = $('shorthand-input');
+                    if (input) {
+                        input.value = chip.dataset.shorthand || '';
+                        input.focus();
+                        const count = $('char-count');
+                        if (count) count.textContent = `${input.value.length}/1000`;
+                        setRefinePreview(`Selected: "${chip.dataset.shorthand}" · Press Enter to refine & speak`);
+                        showToast(`Inserted question for ${chip.dataset.shorthand.slice(0, 30)}...`);
+                    }
+                });
+            });
+        } else {
+            if (chipsCountEl) chipsCountEl.classList.add('hidden');
+            smartChipsEl.innerHTML = '<span class="text-[11px] text-slate-500 italic py-0.5">Start lecture speech or generate diagrams to see smart contextual questions.</span>';
+        }
+    }
+
+    updateSoundboardLectureTopics(ctxInfo.concepts, ctxInfo.keyTerms);
 }
 
 function initStudentExpressionBoard() {
@@ -4014,6 +4217,15 @@ function initStudentExpressionBoard() {
             showToast('Spoken questions history cleared.');
         });
     }
+
+    const contextToggle = $('quicktalk-context-toggle');
+    if (contextToggle) {
+        contextToggle.addEventListener('change', () => {
+            showToast(contextToggle.checked ? '🎯 QuickTalk: Lecture context enabled' : '⚪ QuickTalk: Pure shorthand mode');
+            updateQuickTalkLectureContextUI();
+        });
+    }
+    updateQuickTalkLectureContextUI();
 }
 
 async function speakWithEdgeTts(text) {
@@ -4054,6 +4266,11 @@ async function refineAndSpeak(payload) {
     const tone = (typeof payload === 'object' && payload.tone) ? payload.tone : 'polite';
     if (!rawShorthand.trim()) return;
 
+    const contextToggle = $('quicktalk-context-toggle');
+    const isContextEnabled = !contextToggle || contextToggle.checked;
+    const ctxInfo = isContextEnabled ? getActiveLectureContext() : { hasContext: false, contextString: '', primaryTopic: '' };
+    const lectureCtx = ctxInfo.contextString;
+
     // Use full-duplex WebSocket Neural TTS streaming if connected (<500ms latency)
     if (wsConnected) {
         streamAudioPlayer.ensureContext();
@@ -4062,8 +4279,9 @@ async function refineAndSpeak(payload) {
             type: 'shorthand_speak',
             shorthand: rawShorthand,
             tone: tone,
+            context: lectureCtx,
         });
-        setRefinePreview('⚡ Refining with Gemini · streaming neural voice...');
+        setRefinePreview(isContextEnabled && ctxInfo.hasContext ? '⚡ Refining with lecture context · streaming neural voice...' : '⚡ Refining with Gemini · streaming neural voice...');
         showToast('⚡ QuickTalk Neural TTS streaming...');
         return;
     }
@@ -4072,14 +4290,14 @@ async function refineAndSpeak(payload) {
     const speakBtn = $('speak-btn');
     if (speakBtn) speakBtn.disabled = true;
     setStatus('refining', 'bg-accent/15 text-accent border-accent/30');
-    setRefinePreview('✨ Refining with Gemini...');
+    setRefinePreview(isContextEnabled && ctxInfo.hasContext ? '✨ Refining with lecture context...' : '✨ Refining with Gemini...');
 
     let refinedText = rawShorthand;
     try {
         const res = await fetch(`${API_BASE}/api/shorthand-to-speech`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shorthand: rawShorthand, tone }),
+            body: JSON.stringify({ shorthand: rawShorthand, tone, context: lectureCtx }),
         });
         if (res.ok) {
             const data = await res.json();
@@ -4102,13 +4320,13 @@ async function refineAndSpeak(payload) {
 
     if (await speakWithEdgeTts(refinedText)) {
         showToast('🔊 Speaking with Edge neural voice');
-        logSpoken(refinedText, rawShorthand);
+        logSpoken(refinedText, rawShorthand, ctxInfo.primaryTopic);
     } else {
-        speak(refinedText, rawShorthand);
+        speak(refinedText, rawShorthand, ctxInfo.primaryTopic);
     }
 }
 
-function speak(text, rawShorthand = '') {
+function speak(text, rawShorthand = '', contextTag = '') {
     if (!('speechSynthesis' in window)) {
         console.error('speechSynthesis not supported');
         showToast('Speech synthesis not supported on this device');
@@ -4127,11 +4345,11 @@ function speak(text, rawShorthand = '') {
     }
 
     window.speechSynthesis.speak(utterance);
-    logSpoken(text, rawShorthand);
+    logSpoken(text, rawShorthand, contextTag);
 }
 
-function logSpoken(text, rawShorthand = '') {
-    const item = { time: stamp(), text, raw: rawShorthand || text };
+function logSpoken(text, rawShorthand = '', contextTag = '') {
+    const item = { time: stamp(), text, raw: rawShorthand || text, contextTag };
     spokenHistory.unshift(item);
     hasUnsavedSessionChanges = true;
     renderSpokenLog();
@@ -4151,8 +4369,9 @@ function renderSpokenLog() {
         <li class="rise-in p-3 rounded-xl bg-ink border border-edge flex items-center justify-between gap-3 text-xs">
             <div class="min-w-0 flex-1">
                 <div class="text-slate-200 font-semibold text-sm leading-snug">${escapeHtml(item.text)}</div>
-                <div class="text-[11px] font-mono text-slate-500 flex items-center gap-2 mt-1">
+                <div class="text-[11px] font-mono text-slate-500 flex flex-wrap items-center gap-2 mt-1">
                     <span>${escapeHtml(item.time)}</span>
+                    ${item.contextTag ? `<span class="px-1.5 py-0.2 rounded bg-accent-tint text-accent border border-accent-soft text-[10px] font-semibold">Topic: ${escapeHtml(item.contextTag)}</span>` : ''}
                     ${item.raw && item.raw !== item.text ? `<span class="truncate text-slate-600">‹ ${escapeHtml(item.raw)}</span>` : ''}
                 </div>
             </div>
@@ -4743,6 +4962,7 @@ function restoreSession(session) {
         displayDiagramSnapshot(sessionDiagrams.length - 1);
     } else {
         updateTimelineControls();
+        updateQuickTalkLectureContextUI();
     }
 
     refreshStorageDashboard();

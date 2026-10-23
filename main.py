@@ -68,8 +68,8 @@ MAX_CHAT_CONTEXT_CHARS = 4000
 # Per-pipeline output caps. Diagrams stay tight for speed, while quiz/chat/
 # translate need room so responses never truncate mid-JSON or mid-sentence
 # (a truncated JSON object fails Pydantic validation and surfaces as a 502).
-MAX_TOKENS_DIAGRAM = 600
-MAX_TOKENS_DELTA = 400
+MAX_TOKENS_DIAGRAM = 1000
+MAX_TOKENS_DELTA = 700
 MAX_TOKENS_NOTES = 900
 MAX_TOKENS_QUIZ = 1400
 MAX_TOKENS_FLASHCARDS = 900
@@ -189,6 +189,7 @@ class DiagramOutput(BaseModel):
 class ShorthandInput(BaseModel):
     shorthand: str = Field(..., min_length=1, max_length=MAX_SHORTHAND_CHARS)
     tone: str = Field(default="polite", max_length=50)
+    context: str = Field(default="", max_length=MAX_CHAT_CONTEXT_CHARS)
 
 
 class SpeechOutput(BaseModel):
@@ -290,13 +291,13 @@ def _require_api_key() -> None:
 # Gemini helpers
 # ---------------------------------------------------------------------------
 def _build_model(
-    system: str, response_mime_type: str, max_output_tokens: int = MAX_TOKENS_DIAGRAM
+    system: str, response_mime_type: str, max_output_tokens: int = MAX_TOKENS_DIAGRAM, temperature: float = 0.2
 ) -> genai.GenerativeModel:
     return genai.GenerativeModel(
         MODEL_NAME,
         system_instruction=system,
         generation_config={
-            "temperature": 0.4,
+            "temperature": temperature,
             "response_mime_type": response_mime_type,
             # Hard cap on generation length: a runaway response is the
             # biggest latency risk. Callers size the cap per pipeline.
@@ -324,12 +325,13 @@ async def _call_gemini(
     system: str,
     response_mime: str,
     max_output_tokens: int = MAX_TOKENS_DIAGRAM,
+    temperature: float = 0.2,
 ) -> str:
     """Run the (synchronous) SDK call in a worker thread so the event loop
     stays free for other requests."""
 
     def _sync_call() -> str:
-        model = _build_model(system, response_mime, max_output_tokens)
+        model = _build_model(system, response_mime, max_output_tokens, temperature)
         response = model.generate_content(prompt)
         text = response.text
         if not text or not text.strip():
@@ -847,8 +849,9 @@ async def shorthand_to_speech(payload: ShorthandInput) -> SpeechOutput:
     _check_rate_limit()
 
     tone_desc = payload.tone.strip() if payload.tone else "polite"
+    context = payload.context.strip() if payload.context else "No active lecture context available."
     prompt = prompts.SHORTHAND_PROMPT_TEMPLATE.format(
-        tone=tone_desc, shorthand=payload.shorthand
+        tone=tone_desc, shorthand=payload.shorthand, context=context
     )
     try:
         text = await _call_gemini(
@@ -1173,16 +1176,36 @@ async def websocket_live_session(websocket: WebSocket, room_id: str, client_id: 
             elif msg_type == "shorthand_speak":
                 shorthand_text = msg.get("shorthand", "").strip()
                 tone = msg.get("tone", "polite")
+                client_context = (msg.get("context") or "").strip()
                 if shorthand_text:
                     refined_text = shorthand_text
                     if API_KEY:
                         try:
                             tone_desc = tone if tone else "polite"
+                            lecture_context = client_context
+                            if not lecture_context:
+                                parts = []
+                                if room.graph_state.key_terms:
+                                    parts.append(f"Lecture Key Terms: {', '.join(room.graph_state.key_terms)}")
+                                if room.graph_state.summary_bullets:
+                                    parts.append(f"Summary Points: {' | '.join(room.graph_state.summary_bullets)}")
+                                node_labels = [
+                                    n.get("label", "")
+                                    for n in room.graph_state.nodes.values()
+                                    if isinstance(n, dict) and n.get("label")
+                                ]
+                                if node_labels:
+                                    parts.append(f"Active Diagram Concepts: {', '.join(node_labels[:8])}")
+                                speech_slice = room.rolling_transcript[-1000:].strip()
+                                if speech_slice:
+                                    parts.append(f"Recent Teacher Speech:\n{speech_slice}")
+                                lecture_context = "\n".join(parts) if parts else "No recent classroom context."
+
                             prompt = prompts.SHORTHAND_PROMPT_TEMPLATE.format(
-                                tone=tone_desc, shorthand=shorthand_text
+                                tone=tone_desc, shorthand=shorthand_text, context=lecture_context
                             )
                             raw_ref = await _call_gemini(
-                                prompt, prompts.SHORTHAND_SYSTEM_INSTRUCTIONS, "text/plain"
+                                prompt, prompts.SHORTHAND_SYSTEM_INSTRUCTIONS, "text/plain", MAX_TOKENS_SHORTHAND
                             )
                             refined_text = (
                                 raw_ref.strip().strip('"').strip("'").strip() or shorthand_text

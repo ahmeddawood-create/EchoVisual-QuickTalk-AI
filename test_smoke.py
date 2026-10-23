@@ -94,6 +94,8 @@ async def fake_call_gemini(prompt, system, response_mime, max_output_tokens=600)
         return "Photosynthesis is the process by which plants turn sunlight into energy."
     if "translator" in system.lower():
         return "پودے سورج کی روشنی استعمال کر کے خوراک بناتے ہیں۔"
+    if "photosynthesis" in prompt.lower():
+        return "Could you please re-explain the light-dependent reactions in photosynthesis?"
     return "Could you please repeat the last point?"
 
 
@@ -324,6 +326,22 @@ class TestShorthandToSpeech(unittest.TestCase):
         res = client.post("/api/shorthand-to-speech", json={"shorthand": ""})
         self.assertEqual(res.status_code, 422)
 
+    def test_shorthand_with_lecture_context(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini):
+            res = client.post(
+                "/api/shorthand-to-speech",
+                json={
+                    "shorthand": "repeat light reaction pls",
+                    "tone": "polite academic clarification",
+                    "context": "Active Topic: Photosynthesis and Chloroplast structure",
+                },
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(
+            res.json()["refined_text"],
+            "Could you please re-explain the light-dependent reactions in photosynthesis?",
+        )
+
 
 class TestChatAssistant(unittest.TestCase):
     def setUp(self):
@@ -517,6 +535,21 @@ class TestWebSocketLiveSession(unittest.TestCase):
                         continue
                 self.assertIsNotNone(last_msg)
                 self.assertEqual(last_msg["type"], "tts_end")
+
+    def test_websocket_shorthand_speak_event_with_context(self):
+        with patch.object(main, "_call_gemini", fake_call_gemini), \
+             patch.object(main, "generate_edge_tts_stream", fake_edge_tts_stream):
+            with client.websocket_connect(self.ws_url) as ws:
+                ws.receive_json()  # Handshake
+                ws.send_json({
+                    "type": "shorthand_speak",
+                    "shorthand": "repeat light reaction part",
+                    "tone": "polite",
+                    "context": "Photosynthesis and light reaction concepts",
+                })
+                resp = ws.receive_json()
+                self.assertEqual(resp["type"], "tts_start")
+                self.assertIn("photosynthesis", resp["refined_text"].lower())
 
 
 class TestTextToSpeechEndpoint(unittest.TestCase):

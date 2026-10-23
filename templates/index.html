@@ -649,6 +649,38 @@
                         <span id="voice-engine-badge" class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-raised text-slate-400 border border-edge">Neural TTS Ready</span>
                     </div>
 
+                    <!-- Live Lecture Context Bar -->
+                    <div id="quicktalk-context-bar" class="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-ink border border-edge text-xs shrink-0">
+                        <div class="flex items-center gap-2 min-w-0 flex-1">
+                            <span id="quicktalk-context-indicator" class="w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0 transition-colors"></span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold shrink-0">Lecture Context</span>
+                                    <span id="quicktalk-context-badge" class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-accent-tint text-accent border border-accent-soft hidden font-semibold">LIVE</span>
+                                </div>
+                                <div id="quicktalk-context-summary" class="text-xs text-slate-300 truncate" title="Lecture context used to resolve questions">Waiting for lecture speech or concepts...</div>
+                            </div>
+                        </div>
+                        <label class="flex items-center gap-1.5 text-[11px] font-mono text-slate-300 cursor-pointer select-none shrink-0 bg-raised px-2.5 py-1 rounded-md border border-edge hover:border-accent transition-colors" title="When enabled, QuickTalk disambiguates questions with current lecture topics">
+                            <input id="quicktalk-context-toggle" type="checkbox" checked class="rounded accent-accent cursor-pointer" />
+                            <span class="hidden sm:inline">Context-Aware</span>
+                        </label>
+                    </div>
+
+                    <!-- Dynamic Context-Aware Smart Suggestions -->
+                    <div id="quicktalk-smart-chips-section" class="flex flex-col gap-1.5 shrink-0">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1.5">
+                                <span>⚡ Smart Lecture Questions</span>
+                                <span id="quicktalk-chips-count" class="text-[9px] font-mono text-accent bg-accent-tint px-1.5 py-0.2 rounded hidden">0 available</span>
+                            </span>
+                            <span class="text-[10px] font-mono text-slate-500">1-click to ask</span>
+                        </div>
+                        <div id="quicktalk-smart-chips" class="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto slim-scroll p-0.5">
+                            <span class="text-[11px] text-slate-500 italic py-0.5">Start speech or generate a diagram to see smart lecture questions.</span>
+                        </div>
+                    </div>
+
                     <div class="relative flex-1 min-h-[120px]">
                         <textarea id="shorthand-input" maxlength="1000"
                                   placeholder="Type shorthand notes or Roman Urdu (e.g. 'sir q abt gravity? please explain')&#10;&#10;Press Enter to refine and speak · Shift+Enter for a new line."
@@ -706,6 +738,7 @@
                         <!-- Soundboard Category Filter Chips -->
                         <div class="flex items-center gap-1.5 mb-2.5 overflow-x-auto slim-scroll pb-1 shrink-0">
                             <button class="soundboard-tab active px-2.5 py-1 rounded-md text-[11px] font-semibold bg-raised text-white border border-accent shrink-0" data-cat="all">All</button>
+                            <button class="soundboard-tab px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="lecture">🎯 Lecture Topics</button>
                             <button class="soundboard-tab px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="urdu">🇵🇰 Urdu Class</button>
                             <button class="soundboard-tab px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="question">Questions</button>
                             <button class="soundboard-tab px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-ink hover:bg-raised border border-edge transition-all shrink-0" data-cat="feedback">Feedback</button>
